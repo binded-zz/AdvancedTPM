@@ -48,6 +48,7 @@
 .cb-col-resource { width:110rem; padding:0 4rem; flex-shrink:0; display:flex; align-items:center; }
 .cb-col-profit { width:75rem; padding:0 4rem; flex-shrink:0; display:flex; align-items:center; justify-content:flex-end; white-space:nowrap; }
 .cb-col-tax { width:50rem; padding:0 4rem; flex-shrink:0; display:flex; align-items:center; justify-content:flex-end; white-space:nowrap; font-size:11rem; }
+.cb-col-happiness { width:64rem; padding:0 4rem; flex-shrink:0; display:flex; align-items:center; justify-content:center; white-space:nowrap; }
 .cb-col-tier { width:80rem; padding:0 4rem; flex-shrink:0; text-align:center; }
 .cb-col-level { width:48rem; padding:0 4rem; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
 .cb-level-badge { background:rgba(255,255,255,0.03); border:1rem solid rgba(255,255,255,0.04); padding:2rem 6rem; border-radius:3rem; font-size:10rem; color:rgba(255,255,255,0.75); }

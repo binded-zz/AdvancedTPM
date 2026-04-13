@@ -490,6 +490,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
         <div className="cb-col-tax">
           Tax %
         </div>
+        <div className="cb-col-happiness">
+          Happiness
+        </div>
         <div className="cb-col-tier cb-sortable" onClick={() => handleSort('profitabilityTier')}>
           Status{sortIndicator('profitabilityTier')}
         </div>
@@ -578,6 +581,23 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
                     <span style={{ color: c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)' }}>
                       {`${c.taxRate}\u00a0%`}
                     </span>
+                  </div>
+                  <div className="cb-col-happiness">
+                    {(() => {
+                      const eff = Math.max(0, c.efficiency || 100);
+                      const profitVal = Math.max(-100, Math.min(100, c.profit || 0));
+                      const staffPct = c.maxWorkers > 0 ? Math.round((c.workers / c.maxWorkers) * 100) : 0;
+                      const tax = c.taxRate || 0;
+                      const estimate = (typeof c.happiness === 'number')
+                        ? c.happiness
+                        : Math.max(0, Math.min(100, Math.round(50 + (eff - 100) * 0.2 + profitVal * 0.25 + (staffPct - 75) * 0.3 - Math.max(0, tax - 10) * 0.5)));
+                      const color = estimate >= 75 ? '#8bdb46' : estimate >= 50 ? '#50b8e9' : estimate >= 30 ? '#e88c3a' : '#e05050';
+                      return (
+                        <span style={{ color, fontWeight: 800 }} title={`Estimated company happiness: ${estimate}`}>
+                          {`${estimate}`}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div className="cb-col-tier">
                     <span style={{ color: tierColor }}>
