@@ -1,23 +1,23 @@
 /* == AutoTax Settings Panel — CS2 rem-scaled == */
-.ats-panel { position:absolute; top:40rem; left:8rem; width:380rem; max-height:720rem; background:var(--panelColorNormal, linear-gradient(180deg, rgba(18,28,44,0.99) 0%, rgba(12,20,32,0.99) 100%)); border:1rem solid rgba(74,107,146,0.5); border-radius:var(--panelRadius,4rem); color:var(--textColorDim, #e7edf2); display:flex; flex-direction:column; box-shadow:0 8rem 32rem rgba(0,0,0,0.6); z-index:50; overflow:hidden; }
+.ats-panel { position:absolute; top:40rem; left:8rem; width:380rem; max-height:720rem; background:linear-gradient(180deg, rgba(18,28,44,0.99) 0%, rgba(12,20,32,0.99) 100%); border:1rem solid rgba(74,107,146,0.5); border-radius:4rem; color:#e7edf2; display:flex; flex-direction:column; box-shadow:0 8rem 32rem rgba(0,0,0,0.6); z-index:50; overflow:hidden; }
 
-.ats-header { display:flex; align-items:center; justify-content:space-between; padding:8rem 12rem; background:var(--panelColorDark, linear-gradient(180deg, rgba(25,41,63,1) 0%, rgba(18,30,47,1) 100%)); border-bottom:2rem solid rgba(74,107,146,0.45); cursor:move; user-select:none; }
-.ats-header-title { font-size:13rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5rem; color:var(--accentColorNormal, #59bfff); pointer-events:none; }
-.ats-close-btn { border:1rem solid rgba(124,152,189,0.95) !important; background:var(--panelColorDark, rgba(34,46,62,0.98)) !important; color:var(--textColor, #ffffff) !important; font-size:14rem; font-weight:800; width:24rem; height:24rem; border-radius:var(--panelRadiusInner,2rem); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s; line-height:1; }
-.ats-close-btn:hover { background:rgba(185,52,52,0.95) !important; color:var(--textColor, #fff) !important; }
+.ats-header { display:flex; align-items:center; justify-content:space-between; padding:8rem 12rem; background:linear-gradient(180deg, rgba(25,41,63,1) 0%, rgba(18,30,47,1) 100%); border-bottom:2rem solid rgba(74,107,146,0.45); cursor:move; user-select:none; }
+.ats-header-title { font-size:13rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5rem; color:#59bfff; pointer-events:none; }
+.ats-close-btn { border:1rem solid rgba(124,152,189,0.95) !important; background:rgba(34,46,62,0.98) !important; color:#ffffff !important; font-size:14rem; font-weight:800; width:24rem; height:24rem; border-radius:2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s; line-height:1; }
+.ats-close-btn:hover { background:rgba(185,52,52,0.95) !important; color:#fff !important; }
 
 .ats-body-wrapper { flex:1; display:flex; overflow:hidden; position:relative; }
 .ats-body { flex:1; overflow-y:scroll; overflow-x:hidden; padding:8rem 0; }
 
 .ats-section { padding:0 12rem; margin-bottom:10rem; }
-.ats-section-title { font-size:12rem; font-weight:700; text-transform:uppercase; letter-spacing:0.4rem; color:var(--accentColorNormal, #50b8e9); padding-bottom:6rem; border-bottom:1rem solid rgba(255,255,255,0.1); margin-bottom:8rem; display:flex; align-items:center; justify-content:space-between; }
+.ats-section-title { font-size:12rem; font-weight:700; text-transform:uppercase; letter-spacing:0.4rem; color:#50b8e9; padding-bottom:6rem; border-bottom:1rem solid rgba(255,255,255,0.1); margin-bottom:8rem; display:flex; align-items:center; justify-content:space-between; }
 .ats-resource-count { font-size:11rem; font-weight:500; color:rgba(255,255,255,0.5); text-transform:none; letter-spacing:0; }
 
 /* Slider rows */
 .ats-slider-row { display:flex; align-items:center; margin-bottom:6rem; }
 .ats-slider-label { width:140rem; font-size:12rem; color:rgba(255,255,255,0.8); flex-shrink:0; }
 .ats-slider-track-wrapper { flex:1; margin:0 8rem; }
-.ats-slider-track { position:relative; height:10rem; background-color:rgba(255,255,255,0.15); border-radius:var(--toolbarFieldInnerRadius,5rem); cursor:pointer; }
+.ats-slider-track { position:relative; height:10rem; background-color:rgba(255,255,255,0.15); border-radius:5rem; cursor:pointer; }
 .ats-slider-track-bounds { width:100%; height:100%; display:flex; }
 .ats-slider-range-bounds { position:relative; height:100%; }
 .ats-slider-range { position:absolute; top:0; bottom:0; left:0; right:0; background-color:#50b8e9; border-radius:5rem; }
@@ -57,8 +57,8 @@
 .ats-resource-label { font-size:12rem; color:rgba(255,255,255,0.8); }
 
 /* Checkbox */
-.ats-checkbox { width:14rem; height:14rem; border:2rem solid rgba(124,152,189,0.6); border-radius:var(--toolbarFieldInnerRadius,2rem); margin-right:8rem; flex-shrink:0; position:relative; background:var(--panelColorDark, rgba(15,24,37,0.8)); transition:background-color 0.15s, border-color 0.15s; }
-.ats-checkbox-checked { background:var(--positiveColor, rgba(46,160,67,0.7)); border-color:rgba(86,220,110,0.85); }
+.ats-checkbox { width:14rem; height:14rem; border:2rem solid rgba(124,152,189,0.6); border-radius:2rem; margin-right:8rem; flex-shrink:0; position:relative; background:rgba(15,24,37,0.8); transition:background-color 0.15s, border-color 0.15s; }
+.ats-checkbox-checked { background:rgba(46,160,67,0.7); border-color:rgba(86,220,110,0.85); }
 .ats-checkbox-checked::after { content:''; position:absolute; top:1rem; left:4rem; width:4rem; height:8rem; border:solid #fff; border-width:0 2rem 2rem 0; transform:rotate(45deg); }
 .ats-checkbox-partial { background:rgba(80,150,200,0.5); border-color:rgba(100,170,230,0.7); }
 .ats-checkbox-partial::after { content:''; position:absolute; top:5rem; left:2rem; width:8rem; height:0; border-top:2rem solid #fff; }
@@ -78,8 +78,8 @@
 .ats-range-track-area { flex:1; height:20rem; margin-left:4rem; margin-right:4rem; position:relative; cursor:pointer; }
 .ats-range-track { position:absolute; top:8rem; left:0; right:0; height:4rem; background:rgba(255,255,255,0.1); border-radius:2rem; }
 .ats-range-fill { position:absolute; top:8rem; height:4rem; background:linear-gradient(90deg, #e88c3a, #8bdb46); border-radius:2rem; }
-.ats-range-thumb { position:absolute; top:4rem; width:12rem; height:12rem; background:var(--textColorDim, #e7edf2); border:2rem solid var(--accentColorNormal, rgba(80,184,233,0.8)); border-radius:50%; transform:translateX(-6rem); cursor:grab; z-index:1; }
-.ats-range-thumb:hover { background:var(--accentColorNormal, #50b8e9); border-color:var(--accentColorNormal, #50b8e9); }
+.ats-range-thumb { position:absolute; top:4rem; width:12rem; height:12rem; background:#e7edf2; border:2rem solid rgba(80,184,233,0.8); border-radius:50%; transform:translateX(-6rem); cursor:grab; z-index:1; }
+.ats-range-thumb:hover { background:#50b8e9; border-color:#50b8e9; }
 .ats-range-reset { margin-left:4rem; padding:2rem 6rem; font-size:9rem; font-weight:600; color:rgba(255,255,255,0.45); background:transparent; border:1rem solid rgba(255,255,255,0.15); border-radius:3rem; cursor:pointer; flex-shrink:0; }
 .ats-range-reset:hover { color:rgba(255,255,255,0.8); border-color:rgba(255,255,255,0.3); }
 
@@ -91,8 +91,8 @@
 .ats-btn-close:hover { background:rgba(40,55,75,0.98) !important; color:#ffffff !important; }
 
 /* Info icon — ? badge next to slider labels */
-.ats-info-icon { display:flex; align-items:center; justify-content:center; width:14rem; height:14rem; margin-left:5rem; font-size:10rem; font-weight:700; color:var(--accentColorNormal, rgba(80,184,233,0.85)); background:rgba(80,184,233,0.12); border:1rem solid rgba(80,184,233,0.4); border-radius:50%; cursor:pointer; vertical-align:middle; line-height:1; position:relative; }
-.ats-info-icon:hover { background:rgba(80,184,233,0.25); color:var(--accentColorNormal, #50b8e9); }
+.ats-info-icon { display:flex; align-items:center; justify-content:center; width:14rem; height:14rem; margin-left:5rem; font-size:10rem; font-weight:700; color:rgba(80,184,233,0.85); background:rgba(80,184,233,0.12); border:1rem solid rgba(80,184,233,0.4); border-radius:50%; cursor:pointer; vertical-align:middle; line-height:1; position:relative; }
+.ats-info-icon:hover { background:rgba(80,184,233,0.25); color:#50b8e9; }
 
 /* Info popup — click-toggle tooltip for CoHTML */
 .ats-info-popup { position:absolute; top:100%; left:0; margin-top:4rem; width:280rem; padding:8rem 10rem; background:linear-gradient(180deg, rgba(18,30,50,0.99) 0%, rgba(12,20,35,0.99) 100%); border:1rem solid rgba(80,184,233,0.5); border-radius:4rem; box-shadow:0 6rem 24rem rgba(0,0,0,0.7); z-index:100; font-size:11rem; font-weight:400; color:rgba(220,235,250,0.9); line-height:1.45; white-space:normal; text-align:left; text-transform:none; letter-spacing:0; cursor:default; }
