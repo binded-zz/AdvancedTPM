@@ -1,4 +1,5 @@
 # AdvancedTPM — Advanced Tax & Production Manager
+# AdvancedTPM — Advanced Tax & Production Manager
 
 A comprehensive Cities: Skylines 2 mod for per-resource tax control, production monitoring, company analysis, and AI-powered tax optimization.
 
@@ -20,7 +21,7 @@ The list below shows main features and their current implementation status. Chec
   - [x] Per-resource and total tax income tracking
   - [x] Demand & worker metrics per resource
 
-### Company Browser
+### Company Browser (status)
 - [x] Sortable & filterable table (zone, profitability tier, profit range, search)
 - [x] Expandable detail panels (brand, address, level, zone, resources, staffing, efficiency)
 - [x] Efficiency factor analysis with icons and percent impact
