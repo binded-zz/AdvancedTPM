@@ -49,7 +49,7 @@ module.exports = {
         exclude: /node_modules/,
       },
       {
-        test: /\.s?css$/,
+        test: /\.scss$/,
         include: path.join(__dirname, "src"),
         use: [
           MiniCssExtractPlugin.loader,
@@ -66,6 +66,25 @@ module.exports = {
             },
           },
           "sass-loader",
+        ],
+      },
+      {
+        test: /\.css$/,
+        include: path.join(__dirname, "src"),
+        use: [
+          MiniCssExtractPlugin.loader,
+          {
+            loader: "css-loader",
+            options: {
+              url: true,
+              importLoaders: 0,
+              modules: {
+                auto: true,
+                exportLocalsConvention: "camelCase",
+                localIdentName: "[local]_[hash:base64:3]",
+              },
+            },
+          },
         ],
       },
       {

@@ -1,5 +1,5 @@
 ﻿/* == AdvancedTPM Window — CS2 rem-scaled == */
-.adv-window { width:100%; height:100%; min-height:220rem; background:rgba(18,24,34,0.98); /* backdrop-filter removed for CoHTML compatibility */ border-radius:4rem; color:#ffffff; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10rem 40rem rgba(0,0,0,0.6); }
+.adv-window { width:100%; height:100%; min-height:220rem; background:#121822; /* fully opaque background for CoHTML */ border-radius:4rem; color:#ffffff; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 4rem 12rem rgba(0,0,0,0.6); }
 
 /* Force high-contrast text for all child elements to improve readability */
 .adv-window input, .adv-window textarea, .adv-window select, .adv-window button {
@@ -8,7 +8,7 @@
 .adv-window-collapsed { min-height:0; height:auto; }
 .adv-window-header { position:relative; display:flex; align-items:center; justify-content:center; padding:8rem 12rem; background:linear-gradient(180deg, rgba(25,41,63,1) 0%, rgba(18,30,47,1) 100%); border-bottom:2rem solid rgba(74,107,146,0.45); }
 .adv-window-title { font-size:15rem; font-weight:700; text-transform:uppercase; letter-spacing:0.6rem; color:#59bfff; text-align:center; }
-.adv-filter-bar { display:flex; padding:8rem 12rem; background:rgba(34,52,76,0.95); flex-wrap:wrap; }
+.adv-filter-bar { display:flex; padding:8rem 12rem; background:rgba(34,52,76,1); flex-wrap:wrap; }
 .adv-filter-tab { border:none; background:rgba(255,255,255,0.10); color:rgba(255,255,255,0.85); font-size:14rem; padding:6rem 14rem; border-radius:4rem; cursor:pointer; transition:background-color 0.15s; font-weight:600; margin-right:3rem; margin-bottom:3rem; }
 .adv-filter-tab:hover { background:rgba(255,255,255,0.18); color:#fff; }
 .adv-filter-tab-active { background:#50b8e9; color:#fff; font-weight:700; }
@@ -25,7 +25,7 @@
 .adv-col-rate { width:420rem; padding:8rem 16rem; color:rgba(255,255,255,0.7); font-size:14rem; font-weight:600; text-transform:uppercase; text-align:center; border-left:2rem solid rgba(255,255,255,0.1); }
 .adv-col-production { width:240rem; padding:8rem 16rem; color:rgba(255,255,255,0.7); font-size:14rem; font-weight:600; text-transform:uppercase; text-align:center; border-left:2rem solid rgba(255,255,255,0.1); }
 .adv-col-income { width:140rem; padding:8rem 16rem; color:rgba(255,255,255,0.7); font-size:14rem; font-weight:600; text-transform:uppercase; text-align:center; border-left:2rem solid rgba(255,255,255,0.1); }
-.adv-table-content-wrapper { flex:1; background:rgba(28,36,48,0.88); overflow:auto; display:flex; flex-direction:column; border:1rem solid rgba(255,255,255,0.02); }
+.adv-table-content-wrapper { flex:1; background:rgba(28,36,48,1); overflow:auto; display:flex; flex-direction:column; border:1rem solid rgba(255,255,255,0.02); }
 
 /* Ensure pages with long content scroll when needed */
 .adv-window .adv-table-section, .adv-window .adv-table-content-wrapper, .adv-window .adv-table-content, .adv-window .adv-footer, .adv-window .adv-autotax-status-bar {
@@ -58,7 +58,7 @@
 .adv-category-rate { color:rgba(255,255,255,0.95); font-weight:700; font-size:16rem; min-width:52rem; text-align:left; margin-right:12rem; }
 .adv-category-rate { white-space: nowrap; }
 .adv-category-production-column { width:240rem; padding:6rem 8rem; display:flex; align-items:center; border-left:2rem solid rgba(255,255,255,0.1); position:relative; }
-.adv-category-production-value { flex:1; text-align:right; font-size:16rem; background:rgba(6,10,16,0.5); padding:5rem 10rem; border-radius:6rem; white-space:nowrap; display:flex; align-items:center; justify-content:flex-end; }
+.adv-category-production-value { flex:1; text-align:right; font-size:16rem; background:rgba(6,10,16,0.95); padding:5rem 10rem; border-radius:6rem; white-space:nowrap; display:flex; align-items:center; justify-content:flex-end; }
 .adv-category-income-column { width:140rem; padding:6rem 8rem; display:flex; align-items:center; justify-content:center; border-left:2rem solid rgba(255,255,255,0.1); }
 .adv-category-income-value { color:#b4f66b; font-weight:800; font-size:16rem; display:flex; align-items:center; justify-content:flex-end; white-space:nowrap; text-shadow:0 1rem 0 rgba(0,0,0,0.35); }
 .adv-resource-row { min-height:48rem; display:flex; align-items:center; transition:background-color 0.15s; border-top:1rem solid rgba(255,255,255,0.08); cursor:pointer; }
@@ -84,7 +84,7 @@
 /* Visual fallback scrollbar indicator for CoHTML (when native scrollbars are hidden) */
 /* Removed pseudo-scrollbar overlay to avoid visual artifacts with tooltips */
 .adv-resource-production-column { width:240rem; padding:6rem 8rem; display:flex; align-items:center; border-left:2rem solid rgba(255,255,255,0.1); position:relative; }
-.adv-resource-production-value { flex:1; text-align:right; font-size:14rem; background:rgba(6,10,16,0.5); padding:5rem 10rem; border-radius:6rem; white-space:nowrap; display:flex; align-items:center; justify-content:flex-end; }
+.adv-resource-production-value { flex:1; text-align:right; font-size:14rem; background:rgba(6,10,16,0.95); padding:5rem 10rem; border-radius:6rem; white-space:nowrap; display:flex; align-items:center; justify-content:flex-end; }
 .adv-resource-income-column { width:140rem; padding:6rem 8rem; display:flex; align-items:center; justify-content:center; border-left:2rem solid rgba(255,255,255,0.1); }
 .adv-resource-income-value { color:#b4f66b; font-weight:800; font-size:14rem; display:flex; align-items:center; justify-content:flex-end; white-space:nowrap; text-shadow:0 1rem 0 rgba(0,0,0,0.35); }
 .adv-currency-icon { width:22rem; height:22rem; margin-right:4rem; flex-shrink:0; }
@@ -119,7 +119,7 @@
 .adv-prod-bar-deficit { background:rgba(224,80,80,0.6); }
 .adv-prod-bar-demand { background:rgba(160,100,220,0.6); }
 .adv-prod-bar-label { position:relative; z-index:1; padding:0 4rem; font-size:10rem; color:rgba(255,255,255,0.85); white-space:nowrap; font-weight:600; }
-.adv-row-tooltip { min-width:220rem; background:rgba(12,18,24,0.98); border:1rem solid rgba(120,160,200,0.9); border-radius:4rem; padding:8rem 10rem; font-size:11rem; line-height:1.35; color:#ffffff; box-shadow:0 6rem 20rem rgba(0,0,0,0.65); pointer-events:none; }
+.adv-row-tooltip { min-width:220rem; background:#0c1218; border:1rem solid rgba(120,160,200,0.9); border-radius:4rem; padding:8rem 10rem; font-size:11rem; line-height:1.35; color:#ffffff; box-shadow:0 3rem 10rem rgba(0,0,0,0.65); pointer-events:none; }
 
 /* == Auto-Tax Styles == */
 .adv-autotax-toggle { position:absolute; right:112rem; top:50%; transform:translateY(-50%); border:1rem solid rgba(124,152,189,0.75); background:rgba(15,24,37,0.98); color:rgba(233,243,255,0.65); font-size:11rem; font-weight:800; padding:4rem 10rem; border-radius:3rem; cursor:pointer; letter-spacing:0.5rem; text-transform:uppercase; transition:background-color 0.15s, border-color 0.15s, color 0.15s; }

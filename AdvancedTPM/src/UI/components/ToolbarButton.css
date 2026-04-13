@@ -1,33 +1,33 @@
 .toolbar-button-wrapper {
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 .toolbar-btn {
-    width: 40rem;
-    height: 40rem;
-    margin-bottom: 2rem;
-    background: rgba(20, 30, 40, 0.92);
-    border: 1rem solid rgba(255, 255, 255, 0.15);
-    border-radius: 4rem;
-    color: #ffffff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s, border-color 0.15s;
-    position: relative;
-    padding: 0;
+  width: 40rem;
+  height: 40rem;
+  margin-bottom: 2rem;
+  background: #141e28; /* fully opaque to prevent see-through */
+  border: 1rem solid rgba(255, 255, 255, 0.15);
+  border-radius: 4rem;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.08s, border-color 0.08s;
+  position: relative;
+  padding: 0;
 }
 
 .toolbar-btn:hover {
-    background: rgba(40, 60, 80, 0.95);
-    border-color: rgba(79, 195, 247, 0.6);
+  background: rgba(40, 60, 80, 0.95);
+  border-color: rgba(79, 195, 247, 0.6);
 }
 
 .toolbar-btn.active {
-    background: rgba(20, 50, 80, 0.95);
-    border-color: #4fc3f7;
-    box-shadow: 0 0 6rem rgba(79, 195, 247, 0.4);
+  background: rgba(20, 50, 80, 1);
+  border-color: #4fc3f7;
+  box-shadow: 0 0 2rem rgba(79, 195, 247, 0.35);
 }
 
