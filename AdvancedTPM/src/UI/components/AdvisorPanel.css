@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  color: rgba(255,255,255,0.92);
+  color: var(--textColor, rgba(255,255,255,0.92));
   font-size: 13rem;
 }
 
@@ -25,9 +25,9 @@
 .advisor-toggle {
   padding: 4rem 12rem;
   border: 1rem solid rgba(255,255,255,0.2);
-  border-radius: 3rem;
+  border-radius: var(--panelRadiusInner,3rem);
   background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.8);
+  color: var(--textColorDim, rgba(255,255,255,0.8));
   font-size: 12rem;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -38,7 +38,7 @@
 .advisor-toggle-active {
   background: rgba(110,180,60,0.35);
   border-color: rgba(110,180,60,0.7);
-  color: #a0ee58;
+  color: var(--positiveColor, #a0ee58);
 }
 
 .advisor-aggressiveness {
@@ -110,7 +110,7 @@
   border: none;
   border-bottom: 2rem solid transparent;
   background: transparent;
-  color: rgba(255,255,255,0.6);
+  color: var(--textColorDim, rgba(255,255,255,0.6));
   font-size: 13rem;
   cursor: pointer;
   text-align: center;
@@ -120,8 +120,8 @@
   color: rgba(255,255,255,0.85);
 }
 .advisor-tab-active {
-  color: #ffffff;
-  border-bottom-color: rgba(80,180,240,0.9);
+  color: var(--textColor, #ffffff);
+  border-bottom-color: var(--accentColorLight, rgba(80,180,240,0.9));
 }
 
 /* Content area */
@@ -169,7 +169,7 @@
 .advisor-stat-value {
   font-size: 20rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--textColor, #ffffff);
 }
 .advisor-stat-label {
   font-size: 11rem;
@@ -194,7 +194,7 @@
 
 .advisor-empty {
   text-align: center;
-  color: rgba(255,255,255,0.55);
+  color: var(--textColorDim, rgba(255,255,255,0.55));
   font-size: 13rem;
   padding: 24rem 12rem;
   font-style: italic;

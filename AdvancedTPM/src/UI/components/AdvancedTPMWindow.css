@@ -1,19 +1,19 @@
 ﻿/* == AdvancedTPM Window — CS2 rem-scaled == */
-.adv-window { width:100%; height:100%; min-height:220rem; background:rgba(18,24,34,0.98); /* backdrop-filter removed for CoHTML compatibility */ border-radius:4rem; color:#ffffff; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10rem 40rem rgba(0,0,0,0.6); }
+.adv-window { width:100%; height:100%; min-height:220rem; background:var(--panelColorNormal, rgba(18,24,34,0.98)); /* backdrop-filter removed for CoHTML compatibility */ border-radius:var(--panelRadius,4rem); color:var(--textColor,#ffffff); display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10rem 40rem rgba(0,0,0,0.6); }
 
 /* Force high-contrast text for all child elements to improve readability */
 .adv-window input, .adv-window textarea, .adv-window select, .adv-window button {
-  color: #ffffff;
+  color: var(--textColor, #ffffff);
 }
 .adv-window-collapsed { min-height:0; height:auto; }
 .adv-window-header { position:relative; display:flex; align-items:center; justify-content:center; padding:8rem 12rem; background:linear-gradient(180deg, rgba(25,41,63,1) 0%, rgba(18,30,47,1) 100%); border-bottom:2rem solid rgba(74,107,146,0.45); }
-.adv-window-title { font-size:15rem; font-weight:700; text-transform:uppercase; letter-spacing:0.6rem; color:#59bfff; text-align:center; }
+.adv-window-title { font-size:15rem; font-weight:700; text-transform:uppercase; letter-spacing:0.6rem; color:var(--accentColorNormal, #59bfff); text-align:center; }
 .adv-filter-bar { display:flex; padding:8rem 12rem; background:rgba(34,52,76,0.95); flex-wrap:wrap; }
-.adv-filter-tab { border:none; background:rgba(255,255,255,0.10); color:rgba(255,255,255,0.85); font-size:14rem; padding:6rem 14rem; border-radius:4rem; cursor:pointer; transition:background-color 0.15s; font-weight:600; margin-right:3rem; margin-bottom:3rem; }
-.adv-filter-tab:hover { background:rgba(255,255,255,0.18); color:#fff; }
-.adv-filter-tab-active { background:#50b8e9; color:#fff; font-weight:700; }
-.adv-close-btn { position:absolute; right:12rem; top:50%; transform:translateY(-50%); border:1rem solid rgba(124,152,189,0.75); background:rgba(15,24,37,0.98); color:rgba(233,243,255,0.95); font-size:16rem; font-weight:800; width:28rem; height:28rem; border-radius:2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s, border-color 0.15s, color 0.15s; line-height:1; }
-.adv-close-btn:hover { background:rgba(185,52,52,0.75); border-color:rgba(255,130,130,0.95); color:#fff; }
+.adv-filter-tab { border:none; background:rgba(255,255,255,0.10); color:var(--textColorDim, rgba(255,255,255,0.85)); font-size:14rem; padding:6rem 14rem; border-radius:var(--panelRadiusInner,4rem); cursor:pointer; transition:background-color 0.15s; font-weight:600; margin-right:3rem; margin-bottom:3rem; }
+.adv-filter-tab:hover { background:rgba(255,255,255,0.18); color:var(--textColor, #ffffff); }
+.adv-filter-tab-active { background:var(--accentColorNormal, #50b8e9); color:var(--textColor, #ffffff); font-weight:700; }
+.adv-close-btn { position:absolute; right:12rem; top:50%; transform:translateY(-50%); border:1rem solid rgba(124,152,189,0.75); background:var(--panelColorDark, rgba(15,24,37,0.98)); color:var(--textColor, rgba(233,243,255,0.95)); font-size:16rem; font-weight:800; width:28rem; height:28rem; border-radius:2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s, border-color 0.15s, color 0.15s; line-height:1; }
+.adv-close-btn:hover { background:rgba(185,52,52,0.75); border-color:rgba(255,130,130,0.95); color:var(--textColor, #fff); }
 .adv-collapse-btn { position:absolute; right:44rem; top:50%; transform:translateY(-50%); border:1rem solid rgba(124,152,189,0.75); background:rgba(15,24,37,0.98); color:rgba(233,243,255,0.95); font-size:16rem; font-weight:800; width:28rem; height:28rem; border-radius:2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s, border-color 0.15s, color 0.15s; line-height:1; }
 .adv-collapse-btn:hover { background:rgba(62,98,145,0.88); border-color:rgba(140,186,235,0.95); color:#fff; }
 .adv-tip-bar { padding:6rem 14rem; font-size:12rem; color:rgba(255,255,255,0.6); border-bottom:1rem solid rgba(255,255,255,0.08); }
