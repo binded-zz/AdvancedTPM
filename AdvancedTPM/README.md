@@ -22,6 +22,8 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 - **Company detail panels** — expand any row to see brand name, building address, building level, zone, output/input resources, staffing bars, and efficiency breakdown.
 - **Efficiency factor analysis** — real game data showing each factor (Electricity, Water, Garbage, Mail, Telecom, Staffing, etc.) with CS2 icons, percentage impact, and cumulative efficiency.
 - **Go-to-building** — click to jump the camera directly to any company's building.
+- **Company Happiness (row + detail)** — compact colorized happiness score is now visible in the company rows and expanded detail panels. The score is estimated from efficiency, profit, staffing, and tax (server provides an authoritative value when available).
+- **Signature building detection** — special "signature" landmark/prefab detection is exposed in the Company Browser for supported buildings; signature buildings are flagged in the detail panel and used by the Advisor when relevant.
 
 ### Auto-Tax Engine
 - **6-factor scoring** — balances profitability, happiness, production, demand, company count, and tax income when recommending rate adjustments.

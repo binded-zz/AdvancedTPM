@@ -29,6 +29,23 @@
 - Confidence-weighted recommendations with decision logging
 - Persistent learning database saved between sessions
 
+## v1.1.0 — UI & integration updates
+
+### UI: Company Browser
+- Added compact `Happiness` column to the company rows with colorized scoring (green/blue/orange/red) to quickly surface business health.
+- Expanded company detail panel continues to show the full happiness score and breakdown.
+- Hovering the happiness value shows a tooltip with the numeric estimate.
+
+### Signature Buildings
+- Added server-side detection and client reporting for "signature" buildings (special landmark/prefab types). Signature flag is now exposed in the Company Browser payload and displayed in expanded company details.
+
+### Misc
+- Merge of `feature/company-happiness-planb` into `main` (UI, learning persistence, and company browser improvements).
+- Robust loading for the adaptive learning database: loader now detects gzipped payloads and decompresses automatically to avoid JSON parse errors.
+
+### Notes
+- These changes are primarily UI additions and do not change the core auto-tax decision algorithms. See commit history for implementation details.
+
 ### Settings & Integration
 - Game options page with General, Auto-Tax, Advisor, Debug, and About groups
 - English localization with full settings string coverage

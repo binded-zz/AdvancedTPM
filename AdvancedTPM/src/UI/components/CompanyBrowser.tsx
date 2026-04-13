@@ -37,6 +37,10 @@ export interface CompanyHappinessMap {
   [key: string]: Record<string, number>;
 }
 
+// parseCompanies
+// Parse a semicolon-separated payload produced by the server containing a compact
+// representation of visible companies. Each chunk contains pipe-delimited fields
+// matching the serialization performed in `CompanyBrowserSystem.SerializeCompanies`.
 export const parseCompanies = (payload: string): CompanyVm[] => {
   if (!payload) return [];
   return payload
@@ -83,6 +87,7 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
 
 // Parse a single-company happiness payload produced by CompanyHappinessSystem
 export const parseCompanyHappinessPayload = (payload: string): [string, Record<string, number>] | null => {
+  // payload shape: "entityIndex,entityVersion|key1:val1,key2:val2"
   if (!payload) return null;
   const parts = payload.split('|');
   if (parts.length < 2) return null;
