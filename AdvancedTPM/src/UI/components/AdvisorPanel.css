@@ -1,0 +1,437 @@
+/* ── Advisor Panel ── */
+.advisor-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: rgba(255,255,255,0.92);
+  font-size: 13rem;
+}
+
+/* Controls bar */
+.advisor-controls {
+  display: flex;
+  align-items: center;
+  padding: 8rem 10rem;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1rem solid rgba(255,255,255,0.1);
+}
+.advisor-controls > * {
+  margin-right: 10rem;
+}
+.advisor-controls > *:last-child {
+  margin-right: 0;
+}
+
+.advisor-toggle {
+  padding: 4rem 12rem;
+  border: 1rem solid rgba(255,255,255,0.2);
+  border-radius: 3rem;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.8);
+  font-size: 12rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.advisor-toggle:hover {
+  background: rgba(255,255,255,0.1);
+}
+.advisor-toggle-active {
+  background: rgba(110,180,60,0.35);
+  border-color: rgba(110,180,60,0.7);
+  color: #a0ee58;
+}
+
+.advisor-aggressiveness {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+.advisor-aggressiveness > * {
+  margin-right: 3rem;
+}
+.advisor-aggressiveness > *:last-child {
+  margin-right: 0;
+}
+.advisor-aggr-label {
+  font-size: 12rem;
+  color: rgba(255,255,255,0.7);
+  margin-right: 3rem;
+}
+.advisor-aggr-btn {
+  width: 24rem;
+  height: 24rem;
+  border: 1rem solid rgba(255,255,255,0.18);
+  border-radius: 3rem;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.7);
+  font-size: 12rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.advisor-aggr-btn:hover {
+  background: rgba(255,255,255,0.1);
+}
+.advisor-aggr-btn-active {
+  background: rgba(80,160,220,0.35);
+  border-color: rgba(80,160,220,0.7);
+  color: #80d0ff;
+}
+
+.advisor-reset {
+  padding: 4rem 12rem;
+  border: 1rem solid rgba(255,80,80,0.3);
+  border-radius: 3rem;
+  background: rgba(255,80,80,0.08);
+  color: rgba(255,255,255,0.7);
+  font-size: 12rem;
+  cursor: pointer;
+}
+.advisor-reset:hover {
+  background: rgba(255,80,80,0.15);
+  color: rgba(255,255,255,0.8);
+}
+.advisor-reset-confirm {
+  background: rgba(255,60,60,0.3);
+  border-color: rgba(255,60,60,0.5);
+  color: #ff6060;
+}
+
+/* Tab bar */
+.advisor-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1rem solid rgba(255,255,255,0.08);
+}
+.advisor-tab {
+  flex: 1;
+  padding: 7rem 0;
+  border: none;
+  border-bottom: 2rem solid transparent;
+  background: transparent;
+  color: rgba(255,255,255,0.6);
+  font-size: 13rem;
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.advisor-tab:hover {
+  color: rgba(255,255,255,0.85);
+}
+.advisor-tab-active {
+  color: #ffffff;
+  border-bottom-color: rgba(80,180,240,0.9);
+}
+
+/* Content area */
+.advisor-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8rem 10rem;
+}
+
+/* Overview */
+.advisor-stats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 12rem;
+}
+.advisor-stats-grid > * {
+  margin-right: 8rem;
+  margin-bottom: 8rem;
+}
+.advisor-stats-grid > *:last-child {
+  margin-right: 0;
+}
+.advisor-stat {
+  text-align: center;
+  padding: 10rem 8rem;
+  background: rgba(255,255,255,0.05);
+  border: 1rem solid rgba(255,255,255,0.1);
+  border-radius: 4rem;
+  flex: 1;
+  min-width: 100rem;
+}
+.advisor-stat-value {
+  font-size: 20rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+.advisor-stat-label {
+  font-size: 11rem;
+  color: rgba(255,255,255,0.65);
+  margin-top: 3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.advisor-section {
+  margin-top: 10rem;
+}
+.advisor-section-title {
+  font-size: 12rem;
+  color: rgba(255,255,255,0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8rem;
+  padding-bottom: 4rem;
+  border-bottom: 1rem solid rgba(255,255,255,0.1);
+}
+
+.advisor-empty {
+  text-align: center;
+  color: rgba(255,255,255,0.55);
+  font-size: 13rem;
+  padding: 24rem 12rem;
+  font-style: italic;
+}
+
+/* Recommendations */
+.advisor-rec-list {
+  display: flex;
+  flex-direction: column;
+}
+.advisor-rec-list > * {
+  margin-bottom: 3rem;
+}
+.advisor-rec-row {
+  display: flex;
+  align-items: center;
+  padding: 4rem 6rem;
+  background: rgba(255,255,255,0.02);
+  border-radius: 3rem;
+}
+.advisor-rec-row > * {
+  margin-right: 6rem;
+}
+.advisor-rec-row > *:last-child {
+  margin-right: 0;
+}
+.advisor-rec-dir {
+  font-size: 14rem;
+  width: 18rem;
+  text-align: center;
+}
+.advisor-rec-name {
+  flex: 1;
+  font-size: 13rem;
+  color: rgba(255,255,255,0.9);
+}
+.advisor-rec-rate {
+  font-size: 13rem;
+  color: rgba(255,255,255,0.75);
+  min-width: 36rem;
+  text-align: right;
+}
+.advisor-rec-conf {
+  font-size: 12rem;
+  min-width: 36rem;
+  text-align: right;
+}
+.advisor-rec-reason {
+  font-size: 11rem;
+  color: rgba(255,255,255,0.55);
+  max-width: 200rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Decision rows */
+.advisor-decision-list {
+  display: flex;
+  flex-direction: column;
+}
+.advisor-decision-list > * {
+  margin-bottom: 3rem;
+}
+.advisor-decision-row {
+  display: flex;
+  align-items: center;
+  padding: 5rem 8rem;
+  background: rgba(255,255,255,0.03);
+  border-radius: 3rem;
+  font-size: 13rem;
+}
+.advisor-decision-row > * {
+  margin-right: 8rem;
+}
+.advisor-decision-row > *:last-child {
+  margin-right: 0;
+}
+.advisor-decision-resource {
+  flex: 1;
+  color: rgba(255,255,255,0.9);
+}
+.advisor-decision-change {
+  color: rgba(255,255,255,0.7);
+  min-width: 80rem;
+  text-align: center;
+}
+.advisor-decision-outcome {
+  min-width: 45rem;
+  text-align: right;
+  font-weight: 600;
+}
+.advisor-decision-summary {
+  font-size: 11rem;
+  color: rgba(255,255,255,0.55);
+  max-width: 160rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Profiles tab */
+.advisor-profile-list {
+  display: flex;
+  flex-direction: column;
+}
+.advisor-profile-list > * {
+  margin-bottom: 4rem;
+}
+.advisor-profile-row {
+  display: flex;
+  flex-direction: column;
+  padding: 8rem 10rem;
+  background: rgba(255,255,255,0.04);
+  border-radius: 4rem;
+  border: 1rem solid rgba(255,255,255,0.06);
+}
+.advisor-profile-row > * {
+  margin-bottom: 4rem;
+}
+.advisor-profile-row > *:last-child {
+  margin-bottom: 0;
+}
+.advisor-profile-name {
+  font-size: 14rem;
+  color: #ffffff;
+  font-weight: 600;
+}
+.advisor-profile-bars {
+  display: flex;
+  flex-direction: column;
+}
+.advisor-profile-bars > * {
+  margin-bottom: 3rem;
+}
+.advisor-profile-bars > *:last-child {
+  margin-bottom: 0;
+}
+.advisor-profile-bars-row {
+  display: flex;
+}
+.advisor-profile-bars-row > * {
+  margin-right: 12rem;
+}
+.advisor-profile-bars-row > *:last-child {
+  margin-right: 0;
+}
+.advisor-profile-bar-group {
+  display: flex;
+  align-items: center;
+  width: 48%;
+}
+.advisor-profile-bar-group > * {
+  margin-right: 6rem;
+}
+.advisor-profile-bar-group > *:last-child {
+  margin-right: 0;
+}
+.advisor-profile-bar-label {
+  font-size: 11rem;
+  color: rgba(255,255,255,0.65);
+  min-width: 65rem;
+}
+.advisor-profile-bar-track {
+  flex: 1;
+  height: 10rem;
+  background: rgba(255,255,255,0.08);
+  border-radius: 5rem;
+  overflow: hidden;
+}
+.advisor-profile-bar-fill {
+  height: 100%;
+  border-radius: 5rem;
+  transition: width 0.3s;
+}
+.advisor-bar-positive {
+  background: rgba(120,200,60,0.85);
+}
+.advisor-bar-negative {
+  background: rgba(240,80,80,0.85);
+}
+.advisor-profile-bar-value {
+  font-size: 12rem;
+  color: rgba(255,255,255,0.8);
+  min-width: 40rem;
+  text-align: right;
+}
+.advisor-profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12rem;
+  padding-left: 0;
+  color: rgba(255,255,255,0.7);
+}
+.advisor-profile-meta > span {
+  margin-right: 14rem;
+}
+.advisor-profile-meta-sep {
+  color: rgba(255,255,255,0.25);
+  margin-right: 14rem;
+}
+
+/* Log tab */
+.advisor-log-list {
+  display: flex;
+  flex-direction: column;
+}
+.advisor-log-list > * {
+  margin-bottom: 3rem;
+}
+.advisor-log-row {
+  padding: 6rem 8rem;
+  background: rgba(255,255,255,0.03);
+  border-radius: 3rem;
+}
+.advisor-log-header {
+  display: flex;
+  align-items: center;
+  font-size: 13rem;
+}
+.advisor-log-header > * {
+  margin-right: 10rem;
+}
+.advisor-log-header > *:last-child {
+  margin-right: 0;
+}
+.advisor-log-resource {
+  flex: 1;
+  color: rgba(255,255,255,0.9);
+}
+.advisor-log-change {
+  color: rgba(255,255,255,0.7);
+  min-width: 80rem;
+  text-align: center;
+}
+.advisor-log-outcome {
+  min-width: 40rem;
+  text-align: right;
+  font-weight: 500;
+}
+.advisor-log-conf {
+  min-width: 36rem;
+  text-align: right;
+  font-size: 12rem;
+}
+.advisor-log-summary {
+  font-size: 11rem;
+  color: rgba(255,255,255,0.6);
+  margin-top: 3rem;
+  padding-left: 2rem;
+}
+
+/* Scrollbar: -webkit-scrollbar not supported in CoHTML; use JS-based scrollbar or rely on default */

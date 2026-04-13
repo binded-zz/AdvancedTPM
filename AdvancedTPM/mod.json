@@ -1,0 +1,9 @@
+{
+  "id": "AdvancedTPM",
+  "author": "binded2",
+  "version": "1.0.0",
+  "displayName": "AdvancedTPM — Advanced Tax & Production Manager",
+  "description": "Advanced per-resource tax and production management with adaptive AI advisor, company browser, auto-tax engine.",
+  "dependencies": []
+
+}
