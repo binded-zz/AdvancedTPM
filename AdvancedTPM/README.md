@@ -10,12 +10,23 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 
 ## Features
 
-### Tax & Production Dashboard
-- **Per-resource tax sliders** — set tax rates individually for 50+ resources across raw materials, industrial goods, immaterial services, commercial retail, and entertainment.
-- **Production & consumption bars** — real-time metrics with surplus/deficit indicators.
-- **Category grouping** — resources organized by supply chain (Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial).
-- **Tax income tracking** — per-resource and total income with in-game currency formatting.
-- **Demand & worker metrics** — workforce stats and demand signals per resource.
+### Overview (feature status)
+The list below shows main features and their current implementation status. Checked items are implemented; unchecked items are planned or partially implemented.
+
+- [x] Tax & Production Dashboard
+  - [x] Per-resource tax sliders (50+ resources)
+  - [x] Production & consumption bars with surplus/deficit indicators
+  - [x] Category grouping by supply chain
+  - [x] Per-resource and total tax income tracking
+  - [x] Demand & worker metrics per resource
+
+### Company Browser
+- [x] Sortable & filterable table (zone, profitability tier, profit range, search)
+- [x] Expandable detail panels (brand, address, level, zone, resources, staffing, efficiency)
+- [x] Efficiency factor analysis with icons and percent impact
+- [x] Go-to-building camera jump
+- [x] Compact colorized Company Happiness column (row + detail)
+- [x] Signature building detection and flagging in details
 
 ### Company Browser
 - **Sortable & filterable table** — browse all companies by zone, profitability tier, profit range, or text search.
@@ -26,17 +37,20 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 - **Signature building detection** — special "signature" landmark/prefab detection is exposed in the Company Browser for supported buildings; signature buildings are flagged in the detail panel and used by the Advisor when relevant.
 
 ### Auto-Tax Engine
-- **6-factor scoring** — balances profitability, happiness, production, demand, company count, and tax income when recommending rate adjustments.
-- **Per-resource min/max ranges** — fine-tune allowed tax bounds for each resource.
-- **Excluded resources** — lock specific resources from auto-adjustment.
-- **Adjustable speed** — control how frequently the engine makes changes.
+
+- [x] Auto-Tax Engine core
+  - [x] 6-factor scoring and recommendation engine
+  - [x] Per-resource min/max tax ranges
+  - [x] Excluded resources list
+  - [ ] Adjustable safety throttles / advanced rollback (planned)
 
 ### Adaptive Learning Advisor
-- **Machine-learned resource profiles** — tracks sensitivity, income response, company response, production impact, revenue efficiency, and volatility for each resource.
-- **Outcome evaluation** — records before/after snapshots when tax rates change and scores outcomes after an observation period.
-- **Confidence-weighted recommendations** — higher confidence = stronger influence on scoring.
-- **Decision log** — browse recent advisor decisions with outcome scores.
-- **Persistent learning** — profiles saved to disk and loaded between sessions.
+
+- [x] Adaptive Learning Advisor
+  - [x] Persistent learning database (saved & gzipped)
+  - [x] Outcome evaluation snapshots and decision log
+  - [x] Confidence-weighted profile updates
+
 
 ### Settings
 - **Game options integration** — mod settings page with General, Auto-Tax, Advisor, Debug, and About groups.

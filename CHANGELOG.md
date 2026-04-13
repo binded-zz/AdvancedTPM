@@ -46,6 +46,11 @@
 ### Notes
 - These changes are primarily UI additions and do not change the core auto-tax decision algorithms. See commit history for implementation details.
 
+## v1.1.1 — Fixes
+
+- Fixed thumbnail filename (ensure `.thumbnail.png` is used) to avoid missing image in mod manager.
+- Updated README feature checklist and appended v1.1.0 notes.
+
 ### Settings & Integration
 - Game options page with General, Auto-Tax, Advisor, Debug, and About groups
 - English localization with full settings string coverage
