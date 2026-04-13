@@ -167,6 +167,94 @@ const AGGRESSIVENESS_LABELS: Record<number, string> = {
   5: 'Very Aggressive',
 };
 
+// Move ProfileRow to module scope so its identity is stable across renders.
+const ProfileRow: React.FC<{ p: LearningProfile }> = React.memo(({ p }) => {
+  return (
+    <div className="advisor-profile-row">
+      <div className="advisor-profile-name">{getResourceLabel(p.key)}</div>
+      <div className="advisor-profile-bars">
+        <div className="advisor-profile-bars-row">
+          <div className="advisor-profile-bar-group">
+            <span className="advisor-profile-bar-label">Sensitivity</span>
+            <div className="advisor-profile-bar-track">
+              <div
+                className={`advisor-profile-bar-fill${p.sensitivity >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
+                style={{ width: `${Math.min(100, Math.abs(p.sensitivity) * 100)}%`, marginLeft: p.sensitivity < 0 ? 'auto' : undefined }}
+              />
+            </div>
+            <span className="advisor-profile-bar-value">{p.sensitivity.toFixed(2)}</span>
+          </div>
+          <div className="advisor-profile-bar-group">
+            <span className="advisor-profile-bar-label">Income</span>
+            <div className="advisor-profile-bar-track">
+              <div
+                className={`advisor-profile-bar-fill${p.incomeResponse >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
+                style={{ width: `${Math.min(100, Math.abs(p.incomeResponse) * 200)}%`, marginLeft: p.incomeResponse < 0 ? 'auto' : undefined }}
+              />
+            </div>
+            <span className="advisor-profile-bar-value">{p.incomeResponse.toFixed(2)}</span>
+          </div>
+        </div>
+        <div className="advisor-profile-bars-row">
+          <div className="advisor-profile-bar-group">
+            <span className="advisor-profile-bar-label">Production</span>
+            <div className="advisor-profile-bar-track">
+              <div
+                className={`advisor-profile-bar-fill${p.productionResponse >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
+                style={{ width: `${Math.min(100, Math.abs(p.productionResponse) * 200)}%`, marginLeft: p.productionResponse < 0 ? 'auto' : undefined }}
+              />
+            </div>
+            <span className="advisor-profile-bar-value">{p.productionResponse.toFixed(2)}</span>
+          </div>
+          <div className="advisor-profile-bar-group">
+            <span className="advisor-profile-bar-label">Rev/Co</span>
+            <div className="advisor-profile-bar-track">
+              <div
+                className={`advisor-profile-bar-fill${p.revenueEfficiency >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
+                style={{ width: `${Math.min(100, Math.abs(p.revenueEfficiency) * 200)}%`, marginLeft: p.revenueEfficiency < 0 ? 'auto' : undefined }}
+              />
+            </div>
+            <span className="advisor-profile-bar-value">{p.revenueEfficiency.toFixed(2)}</span>
+          </div>
+        </div>
+        <div className="advisor-profile-meta">
+          <span style={{ color: getConfidenceColor(p.confidence), marginRight: '10rem' }}>
+            {`${(p.confidence * 100).toFixed(0)}\u00a0%`} conf
+          </span>
+          <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
+          <span style={{ marginRight: '10rem' }}>{p.sampleCount} samples</span>
+          <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
+          <span style={{ color: getOutcomeColor(p.avgOutcome), marginRight: '10rem' }}>
+            avg: {p.avgOutcome > 0 ? '+' : ''}{p.avgOutcome.toFixed(2)}
+          </span>
+          {p.volatility > 0.15 && (
+            <>
+              <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
+              <span style={{ color: '#f0c040' }}>
+                vol: {(p.volatility * 100).toFixed(0)}%
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}, (prev, next) => {
+  const a = prev.p;
+  const b = next.p;
+  return (
+    a.key === b.key &&
+    a.sensitivity === b.sensitivity &&
+    a.incomeResponse === b.incomeResponse &&
+    a.productionResponse === b.productionResponse &&
+    a.revenueEfficiency === b.revenueEfficiency &&
+    a.confidence === b.confidence &&
+    a.sampleCount === b.sampleCount &&
+    a.avgOutcome === b.avgOutcome &&
+    a.volatility === b.volatility
+  );
+});
+
 const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   advisorData,
   decisionLogData,
@@ -178,6 +266,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'profiles' | 'log'>('overview');
   const [confirmReset, setConfirmReset] = useState(false);
+  const [showAllProfiles, setShowAllProfiles] = useState(false);
 
 
 
@@ -189,6 +278,12 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
     () => [...profiles].sort((a, b) => b.sampleCount - a.sampleCount),
     [profiles]
   );
+
+  // Limit rendered profiles to avoid heavy renders when there are many
+  const displayedProfiles = useMemo(() => {
+    if (showAllProfiles) return sortedProfiles;
+    return sortedProfiles.slice(0, 100);
+  }, [sortedProfiles, showAllProfiles]);
 
   const handleReset = () => {
     if (confirmReset) {
@@ -211,6 +306,8 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
       // no-op to let layout settle
     }));
   }, [activeTab]);
+
+  // ProfileRow component moved to module scope to ensure stable identity and allow memoization
 
   return (
     <div className="advisor-panel">
@@ -268,8 +365,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
       {/* Content area */}
       {/* Content area */}
       <div className="advisor-content">
-        {activeTab === 'overview' && (
-          <div className="advisor-overview">
+        <div className="advisor-overview" style={{ display: activeTab === 'overview' ? undefined : 'none' }}>
             {/* Stats summary */}
             <div className="advisor-stats-grid">
               <div className="advisor-stat">
@@ -359,90 +455,20 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
               </div>
             )}
           </div>
-        )}
 
-        {activeTab === 'profiles' && (
-          <div className="advisor-profiles">
+        <div className="advisor-profiles" style={{ display: activeTab === 'profiles' ? undefined : 'none' }}>
             {sortedProfiles.length === 0 && (
               <div className="advisor-empty">No learning profiles yet. Data will appear after tax adjustments are observed.</div>
             )}
             <div className="advisor-profile-list">
               {sortedProfiles.map((p) => (
-                <div key={p.key} className="advisor-profile-row">
-                  <div className="advisor-profile-name">{getResourceLabel(p.key)}</div>
-                  <div className="advisor-profile-bars">
-                    <div className="advisor-profile-bars-row">
-                      <div className="advisor-profile-bar-group">
-                        <span className="advisor-profile-bar-label">Sensitivity</span>
-                        <div className="advisor-profile-bar-track">
-                          <div
-                            className={`advisor-profile-bar-fill${p.sensitivity >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
-                            style={{ width: `${Math.min(100, Math.abs(p.sensitivity) * 100)}%`, marginLeft: p.sensitivity < 0 ? 'auto' : undefined }}
-                          />
-                        </div>
-                        <span className="advisor-profile-bar-value">{p.sensitivity.toFixed(2)}</span>
-                      </div>
-                      <div className="advisor-profile-bar-group">
-                        <span className="advisor-profile-bar-label">Income</span>
-                        <div className="advisor-profile-bar-track">
-                          <div
-                            className={`advisor-profile-bar-fill${p.incomeResponse >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
-                            style={{ width: `${Math.min(100, Math.abs(p.incomeResponse) * 200)}%`, marginLeft: p.incomeResponse < 0 ? 'auto' : undefined }}
-                          />
-                        </div>
-                        <span className="advisor-profile-bar-value">{p.incomeResponse.toFixed(2)}</span>
-                      </div>
-                    </div>
-                    <div className="advisor-profile-bars-row">
-                      <div className="advisor-profile-bar-group">
-                        <span className="advisor-profile-bar-label">Production</span>
-                        <div className="advisor-profile-bar-track">
-                          <div
-                            className={`advisor-profile-bar-fill${p.productionResponse >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
-                            style={{ width: `${Math.min(100, Math.abs(p.productionResponse) * 200)}%`, marginLeft: p.productionResponse < 0 ? 'auto' : undefined }}
-                          />
-                        </div>
-                        <span className="advisor-profile-bar-value">{p.productionResponse.toFixed(2)}</span>
-                      </div>
-                      <div className="advisor-profile-bar-group">
-                        <span className="advisor-profile-bar-label">Rev/Co</span>
-                        <div className="advisor-profile-bar-track">
-                          <div
-                            className={`advisor-profile-bar-fill${p.revenueEfficiency >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
-                            style={{ width: `${Math.min(100, Math.abs(p.revenueEfficiency) * 200)}%`, marginLeft: p.revenueEfficiency < 0 ? 'auto' : undefined }}
-                          />
-                        </div>
-                        <span className="advisor-profile-bar-value">{p.revenueEfficiency.toFixed(2)}</span>
-                      </div>
-                    </div>
-                    <div className="advisor-profile-meta">
-                      <span style={{ color: getConfidenceColor(p.confidence), marginRight: '10rem' }}>
-                        {`${(p.confidence * 100).toFixed(0)}\u00a0%`} conf
-                      </span>
-                      <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
-                      <span style={{ marginRight: '10rem' }}>{p.sampleCount} samples</span>
-                      <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
-                      <span style={{ color: getOutcomeColor(p.avgOutcome), marginRight: '10rem' }}>
-                        avg: {p.avgOutcome > 0 ? '+' : ''}{p.avgOutcome.toFixed(2)}
-                      </span>
-                      {p.volatility > 0.15 && (
-                        <>
-                          <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
-                          <span style={{ color: '#f0c040' }}>
-                            vol: {(p.volatility * 100).toFixed(0)}%
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <ProfileRow key={p.key} p={p} />
               ))}
             </div>
           </div>
-        )}
 
-        {activeTab === 'log' && (
-          <div className="advisor-log">
+
+        <div className="advisor-log" style={{ display: activeTab === 'log' ? undefined : 'none' }}>
             {decisions.length === 0 && (
               <div className="advisor-empty">No decisions logged yet.</div>
             )}
@@ -464,7 +490,6 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
               ))}
             </div>
           </div>
-        )}
       </div>
     </div>
   );
