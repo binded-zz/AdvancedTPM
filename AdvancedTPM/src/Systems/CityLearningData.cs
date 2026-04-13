@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace AdvancedTPM
 {
@@ -196,154 +198,29 @@ namespace AdvancedTPM
         }
 
         /// <summary>
-        /// Serialize the entire learning database to a flat string for file persistence.
-        /// Format: line-based, sections separated by markers.
+        /// Serialize to JSON string.
         /// </summary>
-        public string Serialize()
+        public string SerializeJson()
         {
-            var lines = new List<string>();
-            lines.Add($"V|{Version}|{LastSaveUtc}");
-
-            // Profiles section
-            lines.Add("PROFILES");
-            foreach (var kvp in Profiles)
-            {
-                var p = kvp.Value;
-                lines.Add(string.Format(CultureInfo.InvariantCulture,
-                    "P|{0}|{1:0.####}|{2:0.####}|{3:0.####}|{4:0.####}|{5}|{6}|{7:0.####}|{8:0.####}|{9:0.####}|{10:0.####}|{11}",
-                    kvp.Key, p.Sensitivity, p.IncomeResponse, p.CompanyResponse,
-                    p.Confidence, p.SampleCount, p.LastUpdatedTick, p.AvgOutcomeScore,
-                    p.ProductionResponse, p.RevenueEfficiency, p.Volatility, p.LastDirection));
-            }
-
-            // Decision log section
-            lines.Add("DECISIONS");
-            foreach (var d in DecisionLog)
-            {
-                lines.Add(string.Format(CultureInfo.InvariantCulture,
-                    "D|{0}|{1}|{2}|{3}|{4:0.##}|{5:0.##}|{6}",
-                    d.ResourceKey, d.OldRate, d.NewRate, d.GameTick,
-                    d.OutcomeScore, d.Confidence, d.Summary ?? ""));
-            }
-
-            lines.Add("END");
-            return string.Join("\n", lines);
+            return JsonConvert.SerializeObject(this, Formatting.Indented);
         }
 
         /// <summary>
-        /// Deserialize a learning database from the flat string format.
-        /// Returns a new LearningDatabase; returns empty DB on parse errors.
+        /// Deserialize from JSON string. Expects JSON produced by SerializeJson.
         /// </summary>
-        public static LearningDatabase Deserialize(string data)
+        public static LearningDatabase DeserializeJson(string data)
         {
-            var db = new LearningDatabase();
-            if (string.IsNullOrEmpty(data)) return db;
-
+            if (string.IsNullOrEmpty(data)) return new LearningDatabase();
             try
             {
-                var lines = data.Split('\n');
-                string section = "";
-
-                foreach (var rawLine in lines)
-                {
-                    var line = rawLine.Trim();
-                    if (line.Length == 0) continue;
-
-                    if (line == "PROFILES" || line == "DECISIONS" || line == "END")
-                    {
-                        section = line;
-                        continue;
-                    }
-
-                    if (line.StartsWith("V|"))
-                    {
-                        var parts = line.Split('|');
-                        if (parts.Length >= 3)
-                        {
-                            int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int ver);
-                            long.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out long lastSave);
-                            db.Version = ver;
-                            db.LastSaveUtc = lastSave;
-                        }
-                        continue;
-                    }
-
-                    if (section == "PROFILES" && line.StartsWith("P|"))
-                    {
-                        var parts = line.Split('|');
-                        if (parts.Length >= 8)
-                        {
-                            var key = parts[1];
-                            float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float sensitivity);
-                            float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out float incomeResp);
-                            float.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out float compResp);
-                            float.TryParse(parts[5], NumberStyles.Float, CultureInfo.InvariantCulture, out float confidence);
-                            int.TryParse(parts[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out int sampleCount);
-                            uint.TryParse(parts[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out uint lastTick);
-                            float avgOutcome = 0f;
-                            if (parts.Length > 8)
-                                float.TryParse(parts[8], NumberStyles.Float, CultureInfo.InvariantCulture, out avgOutcome);
-
-                            float prodResp = 0f;
-                            if (parts.Length > 9)
-                                float.TryParse(parts[9], NumberStyles.Float, CultureInfo.InvariantCulture, out prodResp);
-                            float revEff = 0f;
-                            if (parts.Length > 10)
-                                float.TryParse(parts[10], NumberStyles.Float, CultureInfo.InvariantCulture, out revEff);
-                            float volatility = 0f;
-                            if (parts.Length > 11)
-                                float.TryParse(parts[11], NumberStyles.Float, CultureInfo.InvariantCulture, out volatility);
-                            int lastDir = 0;
-                            if (parts.Length > 12)
-                                int.TryParse(parts[12], NumberStyles.Integer, CultureInfo.InvariantCulture, out lastDir);
-
-                            db.Profiles[key] = new ResourceLearningProfile
-                            {
-                                Sensitivity = sensitivity,
-                                IncomeResponse = incomeResp,
-                                CompanyResponse = compResp,
-                                Confidence = confidence,
-                                SampleCount = sampleCount,
-                                LastUpdatedTick = lastTick,
-                                AvgOutcomeScore = avgOutcome,
-                                ProductionResponse = prodResp,
-                                RevenueEfficiency = revEff,
-                                Volatility = volatility,
-                                LastDirection = lastDir
-                            };
-                        }
-                    }
-                    else if (section == "DECISIONS" && line.StartsWith("D|"))
-                    {
-                        var parts = line.Split('|');
-                        if (parts.Length >= 7)
-                        {
-                            var d = new AdvisorDecision
-                            {
-                                ResourceKey = parts[1]
-                            };
-                            int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int oldRate);
-                            int.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out int newRate);
-                            uint.TryParse(parts[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out uint tick);
-                            float.TryParse(parts[5], NumberStyles.Float, CultureInfo.InvariantCulture, out float outcome);
-                            float.TryParse(parts[6], NumberStyles.Float, CultureInfo.InvariantCulture, out float conf);
-                            d.OldRate = oldRate;
-                            d.NewRate = newRate;
-                            d.GameTick = tick;
-                            d.OutcomeScore = outcome;
-                            d.Confidence = conf;
-                            d.Summary = parts.Length > 7 ? parts[7] : "";
-                            db.DecisionLog.Add(d);
-                        }
-                    }
-                }
+                var db = JsonConvert.DeserializeObject<LearningDatabase>(data);
+                return db ?? new LearningDatabase();
             }
             catch (Exception ex)
             {
-                Mod.log.Warn($"LearningDatabase.Deserialize failed: {ex.Message}");
+                Mod.log.Warn($"LearningDatabase.DeserializeJson failed: {ex.Message}");
+                return new LearningDatabase();
             }
-
-            return db;
         }
 
         /// <summary>
@@ -353,11 +230,37 @@ namespace AdvancedTPM
         {
             try
             {
+                // Ensure reasonable size by trimming before serializing
+                TrimSnapshots();
+                TrimDecisionLog();
+
                 LastSaveUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var dir = Path.GetDirectoryName(filePath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
-                File.WriteAllText(filePath, Serialize());
+
+                // Serialize to JSON and write compressed .gz only (no plain JSON retained)
+                try
+                {
+                    var json = JsonConvert.SerializeObject(this);
+                    var gzPath = filePath; // filePath should be the .gz path
+
+                    // atomic write to tmp then move
+                    var tmpPath = gzPath + ".tmp";
+                    using (var fs = new FileStream(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                    using (var gz = new GZipStream(fs, CompressionLevel.Optimal))
+                    using (var sw = new StreamWriter(gz))
+                    {
+                        sw.Write(json);
+                    }
+
+                    if (File.Exists(gzPath)) File.Delete(gzPath);
+                    File.Move(tmpPath, gzPath);
+                }
+                catch (Exception ex)
+                {
+                    Mod.log.Warn($"LearningDatabase.SaveToFile (json.gz) failed: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {
@@ -372,11 +275,71 @@ namespace AdvancedTPM
         {
             try
             {
+                string data = null;
+
                 if (File.Exists(filePath))
                 {
-                    var data = File.ReadAllText(filePath);
-                    return Deserialize(data);
+                    // File exists. It may be plain JSON or a gzipped JSON blob. Detect gzip magic and handle both.
+                    try
+                    {
+                        using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                        {
+                            int first = fs.ReadByte();
+                            int second = fs.ReadByte();
+                            fs.Seek(0, SeekOrigin.Begin);
+                            // GZip magic bytes: 0x1F 0x8B
+                            if (first == 0x1F && second == 0x8B)
+                            {
+                                try
+                                {
+                                    using (var gz = new GZipStream(fs, CompressionMode.Decompress))
+                                    using (var sr = new StreamReader(gz))
+                                    {
+                                        data = sr.ReadToEnd();
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Mod.log.Warn($"LearningDatabase.LoadFromFile (detected gz) failed: {ex.Message}");
+                                }
+                            }
+                            else
+                            {
+                                using (var sr = new StreamReader(fs))
+                                {
+                                    data = sr.ReadToEnd();
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Mod.log.Warn($"LearningDatabase.LoadFromFile failed reading file: {ex.Message}");
+                    }
                 }
+                else
+                {
+                    var gzPath = filePath + ".gz";
+                    if (File.Exists(gzPath))
+                    {
+                        try
+                        {
+                            using (var fs = new FileStream(gzPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                            using (var gz = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionMode.Decompress))
+                            using (var sr = new StreamReader(gz))
+                            {
+                                data = sr.ReadToEnd();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Mod.log.Warn($"LearningDatabase.LoadFromFile (gz) failed: {ex.Message}");
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(data))
+                    return DeserializeJson(data);
             }
             catch (Exception ex)
             {

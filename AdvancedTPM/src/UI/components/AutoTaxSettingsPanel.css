@@ -3,8 +3,8 @@
 
 .ats-header { display:flex; align-items:center; justify-content:space-between; padding:8rem 12rem; background:linear-gradient(180deg, rgba(25,41,63,1) 0%, rgba(18,30,47,1) 100%); border-bottom:2rem solid rgba(74,107,146,0.45); cursor:move; user-select:none; }
 .ats-header-title { font-size:13rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5rem; color:#59bfff; pointer-events:none; }
-.ats-close-btn { border:1rem solid rgba(124,152,189,0.75); background:rgba(15,24,37,0.98); color:rgba(233,243,255,0.95); font-size:14rem; font-weight:800; width:24rem; height:24rem; border-radius:2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s; line-height:1; }
-.ats-close-btn:hover { background:rgba(185,52,52,0.75); color:#fff; }
+.ats-close-btn { border:1rem solid rgba(124,152,189,0.95) !important; background:rgba(34,46,62,0.98) !important; color:#ffffff !important; font-size:14rem; font-weight:800; width:24rem; height:24rem; border-radius:2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s; line-height:1; }
+.ats-close-btn:hover { background:rgba(185,52,52,0.95) !important; color:#fff !important; }
 
 .ats-body-wrapper { flex:1; display:flex; overflow:hidden; position:relative; }
 .ats-body { flex:1; overflow-y:scroll; overflow-x:hidden; padding:8rem 0; }
@@ -32,8 +32,23 @@
 .ats-group-header:hover { background:rgba(255,255,255,0.06); }
 .ats-group-label { flex:1; font-size:12rem; font-weight:600; color:rgba(255,255,255,0.85); }
 .ats-group-count { font-size:11rem; color:rgba(255,255,255,0.45); margin-left:6rem; }
-.ats-collapse-arrow { width:0; height:0; border-left:5rem solid transparent; border-right:5rem solid transparent; border-top:6rem solid rgba(255,255,255,0.5); margin-left:6rem; cursor:pointer; transition:transform 0.15s; transform:rotate(-90deg); }
-.ats-collapse-arrow-expanded { transform:rotate(0deg); }
+.ats-collapse-arrow {
+  /* Use a glyph for a more reliable collapse icon (visible in CoHTML skins) */
+  width:14rem;
+  height:14rem;
+  margin-left:6rem;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:12rem;
+  color:rgba(255,255,255,0.9);
+  cursor:pointer;
+  transition:transform 0.15s, color 0.12s, filter 0.12s;
+  transform:rotate(-90deg);
+}
+.ats-collapse-arrow::before { content: '▸'; display:inline-block; }
+.ats-collapse-arrow-expanded { transform:rotate(0deg); color:#50b8e9; }
+.ats-collapse-arrow:hover { filter:brightness(1.25); }
 
 .ats-group-resources { padding-left:20rem; }
 .ats-resource-item { display:flex; align-items:center; padding:3rem 6rem; cursor:pointer; border-radius:3rem; transition:background-color 0.15s; }
@@ -72,8 +87,8 @@
 .ats-footer { display:flex; justify-content:space-between; align-items:center; padding:8rem 12rem; border-top:1rem solid rgba(255,255,255,0.1); background:rgba(18,26,38,0.95); }
 .ats-footer-note { font-size:11rem; color:rgba(255,255,255,0.4); font-style:italic; }
 .ats-btn { padding:5rem 14rem; border-radius:3rem; font-size:12rem; font-weight:600; cursor:pointer; border:1rem solid rgba(124,152,189,0.5); transition:background-color 0.15s, border-color 0.15s; }
-.ats-btn-close { background:rgba(15,24,37,0.95); color:rgba(255,255,255,0.7); }
-.ats-btn-close:hover { background:rgba(40,55,75,0.95); color:#fff; }
+.ats-btn-close { background:rgba(34,46,62,0.98) !important; color:#ffffff !important; border:1rem solid rgba(100,130,170,0.6) !important; }
+.ats-btn-close:hover { background:rgba(40,55,75,0.98) !important; color:#ffffff !important; }
 
 /* Info icon — ? badge next to slider labels */
 .ats-info-icon { display:flex; align-items:center; justify-content:center; width:14rem; height:14rem; margin-left:5rem; font-size:10rem; font-weight:700; color:rgba(80,184,233,0.85); background:rgba(80,184,233,0.12); border:1rem solid rgba(80,184,233,0.4); border-radius:50%; cursor:pointer; vertical-align:middle; line-height:1; position:relative; }

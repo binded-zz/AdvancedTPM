@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import './AdvisorPanel.css';
 
 interface LearningProfile {
@@ -179,6 +179,8 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'profiles' | 'log'>('overview');
   const [confirmReset, setConfirmReset] = useState(false);
 
+
+
   const { profiles, recommendations } = useMemo(() => parseAdvisorData(advisorData), [advisorData]);
   const decisions = useMemo(() => parseDecisionLog(decisionLogData), [decisionLogData]);
   const stats = useMemo(() => parseLearningStats(learningStatsData), [learningStatsData]);
@@ -197,6 +199,18 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
       setTimeout(() => setConfirmReset(false), 3000);
     }
   };
+
+  // Ensure scroll resets and scrollbar thumb recalculates when switching tabs
+  useEffect(() => {
+    const el = document.querySelector('.advisor-content') as HTMLElement | null;
+    if (!el) return;
+    // reset scroll to top on tab change
+    el.scrollTop = 0;
+    // force reflow then allow scrollbar to update
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      // no-op to let layout settle
+    }));
+  }, [activeTab]);
 
   return (
     <div className="advisor-panel">
@@ -252,6 +266,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
       </div>
 
       {/* Content area */}
+      {/* Content area */}
       <div className="advisor-content">
         {activeTab === 'overview' && (
           <div className="advisor-overview">
@@ -260,14 +275,14 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
               <div className="advisor-stat">
                 <div className="advisor-stat-value">{stats.totalSamples}</div>
                 <div className="advisor-stat-label">Observations</div>
-              </div>
+        </div>
               <div className="advisor-stat">
                 <div className="advisor-stat-value">{profiles.length}</div>
                 <div className="advisor-stat-label">Active Profiles</div>
               </div>
               <div className="advisor-stat">
                 <div className="advisor-stat-value" style={{ color: getConfidenceColor(stats.avgConfidence) }}>
-                  {(stats.avgConfidence * 100).toFixed(0)}%
+                  {`${(stats.avgConfidence * 100).toFixed(0)}\u00a0%`}
                 </div>
                 <div className="advisor-stat-label">Avg Confidence</div>
               </div>
@@ -275,6 +290,16 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                 <div className="advisor-stat-value">{stats.pendingEvents}</div>
                 <div className="advisor-stat-label">Pending</div>
               </div>
+            </div>
+            {/* Quick explanation area to help interpret the three-column view */}
+            <div className="advisor-explain">
+              <strong>How to read this panel:</strong>
+              <ul>
+                <li><strong>Overview (left)</strong> — recommendations and resource sensitivity summaries.</li>
+                <li><strong>Profiles (center)</strong> — learned response profiles showing sensitivity, income and production responses.</li>
+                <li><strong>Log (right)</strong> — recent auto-tax adjustments and outcomes with confidence scores.</li>
+              </ul>
+              <div style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.6)' }}>If text appears clipped, expand the window or use the panel's drag handles; long explanations will wrap across lines.</div>
             </div>
 
             {/* Recommendations */}
@@ -288,9 +313,9 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                         {getDirectionSymbol(rec.direction)}
                       </span>
                       <span className="advisor-rec-name">{getResourceLabel(rec.key)}</span>
-                      <span className="advisor-rec-rate">{rec.currentRate}%</span>
+                      <span className="advisor-rec-rate">{`${rec.currentRate}\u00a0%`}</span>
                       <span className="advisor-rec-conf" style={{ color: getConfidenceColor(rec.confidence) }}>
-                        {(rec.confidence * 100).toFixed(0)}%
+                        {`${(rec.confidence * 100).toFixed(0)}\u00a0%`}
                       </span>
                       <span className="advisor-rec-reason">{rec.reason}</span>
                     </div>
@@ -322,7 +347,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                     <div key={i} className="advisor-decision-row">
                       <span className="advisor-decision-resource">{getResourceLabel(d.key)}</span>
                       <span className="advisor-decision-change">
-                        {d.oldRate}% {'\u2192'} {d.newRate}%
+                        {`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}
                       </span>
                       <span className="advisor-decision-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
                         {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
@@ -392,7 +417,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                     </div>
                     <div className="advisor-profile-meta">
                       <span style={{ color: getConfidenceColor(p.confidence), marginRight: '10rem' }}>
-                        {(p.confidence * 100).toFixed(0)}% conf
+                        {`${(p.confidence * 100).toFixed(0)}\u00a0%`} conf
                       </span>
                       <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
                       <span style={{ marginRight: '10rem' }}>{p.sampleCount} samples</span>
@@ -426,12 +451,12 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                 <div key={i} className="advisor-log-row">
                   <div className="advisor-log-header">
                     <span className="advisor-log-resource">{getResourceLabel(d.key)}</span>
-                    <span className="advisor-log-change">{d.oldRate}% {'\u2192'} {d.newRate}%</span>
+                    <span className="advisor-log-change">{`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}</span>
                     <span className="advisor-log-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
                       {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
                     </span>
                     <span className="advisor-log-conf" style={{ color: getConfidenceColor(d.confidence) }}>
-                      {(d.confidence * 100).toFixed(0)}%
+                      {`${(d.confidence * 100).toFixed(0)}\u00a0%`}
                     </span>
                   </div>
                   {d.summary && <div className="advisor-log-summary">{d.summary}</div>}

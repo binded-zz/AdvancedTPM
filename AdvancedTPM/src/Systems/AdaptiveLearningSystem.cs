@@ -810,10 +810,24 @@ namespace AdvancedTPM
 
         private static string ResolveLearningDataPath(TPMModSettings settings)
         {
-            // Store learning data alongside mod settings
-            string basePath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string modDataDir = Path.Combine(basePath, "..", "LocalLow", "Colossal Order", "Cities Skylines II", "ModsSettings", "CitiesTPM");
-            return Path.Combine(modDataDir, "learning_data.dat");
+            // Store learning data under the game's ModsData\AdvancedTPM folder as JSON
+            try
+            {
+                var dataFolder = AdvancedTPM.Utilities.FilePaths.GetModsDataFolder();
+                if (string.IsNullOrEmpty(dataFolder))
+                {
+                    // fallback to LocalLow path construction
+                    string basePath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                    dataFolder = Path.Combine(basePath, "..", "LocalLow", "Colossal Order", "Cities Skylines II", "ModsData", "AdvancedTPM");
+                }
+                if (!Directory.Exists(dataFolder)) Directory.CreateDirectory(dataFolder);
+                // Use compressed JSON file only
+                return Path.Combine(dataFolder, "learning_data.json.gz");
+            }
+            catch
+            {
+                return Path.Combine(Path.GetTempPath(), "AdvancedTPM_learning_data.json");
+            }
         }
 
         private struct OutcomeResult

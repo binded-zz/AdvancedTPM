@@ -58,6 +58,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<Reference Update="System">
 			<Private>false</Private>
 		</Reference>
