@@ -134,6 +134,12 @@ namespace AdvancedTPM
             public string BrandName;           // rendered company brand name (e.g. "Ordinateur")
             public string BuildingAddress;     // rendered building address (e.g. "32 Kingsgate Street")
             public int HappinessEstimate;
+            // Lightweight numeric service metrics (optional, may be 0 if unavailable)
+            public float ElectricityConsumption;
+            public float WaterConsumption;
+            public float GarbageAccumulation;
+            public float MailAccumulation;
+            public float CrimeProbability;
             public bool ProducesGarbage;
             public bool ProducesCrime;
             public bool ProducesMail;
@@ -426,6 +432,111 @@ namespace AdvancedTPM
                     info.ProducesMail = producesMail;
                     info.NeedsElectricity = needsElec;
                     info.NeedsWater = needsWater;
+
+                    // Attempt to read numeric service metrics from the property or prefab
+                    double elecConsumption = double.NaN, waterConsumption = double.NaN, garbageAccum = double.NaN, mailAccum = double.NaN, crimeProb = double.NaN;
+                    try
+                    {
+                        Func<Entity, string, string[], double?> tryRead = (ent, compName, candFields) =>
+                        {
+                            try
+                            {
+                                var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+                                foreach (var asm in assemblies)
+                                {
+                                    Type[] types = null;
+                                    try { types = asm.GetTypes(); } catch { continue; }
+                                    foreach (var t in types)
+                                    {
+                                        if (!t.IsValueType) continue;
+                                        if (!t.Name.Equals(compName, StringComparison.OrdinalIgnoreCase) && !t.Name.Contains(compName)) continue;
+                                        try
+                                        {
+                                            var gm = em.GetType().GetMethod("GetComponentData", new Type[] { typeof(Entity) });
+                                            if (gm == null) continue;
+                                            var mg = gm.MakeGenericMethod(t);
+                                            object compData = null;
+                                            try { compData = mg.Invoke(em, new object[] { ent }); } catch { continue; }
+                                            if (compData == null) continue;
+                                            var dt = compData.GetType();
+                                            foreach (var fn in candFields)
+                                            {
+                                                var f = dt.GetField(fn, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                                if (f != null)
+                                                {
+                                                    var v = f.GetValue(compData);
+                                                    if (v is float fv) return (double)fv;
+                                                    if (v is double dv) return dv;
+                                                    if (v is int iv) return (double)iv;
+                                                    if (v is long lv) return (double)lv;
+                                                }
+                                                var p = dt.GetProperty(fn, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                                if (p != null)
+                                                {
+                                                    var v = p.GetValue(compData);
+                                                    if (v is float fv2) return (double)fv2;
+                                                    if (v is double dv2) return dv2;
+                                                    if (v is int iv2) return (double)iv2;
+                                                    if (v is long lv2) return (double)lv2;
+                                                }
+                                            }
+                                        }
+                                        catch { continue; }
+                                    }
+                                }
+                            }
+                            catch { }
+                            return null;
+                        };
+
+                        // Try on the property entity first
+                        if (prop != Entity.Null && em.Exists(prop))
+                        {
+                            var r = tryRead(prop, "ElectricityConsumer", new[] { "m_CurrentConsumption", "m_PowerUsage", "m_Consumption", "m_ElectricityConsumption" });
+                            if (r.HasValue) elecConsumption = r.Value;
+                            r = tryRead(prop, "WaterConsumer", new[] { "m_CurrentConsumption", "m_WaterUsage", "m_Consumption", "m_WaterConsumption" });
+                            if (r.HasValue) waterConsumption = r.Value;
+                            r = tryRead(prop, "GarbageProducer", new[] { "m_Accumulation", "m_GarbageAccumulation", "m_Amount" });
+                            if (r.HasValue) garbageAccum = r.Value;
+                            r = tryRead(prop, "MailProducer", new[] { "m_Accumulation", "m_MailAccumulation" });
+                            if (r.HasValue) mailAccum = r.Value;
+                            r = tryRead(prop, "CrimeProducer", new[] { "m_Probability", "m_CrimeProbability" });
+                            if (r.HasValue) crimeProb = r.Value;
+                        }
+
+                        // Fallback to prefab-level components if property didn't yield values
+                        try
+                        {
+                            if (em.HasComponent<PropertyRenter>(entity))
+                            {
+                                var renter = em.GetComponentData<PropertyRenter>(entity);
+                                var bldg = renter.m_Property;
+                                if (em.Exists(bldg) && em.HasComponent<PrefabRef>(bldg))
+                                {
+                                    var bRef = em.GetComponentData<PrefabRef>(bldg);
+                                    var bPrefab = bRef.m_Prefab;
+                                    var r = tryRead(bPrefab, "ElectricityConsumer", new[] { "m_CurrentConsumption", "m_PowerUsage", "m_Consumption", "m_ElectricityConsumption" });
+                                    if (r.HasValue && double.IsNaN(elecConsumption)) elecConsumption = r.Value;
+                                    r = tryRead(bPrefab, "WaterConsumer", new[] { "m_CurrentConsumption", "m_WaterUsage", "m_Consumption", "m_WaterConsumption" });
+                                    if (r.HasValue && double.IsNaN(waterConsumption)) waterConsumption = r.Value;
+                                    r = tryRead(bPrefab, "GarbageProducer", new[] { "m_Accumulation", "m_GarbageAccumulation", "m_Amount" });
+                                    if (r.HasValue && double.IsNaN(garbageAccum)) garbageAccum = r.Value;
+                                    r = tryRead(bPrefab, "MailProducer", new[] { "m_Accumulation", "m_MailAccumulation" });
+                                    if (r.HasValue && double.IsNaN(mailAccum)) mailAccum = r.Value;
+                                    r = tryRead(bPrefab, "CrimeProducer", new[] { "m_Probability", "m_CrimeProbability" });
+                                    if (r.HasValue && double.IsNaN(crimeProb)) crimeProb = r.Value;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    catch { }
+
+                    info.ElectricityConsumption = double.IsNaN(elecConsumption) ? 0f : (float)elecConsumption;
+                    info.WaterConsumption = double.IsNaN(waterConsumption) ? 0f : (float)waterConsumption;
+                    info.GarbageAccumulation = double.IsNaN(garbageAccum) ? 0f : (float)garbageAccum;
+                    info.MailAccumulation = double.IsNaN(mailAccum) ? 0f : (float)mailAccum;
+                    info.CrimeProbability = double.IsNaN(crimeProb) ? 0f : (float)crimeProb;
 
                     // Server-side happiness estimate (same formula as client-side fallback)
                     var eff = Math.Max(0, info.Efficiency);
@@ -808,6 +919,12 @@ namespace AdvancedTPM
                     c.ProducesMail ? 1 : 0,
                     c.NeedsElectricity ? 1 : 0,
                     c.NeedsWater ? 1 : 0,
+                    // numeric service metrics
+                    c.ElectricityConsumption.ToString(CultureInfo.InvariantCulture),
+                    c.WaterConsumption.ToString(CultureInfo.InvariantCulture),
+                    c.GarbageAccumulation.ToString(CultureInfo.InvariantCulture),
+                    c.MailAccumulation.ToString(CultureInfo.InvariantCulture),
+                    c.CrimeProbability.ToString(CultureInfo.InvariantCulture),
                     c.IsSignature ? 1 : 0));
             }
             return string.Join(";", parts);
