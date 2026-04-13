@@ -17,8 +17,12 @@ namespace AdvancedTPM
         public void OnLoad(UpdateSystem updateSystem)
         {
             log.Info($"Loading {Name} v{Version}");
+            // Ensure mod directories exist under game's LocalLow path
+            try { AdvancedTPM.Utilities.FilePaths.EnsureModDirectories(); } catch { }
 
             Settings = new TPMModSettings(this);
+            // Load persisted settings from our mod data folder (if present)
+            try { AdvancedTPM.Utilities.SettingsFileModel.LoadInto(Settings); } catch { }
             Settings.RegisterInOptionsUI();
             GameManager.instance.localizationManager.AddSource("en-US", new LocaleEN(Settings));
             AssetDatabase.global.LoadSettings(nameof(AdvancedTPM), Settings, new TPMModSettings(this));
@@ -29,6 +33,9 @@ namespace AdvancedTPM
             updateSystem.UpdateAt<AdaptiveLearningSystem>(SystemUpdatePhase.UIUpdate);
 
             log.Info($"{Name} loaded successfully");
+
+            // Save settings to our mod data folder to ensure they're available next load
+            try { AdvancedTPM.Utilities.SettingsFileModel.Save(Settings); } catch { }
         }
 
         public void OnDispose()

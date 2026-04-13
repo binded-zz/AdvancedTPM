@@ -39,11 +39,13 @@ interface AdvancedTPMWindowProps {
   autoTaxStatus: string;
   autoTaxSettings: string;
   companyBrowserData: string;
+  companyHappinessData: string;
   advisorData: string;
   decisionLogData: string;
   learningStatsData: string;
   learningEnabled: boolean;
   onAutoTaxToggle: (enabled: boolean) => void;
+  onToggleLearning: (enabled: boolean) => void;
   onResourceTaxRateChange: (key: string, rate: number) => void;
   onCategoryChange: (category: string) => void;
   onCollapseChange?: (collapsed: boolean) => void;
@@ -210,7 +212,7 @@ const ResourceSubRow: React.FC<{
   autoTaxDir?: AutoTaxResourceInfo;
   onRateChange: (key: string, rate: number) => void;
   onSelect: (key: string) => void;
-  onTooltipShow: (lines: string[], el: HTMLElement, alignRight?: boolean) => void;
+  onTooltipShow: (lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
   onTooltipHide: () => void;
 }> = ({ resource, icon, localRate, selected, autoTaxDir, onRateChange, onSelect, onTooltipShow, onTooltipHide }) => {
   const [hover, setHover] = useState(false);
@@ -246,15 +248,20 @@ const ResourceSubRow: React.FC<{
     ...(!isSvc && demandVal > 0 ? [`Demand: ${fmtVal(demandVal)}`] : []),
     ...(maxW > 0 ? [`Workers: ${curW.toLocaleString()}/${maxW.toLocaleString()} (${workerPct}%)`] : []),
     ...(resource.companyCount != null && resource.companyCount > 0 ? [`Companies: ${resource.companyCount}`] : []),
-    `Tax Rate: ${localRate}%`,
+    `Tax Rate: ${localRate}\u00a0%`,
     `Tax Income: ${formatCurrency(resource.taxIncome)}`,
   ];
   return (
     <div
       className={`adv-resource-row${selected ? ' adv-resource-row-selected' : ''}${hover ? ' adv-resource-row-hover' : ''}`}
-      onMouseOver={() => {
+      onMouseOver={(e) => {
         setHover(true);
-        if (prodRef.current) onTooltipShow(resourceTooltipLines, prodRef.current);
+        // show floating tooltip at mouse coords to avoid clipping
+        onTooltipShow(resourceTooltipLines, undefined, false, e.clientX, e.clientY);
+      }}
+      onMouseMove={(e) => {
+        // update floating tooltip position while hovering
+        onTooltipShow(resourceTooltipLines, undefined, false, e.clientX, e.clientY);
       }}
       onMouseOut={() => {
         setHover(false);
@@ -302,8 +309,8 @@ const ResourceSubRow: React.FC<{
         )())}
       </div>
       <div className="adv-resource-slider-container">
-        <div className="adv-resource-slider-column">
-          <div className="adv-resource-rate">{localRate}%</div>
+          <div className="adv-resource-slider-column">
+          <div className="adv-resource-rate">{`${localRate}\u00a0%`}</div>
           <CustomSlider value={localRate} min={-10} max={30} onChange={(v) => onRateChange(resource.key, v)} />
         </div>
         <div ref={prodRef} className="adv-resource-production-column">
@@ -353,10 +360,16 @@ const CategoryGroupRow: React.FC<{
   autoTaxDirections: Map<string, AutoTaxResourceInfo>;
   onRateChange: (key: string, rate: number) => void;
   onSelect: (key: string) => void;
-  onTooltipShow: (lines: string[], el: HTMLElement, alignRight?: boolean) => void;
+  onTooltipShow: (lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
   onTooltipHide: () => void;
-}> = ({ category, categoryRows, isFirst, iconMap, localRates, selectedRowKey, autoTaxDirections, onRateChange, onSelect, onTooltipShow, onTooltipHide }) => {
-  const [expanded, setExpanded] = useState(false);
+  // when true (viewing 'All' resources) this group should start collapsed on mount
+  isAllView?: boolean;
+}> = ({ category, categoryRows, isFirst, iconMap, localRates, selectedRowKey, autoTaxDirections, onRateChange, onSelect, onTooltipShow, onTooltipHide, isAllView }) => {
+  const [expanded, setExpanded] = useState<boolean>(isAllView ? false : true);
+  // Keep expanded state in sync when view mode changes between 'all' and a single category
+  useEffect(() => {
+    setExpanded(isAllView ? false : true);
+  }, [isAllView]);
   const [headerHover, setHeaderHover] = useState(false);
   const [buttonHover, setButtonHover] = useState(false);
   const catProdRef = useRef<HTMLDivElement>(null);
@@ -397,7 +410,7 @@ const CategoryGroupRow: React.FC<{
     ...(!catIsSvc && totalDemand > 0 ? [`Demand: ${catFmt(totalDemand)}`] : []),
     ...(totalMaxWorkers > 0 ? [`Workers: ${totalCurrentWorkers.toLocaleString()}/${totalMaxWorkers.toLocaleString()} (${catWorkerPct}%)`] : []),
     ...(totalCompanies > 0 ? [`Companies: ${totalCompanies}`] : []),
-    `Avg Tax Rate: ${avgTax}%`,
+    `Avg Tax Rate: ${avgTax}\u00a0%`,
     `Tax Income: ${categoryIncomeText}`,
   ];
 
@@ -405,9 +418,14 @@ const CategoryGroupRow: React.FC<{
     <div className={isFirst ? 'adv-category-group' : 'adv-category-group adv-category-group-border'}>
       <div
         className={`adv-category-header${headerHover ? ' adv-category-header-hover' : ''}`}
-        onMouseOver={() => {
+        onMouseOver={(e) => {
           setHeaderHover(true);
-          if (catProdRef.current) onTooltipShow(catTooltipLines, catProdRef.current, true);
+          // show floating tooltip at mouse coords so it doesn't snap to production/consumption element
+          onTooltipShow(catTooltipLines, undefined, false, e.clientX, e.clientY);
+        }}
+        onMouseMove={(e) => {
+          // update floating tooltip while moving inside header
+          onTooltipShow(catTooltipLines, undefined, false, e.clientX, e.clientY);
         }}
         onMouseOut={() => {
           setHeaderHover(false);
@@ -425,8 +443,8 @@ const CategoryGroupRow: React.FC<{
           <div className={`adv-expand-icon${expanded ? ' adv-expand-icon-expanded' : ''}`} />
         </div>
         <div className="adv-category-slider-container" onClick={(e) => e.stopPropagation()}>
-          <div className="adv-category-slider-column">
-            <div className="adv-category-rate">{avgTax}%</div>
+            <div className="adv-category-slider-column">
+            <div className="adv-category-rate">{`${avgTax}\u00a0%`}</div>
             <CustomSlider
               value={avgTax}
               min={-10}
@@ -498,10 +516,12 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   autoTaxStatus,
   autoTaxSettings,
   companyBrowserData,
+  companyHappinessData,
   advisorData,
   decisionLogData,
   learningStatsData,
   learningEnabled,
+  onToggleLearning,
   onAutoTaxToggle,
   onResourceTaxRateChange,
   onCategoryChange,
@@ -510,11 +530,32 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
-  const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'advisor'>('resources');
+  const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor'>('resources');
   const safeCategory = (selectedCategory || 'all').toLowerCase();
   const iconMap = new Map(resourceCategories.flatMap((c) => c.resources.map((r) => [r.key, r.icon] as const)));
   const autoTaxParsed = useMemo(() => parseAutoTaxStatus(autoTaxStatus), [autoTaxStatus]);
   const autoTaxDirections = autoTaxParsed?.directions ?? new Map();
+
+  const signatureCompanies = useMemo(() => parseCompanies(companyBrowserData).filter(c => !!c.isSignature), [companyBrowserData]);
+  const signatureCount = signatureCompanies.length;
+
+  // Heuristic to classify a company as a "Signature Building" for the signature tab.
+  // This is intentionally conservative and configurable here — it currently treats
+  // buildings with top building level or very high efficiency/profit as signature.
+  const isSignatureCompany = (c: any) => {
+    try {
+      // server-provided hint in brandName (explicit marker)
+      if (c.brandName && /signature|landmark|flagship|showcase/i.test(c.brandName)) return true;
+      // Building level 5 is a strong signal
+      if (Number(c.buildingLevel || 0) >= 5) return true;
+      // If efficiencyDetails contains a specialization bonus factor, treat as signature
+      if (c.efficiencyDetails && /Specialization/i.test(c.efficiencyDetails)) return true;
+      // Require very high efficiency or very high profit to qualify
+      if (Number(c.efficiency || 0) >= 130) return true;
+      if (Number(c.profit || 0) >= 75) return true;
+    } catch { }
+    return false;
+  };
 
   // Parse panel opacity from autoTaxSettings (slot 8: ...||profitWeight|opacity)
   const panelOpacity = useMemo(() => {
@@ -586,9 +627,14 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   };
 
   // Tooltip state — rendered OUTSIDE .adv-window to escape overflow:hidden clipping in CoHTML
-  const [tooltip, setTooltip] = useState<{ lines: string[]; rect: DOMRect; alignRight: boolean } | null>(null);
-  const showTooltip = useCallback((lines: string[], el: HTMLElement, alignRight?: boolean) => {
-    setTooltip({ lines, rect: el.getBoundingClientRect(), alignRight: !!alignRight });
+  // Tooltip may be anchored to an element (`rect`) or to explicit client coords (`x`,`y`) to float/follow cursor.
+  const [tooltip, setTooltip] = useState<{ lines: string[]; rect?: DOMRect; alignRight?: boolean; x?: number; y?: number } | null>(null);
+  const showTooltip = useCallback((lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => {
+    if (clientX != null && clientY != null) {
+      setTooltip({ lines, x: clientX, y: clientY, alignRight: !!alignRight });
+    } else if (el) {
+      setTooltip({ lines, rect: el.getBoundingClientRect(), alignRight: !!alignRight });
+    }
   }, []);
   const hideTooltip = useCallback(() => setTooltip(null), []);
 
@@ -608,6 +654,13 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
     <div className={`adv-window${collapsed ? ' adv-window-collapsed' : ''}`} style={{ opacity: panelOpacity }}>
       <div className="adv-window-header">
         <div className="adv-window-title">Advanced Tax & Production Manager</div>
+        <button
+          className={`adv-learn-toggle${learningEnabled ? ' adv-learn-active' : ''}`}
+          onClick={() => onToggleLearning(!learningEnabled)}
+          title={learningEnabled ? 'Learning: ON — Click to disable' : 'Learning: OFF — Click to enable'}
+        >
+          Learning
+        </button>
         <button
           className={`adv-autotax-toggle${autoTaxEnabled ? ' adv-autotax-toggle-active' : ''}`}
           onClick={() => onAutoTaxToggle(!autoTaxEnabled)}
@@ -642,6 +695,14 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
           onClick={() => setViewMode('businesses')}
         >
           Businesses
+        </button>
+        <button
+          className={`adv-view-tab${viewMode === 'signature' ? ' adv-view-tab-active' : ''}`}
+          onClick={() => setViewMode('signature')}
+        >
+          Signature Buildings{signatureCount > 0 && (
+            <span className="adv-tab-badge">{signatureCount}</span>
+          )}
         </button>
         <button
           className={`adv-view-tab${viewMode === 'advisor' ? ' adv-view-tab-active' : ''}`}
@@ -722,7 +783,24 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
       {/* Businesses view */}
       {viewMode === 'businesses' && (
         <div className="adv-table-section">
-          <CompanyBrowser companies={parseCompanies(companyBrowserData)} />
+          <CompanyBrowser companies={parseCompanies(companyBrowserData)} happinessData={companyHappinessData} isSignatureView={false} />
+        </div>
+      )}
+
+      {/* Signature Buildings view (filtered subset of businesses) */}
+      {viewMode === 'signature' && (
+        <div className="adv-table-section">
+          {(() => {
+            const filtered = signatureCompanies;
+            if (filtered.length === 0) {
+              return (
+                <div className="adv-empty" style={{ padding: '20rem', textAlign: 'center' }}>
+                  No signature buildings unlocked.
+                </div>
+              );
+            }
+            return <CompanyBrowser companies={filtered} happinessData={companyHappinessData} isSignatureView={true} />;
+          })()}
         </div>
       )}
 
@@ -751,7 +829,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
             <div className="adv-col-production">Prod / Cons</div>
             <div className="adv-col-income">Tax Income</div>
           </div>
-          <div className="adv-bar-legend">Blue: Production · Orange: Consumption · Green: Surplus · Red: Deficit · Purple: Demand</div>
+          {/* Legend removed - colors shown inline on bars and footer */}
         </div>
 
         <div className="adv-table-content-wrapper">
@@ -771,6 +849,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
                   autoTaxDirections={autoTaxDirections}
                   onRateChange={handleRateChange}
                   onSelect={handleRowSelect}
+                isAllView={safeCategory === 'all'}
                   onTooltipShow={showTooltip}
                   onTooltipHide={hideTooltip}
                 />
@@ -816,18 +895,27 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         />
       )}
       {tooltip && (() => {
-      const { lines, rect, alignRight } = tooltip;
-      const above = rect.top > 140;
-      const style: React.CSSProperties = {
-        position: 'fixed',
-        zIndex: 10000,
-        ...(alignRight
-          ? { right: window.innerWidth - rect.right }
-          : { left: rect.left }),
-        ...(above
-          ? { bottom: window.innerHeight - rect.top + 4 }
-          : { top: rect.bottom + 4 }),
-      };
+      const { lines, rect, alignRight, x, y } = tooltip;
+      const style: React.CSSProperties = { position: 'fixed', zIndex: 10000 };
+      if (x != null && y != null) {
+        // position relative to mouse coordinates, with a small offset
+        const left = Math.min(Math.max(8, x + 12), Math.max(8, window.innerWidth - 320));
+        const top = Math.min(Math.max(8, y + 12), Math.max(8, window.innerHeight - 120));
+        style.left = left;
+        style.top = top;
+      } else if (rect) {
+        const above = rect.top > 140;
+        if (alignRight) {
+          style.right = window.innerWidth - rect.right;
+        } else {
+          style.left = rect.left;
+        }
+        if (above) {
+          style.bottom = window.innerHeight - rect.top + 4;
+        } else {
+          style.top = rect.bottom + 4;
+        }
+      }
       return (
         <div className="adv-row-tooltip" style={style}>
           {lines.map((line, i) => <div key={i}>{line}</div>)}

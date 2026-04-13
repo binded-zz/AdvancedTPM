@@ -8,6 +8,7 @@ using Game.UI;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Reflection;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -30,6 +31,12 @@ namespace AdvancedTPM
         private PrefabSystem _prefabSystem;
         private TaxSystem _taxSystem;
         private NameSystem _nameSystem;
+        private Game.UI.InGame.SignatureBuildingUISystem _signatureSystem;
+        private FieldInfo _signatureQueryField;
+        private readonly HashSet<int> _signaturePrefabIndices = new HashSet<int>();
+        private DateTime _signatureCacheTimestamp = DateTime.MinValue;
+        private readonly TimeSpan _signatureCacheTtl = TimeSpan.FromSeconds(10);
+        private ValueBinding<string> _signaturePrefabsBinding;
         private int _updateCounter;
 
         // Queries
@@ -47,6 +54,15 @@ namespace AdvancedTPM
             try { _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>(); } catch { }
             try { _taxSystem = World.GetOrCreateSystemManaged<TaxSystem>(); } catch { }
             try { _nameSystem = World.GetOrCreateSystemManaged<NameSystem>(); } catch { }
+            try
+            {
+                _signatureSystem = World.GetOrCreateSystemManaged<Game.UI.InGame.SignatureBuildingUISystem>();
+                if (_signatureSystem != null)
+                {
+                    _signatureQueryField = _signatureSystem.GetType().GetField("m_UnlockedSignatureBuildingQuery", BindingFlags.NonPublic | BindingFlags.Instance);
+                }
+            }
+            catch { }
 
             // Build entity queries — match InfoLoom pattern:
             // Require PropertyRenter (active companies)
@@ -71,6 +87,7 @@ namespace AdvancedTPM
             });
 
             AddBinding(_companyBrowserData = new ValueBinding<string>("taxProduction", "companyBrowserData", ""));
+            try { AddBinding(_signaturePrefabsBinding = new ValueBinding<string>("taxProduction", "signaturePrefabs", "")); } catch { }
 
             Mod.log.Info("CompanyBrowserSystem initialized (direct ECS)");
         }
@@ -116,6 +133,13 @@ namespace AdvancedTPM
             public string EfficiencyDetails;  // "factor:pct,..." non-100% factors
             public string BrandName;           // rendered company brand name (e.g. "Ordinateur")
             public string BuildingAddress;     // rendered building address (e.g. "32 Kingsgate Street")
+            public int HappinessEstimate;
+            public bool ProducesGarbage;
+            public bool ProducesCrime;
+            public bool ProducesMail;
+            public bool NeedsElectricity;
+            public bool NeedsWater;
+            public bool IsSignature;
         }
 
         private List<CompanyInfo> CollectCompanyData()
@@ -382,6 +406,139 @@ namespace AdvancedTPM
                     }
                 }
 
+                // --- Populate lightweight environmental/service flags and a server-side happiness estimate ---
+                try
+                {
+                    Entity prop = Entity.Null;
+                    if (em.HasComponent<PropertyRenter>(entity))
+                    {
+                        try { prop = em.GetComponentData<PropertyRenter>(entity).m_Property; } catch { prop = Entity.Null; }
+                    }
+
+                    bool producesGarbage = prop != Entity.Null && em.Exists(prop) && em.HasComponent<GarbageProducer>(prop);
+                    bool producesCrime = prop != Entity.Null && em.Exists(prop) && em.HasComponent<CrimeProducer>(prop);
+                    bool producesMail = prop != Entity.Null && em.Exists(prop) && em.HasComponent<MailProducer>(prop);
+                    bool needsElec = prop != Entity.Null && em.Exists(prop) && em.HasComponent<ElectricityConsumer>(prop);
+                    bool needsWater = prop != Entity.Null && em.Exists(prop) && em.HasComponent<WaterConsumer>(prop);
+
+                    info.ProducesGarbage = producesGarbage;
+                    info.ProducesCrime = producesCrime;
+                    info.ProducesMail = producesMail;
+                    info.NeedsElectricity = needsElec;
+                    info.NeedsWater = needsWater;
+
+                    // Server-side happiness estimate (same formula as client-side fallback)
+                    var eff = Math.Max(0, info.Efficiency);
+                    var profit = Math.Max(-100, Math.Min(100, info.Profit));
+                    var staffPct = info.MaxWorkers > 0 ? (info.CurrentWorkers * 100f / info.MaxWorkers) : 100f;
+                    var tax = info.TaxRate;
+                    int estimate = (int)Math.Round(Math.Max(0, Math.Min(100, 50 + (eff - 100) * 0.2 + profit * 0.25 + (staffPct - 75) * 0.3 - Math.Max(0, tax - 10) * 0.5)));
+                    info.HappinessEstimate = estimate;
+
+                    // --- Signature detection (server-side) ---
+                    try
+                    {
+                        // Start with no heuristic signals; prefer authoritative prefab/status checks below
+                        bool sig = false;
+                        // Inspect the building prefab (if available) for explicit signature/building-type flags
+                        try
+                        {
+                            if (em.HasComponent<PropertyRenter>(entity))
+                            {
+                                var renter = em.GetComponentData<PropertyRenter>(entity);
+                                var bldg = renter.m_Property;
+                                if (em.Exists(bldg) && em.HasComponent<PrefabRef>(bldg))
+                                {
+                                    var bRef = em.GetComponentData<PrefabRef>(bldg);
+                                    var bPrefab = bRef.m_Prefab;
+                                    // Check SpawnableBuildingData fields reflectively for building type / status
+                                    try
+                                    {
+                            // First, check for explicit Signature component on the prefab or building entity
+                            try
+                            {
+                                if (em.HasComponent<Game.Buildings.Signature>(bPrefab) || em.HasComponent<Game.Buildings.Signature>(bldg))
+                                {
+                                    sig = true;
+                                }
+                            }
+                            catch { }
+
+                            if (em.HasComponent<SpawnableBuildingData>(bPrefab))
+                                        {
+                                            var sbd = em.GetComponentData<SpawnableBuildingData>(bPrefab);
+                                            var t = sbd.GetType();
+                                            // Try common field names that may contain building type/status
+                                            var typeField = t.GetField("m_BuildingType") ?? t.GetField("m_Type");
+                                            if (typeField != null)
+                                            {
+                                                var raw = typeField.GetValue(sbd);
+                                                if (raw != null)
+                                                {
+                                                    int iv = Convert.ToInt32(raw);
+                                                    if (Enum.IsDefined(typeof(Game.Prefabs.BuildingType), iv))
+                                                    {
+                                                        var bt = (Game.Prefabs.BuildingType)iv;
+                                                        if (bt == Game.Prefabs.BuildingType.SignatureCommercial || bt == Game.Prefabs.BuildingType.SignatureIndustrial || bt == Game.Prefabs.BuildingType.SignatureOffice || bt == Game.Prefabs.BuildingType.SignatureResidential)
+                                                            sig = true;
+                                                    }
+                                                }
+                                            }
+
+                                            var statusField = t.GetField("m_BuildingStatus") ?? t.GetField("m_Status") ?? t.GetField("m_StatusFlags");
+                                            if (!sig && statusField != null)
+                                            {
+                                                var raw = statusField.GetValue(sbd);
+                                                if (raw != null)
+                                                {
+                                                    int sv = Convert.ToInt32(raw);
+                                                    try
+                                                    {
+                                                        var st = (Game.Prefabs.BuildingStatusType)sv;
+                                                        if (st.HasFlag(Game.Prefabs.BuildingStatusType.SignatureCommercial) || st.HasFlag(Game.Prefabs.BuildingStatusType.SignatureIndustrial) || st.HasFlag(Game.Prefabs.BuildingStatusType.SignatureOffice) || st.HasFlag(Game.Prefabs.BuildingStatusType.SignatureResidential))
+                                                            sig = true;
+                                                    }
+                                                    catch { }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+                        catch { }
+
+                        // If we have a cached authoritative list from SignatureBuildingUISystem, prefer that
+                        try
+                        {
+                            if ((DateTime.UtcNow - _signatureCacheTimestamp) > _signatureCacheTtl)
+                                RefreshSignatureCache();
+                            // building prefab check: compare building prefab index to cached set
+                            if (!sig && em.HasComponent<PropertyRenter>(entity))
+                            {
+                                try
+                                {
+                                    var renter = em.GetComponentData<PropertyRenter>(entity);
+                                    var bldg = renter.m_Property;
+                                    if (em.Exists(bldg) && em.HasComponent<PrefabRef>(bldg))
+                                    {
+                                        var bRef = em.GetComponentData<PrefabRef>(bldg);
+                                        var bPrefab = bRef.m_Prefab;
+                                        if (_signaturePrefabIndices.Contains(bPrefab.Index)) sig = true;
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                        catch { }
+
+                        info.IsSignature = sig;
+                    }
+                    catch { info.IsSignature = false; }
+                }
+                catch { }
+
                 return info;
             }
             catch
@@ -390,16 +547,242 @@ namespace AdvancedTPM
             }
         }
 
+        // --- Lightweight per-company happiness factor computation and UI trigger handling ---
+        private ValueBinding<string> _companyHappinessData;
+        private readonly Dictionary<long, string> _happinessCachePayload = new Dictionary<long, string>();
+        private readonly Dictionary<long, DateTime> _happinessCacheTimestamp = new Dictionary<long, DateTime>();
+        private readonly TimeSpan _happinessCacheTtl = TimeSpan.FromSeconds(10);
+
+        protected override void OnStartRunning()
+        {
+            base.OnStartRunning();
+            try { AddBinding(_companyHappinessData = new ValueBinding<string>("taxProduction", "companyHappinessData", "")); } catch { }
+            try { AddBinding(new TriggerBinding<string>("taxProduction", "requestCompanyHappiness", HandleCompanyHappinessRequest)); } catch { }
+        }
+
+        private void HandleCompanyHappinessRequest(string payload)
+        {
+            if (string.IsNullOrEmpty(payload)) return;
+            try
+            {
+                var parts = payload.Split(',');
+                if (parts.Length < 2) return;
+                int idx = int.Parse(parts[0]);
+                int ver = int.Parse(parts[1]);
+                bool force = parts.Length >= 3 && (parts[2] == "1" || parts[2].ToLowerInvariant() == "true");
+                var entity = new Entity { Index = idx, Version = ver };
+
+                long key = (((long)idx) << 32) | (uint)ver;
+                if (!force && _happinessCachePayload.TryGetValue(key, out var cached) && _happinessCacheTimestamp.TryGetValue(key, out var ts) && (DateTime.UtcNow - ts) < _happinessCacheTtl)
+                {
+                    try { _companyHappinessData.Update(cached); } catch { }
+                    return;
+                }
+
+                ComputeCompanyHappiness(entity);
+            }
+            catch (Exception ex)
+            {
+                Mod.log.Warn("CompanyHappiness request parse error: " + ex.Message);
+            }
+        }
+
+        private void ComputeCompanyHappiness(Entity companyEntity)
+        {
+            var em = EntityManager;
+            if (!em.Exists(companyEntity)) return;
+
+            Entity property = Entity.Null;
+            if (em.HasComponent<PropertyRenter>(companyEntity))
+            {
+                try { property = em.GetComponentData<PropertyRenter>(companyEntity).m_Property; } catch { }
+            }
+
+            // Basic heuristic factors computed from available components
+            var factorMap = new Dictionary<string, float>();
+            try
+            {
+                bool producesGarbage = property != Entity.Null && em.Exists(property) && em.HasComponent<GarbageProducer>(property);
+                bool producesCrime = property != Entity.Null && em.Exists(property) && em.HasComponent<CrimeProducer>(property);
+                bool producesMail = property != Entity.Null && em.Exists(property) && em.HasComponent<MailProducer>(property);
+                bool needsElec = property != Entity.Null && em.Exists(property) && em.HasComponent<ElectricityConsumer>(property);
+                bool needsWater = property != Entity.Null && em.Exists(property) && em.HasComponent<WaterConsumer>(property);
+
+                // Try to extract authoritative numeric values from available components (reflective)
+                double elecConsumption = double.NaN, waterConsumption = double.NaN, garbageAccum = double.NaN, mailAccum = double.NaN, crimeProb = double.NaN;
+                try
+                {
+                    // helpers
+                    Func<Entity, string, string[], double?> tryRead = (ent, compName, candFields) =>
+                    {
+                        try
+                        {
+                            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+                            foreach (var asm in assemblies)
+                            {
+                                Type[] types = null;
+                                try { types = asm.GetTypes(); } catch { continue; }
+                                foreach (var t in types)
+                                {
+                                    if (!t.IsValueType) continue; // likely IComponentData structs
+                                    if (!t.Name.Equals(compName, StringComparison.OrdinalIgnoreCase) && !t.Name.Contains(compName)) continue;
+                                    // try to get component data via generic GetComponentData<T>
+                                    try
+                                    {
+                                        var gm = em.GetType().GetMethod("GetComponentData", new Type[] { typeof(Entity) });
+                                        if (gm == null) continue;
+                                        var mg = gm.MakeGenericMethod(t);
+                                        object compData = null;
+                                        try { compData = mg.Invoke(em, new object[] { ent }); } catch { continue; }
+                                        if (compData == null) continue;
+                                        var dt = compData.GetType();
+                                        foreach (var fn in candFields)
+                                        {
+                                            var f = dt.GetField(fn, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                            if (f != null)
+                                            {
+                                                var v = f.GetValue(compData);
+                                                if (v is float fv) return (double)fv;
+                                                if (v is double dv) return dv;
+                                                if (v is int iv) return (double)iv;
+                                                if (v is long lv) return (double)lv;
+                                            }
+                                            var p = dt.GetProperty(fn, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                            if (p != null)
+                                            {
+                                                var v = p.GetValue(compData);
+                                                if (v is float fv2) return (double)fv2;
+                                                if (v is double dv2) return dv2;
+                                                if (v is int iv2) return (double)iv2;
+                                                if (v is long lv2) return (double)lv2;
+                                            }
+                                        }
+                                    }
+                                    catch { continue; }
+                                }
+                            }
+                        }
+                        catch { }
+                        return null;
+                    };
+
+                    // Try on the property entity first
+                    if (property != Entity.Null && em.Exists(property))
+                    {
+                        var r = tryRead(property, "ElectricityConsumer", new[] { "m_CurrentConsumption", "m_PowerUsage", "m_Consumption", "m_ElectricityConsumption" });
+                        if (r.HasValue) elecConsumption = r.Value;
+                        r = tryRead(property, "WaterConsumer", new[] { "m_CurrentConsumption", "m_WaterUsage", "m_Consumption", "m_WaterConsumption" });
+                        if (r.HasValue) waterConsumption = r.Value;
+                        r = tryRead(property, "GarbageProducer", new[] { "m_Accumulation", "m_GarbageAccumulation", "m_Amount" });
+                        if (r.HasValue) garbageAccum = r.Value;
+                        r = tryRead(property, "MailProducer", new[] { "m_Accumulation", "m_MailAccumulation" });
+                        if (r.HasValue) mailAccum = r.Value;
+                        r = tryRead(property, "CrimeProducer", new[] { "m_Probability", "m_CrimeProbability" });
+                        if (r.HasValue) crimeProb = r.Value;
+                    }
+
+                    // Try on the building prefab as fallback
+                    try
+                    {
+                        if (em.HasComponent<PropertyRenter>(companyEntity))
+                        {
+                            var renter = em.GetComponentData<PropertyRenter>(companyEntity);
+                            var bldg = renter.m_Property;
+                            if (em.Exists(bldg) && em.HasComponent<PrefabRef>(bldg))
+                            {
+                                var bRef = em.GetComponentData<PrefabRef>(bldg);
+                                var bPrefab = bRef.m_Prefab;
+                                var r = tryRead(bPrefab, "ElectricityConsumer", new[] { "m_CurrentConsumption", "m_PowerUsage", "m_Consumption", "m_ElectricityConsumption" });
+                                if (r.HasValue && double.IsNaN(elecConsumption)) elecConsumption = r.Value;
+                                r = tryRead(bPrefab, "WaterConsumer", new[] { "m_CurrentConsumption", "m_WaterUsage", "m_Consumption", "m_WaterConsumption" });
+                                if (r.HasValue && double.IsNaN(waterConsumption)) waterConsumption = r.Value;
+                                r = tryRead(bPrefab, "GarbageProducer", new[] { "m_Accumulation", "m_GarbageAccumulation", "m_Amount" });
+                                if (r.HasValue && double.IsNaN(garbageAccum)) garbageAccum = r.Value;
+                                r = tryRead(bPrefab, "MailProducer", new[] { "m_Accumulation", "m_MailAccumulation" });
+                                if (r.HasValue && double.IsNaN(mailAccum)) mailAccum = r.Value;
+                                r = tryRead(bPrefab, "CrimeProducer", new[] { "m_Probability", "m_CrimeProbability" });
+                                if (r.HasValue && double.IsNaN(crimeProb)) crimeProb = r.Value;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                catch { }
+
+                // crime and garbage are negative contributors
+                factorMap["crime"] = producesCrime ? -30f : 0f;
+                factorMap["garbage"] = producesGarbage ? -15f : 0f;
+                factorMap["mail"] = producesMail ? 5f : 0f;
+
+                // Basic supply heuristics: if a building needs a service but we can't query
+                // the full provider chain here, present a conservative negative value so
+                // the UI shows an issue rather than blank. These are placeholders until
+                // we can query dedicated service systems for precise supply metrics.
+                // Keep conservative supply heuristics but publish authoritative numeric metrics when available
+                factorMap["electricitySupply"] = needsElec ? -10f : 5f;
+                factorMap["waterSupply"] = needsWater ? -10f : 5f;
+                if (!double.IsNaN(elecConsumption)) factorMap["electricityConsumption"] = (float)elecConsumption;
+                if (!double.IsNaN(waterConsumption)) factorMap["waterConsumption"] = (float)waterConsumption;
+                if (!double.IsNaN(garbageAccum)) factorMap["garbageAccumulation"] = (float)garbageAccum;
+                if (!double.IsNaN(mailAccum)) factorMap["mailAccumulation"] = (float)mailAccum;
+                if (!double.IsNaN(crimeProb)) factorMap["crimeProbability"] = (float)crimeProb;
+
+                // telecom: give small bonus to office/service companies
+                if (em.HasComponent<PrefabRef>(companyEntity))
+                {
+                    try
+                    {
+                        var pref = em.GetComponentData<PrefabRef>(companyEntity).m_Prefab;
+                        if (em.HasComponent<IndustrialProcessData>(pref)) factorMap["telecom"] = 0f;
+                        else if (em.HasComponent<CommercialCompany>(companyEntity) || em.HasComponent<OfficeBuilding>(pref)) factorMap["telecom"] = 8f;
+                    }
+                    catch { }
+                }
+
+                // taxEffects: penalty if tax above 10
+                int tax = 0;
+                try
+                {
+                    if (em.HasComponent<PropertyRenter>(companyEntity))
+                    {
+                        // try to read tax via company resource if available
+                        // fallback to 0
+                    }
+                }
+                catch { }
+                factorMap["taxEffects"] = -(float)Math.Max(0, tax - 10) * 0.5f;
+
+                // electricityFee / waterFee: small cost effect proportional to tax
+                factorMap["electricityFee"] = needsElec ? (float)(Math.Max(0, tax) * 0.05) : 0f;
+                factorMap["waterFee"] = needsWater ? (float)(Math.Max(0, tax) * 0.03) : 0f;
+
+                // Build payload
+                string key = companyEntity.Index + "," + companyEntity.Version;
+                var entries = new List<string>();
+                foreach (var kv in factorMap) entries.Add(string.Format(CultureInfo.InvariantCulture, "{0}:{1:0.##}", kv.Key, kv.Value));
+                var payload = key + "|" + string.Join(",", entries);
+
+                long ck = (((long)companyEntity.Index) << 32) | (uint)companyEntity.Version;
+                _happinessCachePayload[ck] = payload;
+                _happinessCacheTimestamp[ck] = DateTime.UtcNow;
+                try { _companyHappinessData.Update(payload); } catch { }
+            }
+            catch (Exception ex)
+            {
+                Mod.log.Warn("ComputeCompanyHappiness failed: " + ex.Message);
+            }
+        }
+
         private string SerializeCompanies(List<CompanyInfo> companies)
         {
             if (companies.Count == 0) return "";
 
-            // Format: entityIndex,entityVersion|name|zoneType|resourceKey|profit|tier|workers|maxWorkers|posX|posY|posZ|efficiency|input1|input2|taxRate|buildingLevel|efficiencyDetails|brandName|buildingAddress
+                // Format: entityIndex,entityVersion|name|zoneType|resourceKey|profit|tier|workers|maxWorkers|posX|posY|posZ|efficiency|input1|input2|taxRate|buildingLevel|efficiencyDetails|brandName|buildingAddress|happiness|g|c|m|e|w|isSignature
             var parts = new List<string>(companies.Count);
             foreach (var c in companies)
             {
                 parts.Add(string.Format(CultureInfo.InvariantCulture,
-                    "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9:F0}|{10:F0}|{11:F0}|{12}|{13}|{14}|{15}|{16}|{17}|{18}|{19}",
+                    "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9:F0}|{10:F0}|{11:F0}|{12}|{13}|{14}|{15}|{16}|{17}|{18}|{19}|{20}|{21}|{22}|{23}|{24}|{25}|{26}",
                     c.Entity.Index, c.Entity.Version,
                     EscapePipe(c.Name ?? "Unknown"),
                     c.ZoneType,
@@ -418,9 +801,67 @@ namespace AdvancedTPM
                     c.BuildingLevel,
                     c.EfficiencyDetails ?? "",
                     EscapePipe(c.BrandName ?? ""),
-                    EscapePipe(c.BuildingAddress ?? "")));
+                    EscapePipe(c.BuildingAddress ?? ""),
+                    c.HappinessEstimate,
+                    c.ProducesGarbage ? 1 : 0,
+                    c.ProducesCrime ? 1 : 0,
+                    c.ProducesMail ? 1 : 0,
+                    c.NeedsElectricity ? 1 : 0,
+                    c.NeedsWater ? 1 : 0,
+                    c.IsSignature ? 1 : 0));
             }
             return string.Join(";", parts);
+        }
+
+        private void RefreshSignatureCache()
+        {
+            try
+            {
+                _signaturePrefabIndices.Clear();
+                _signatureCacheTimestamp = DateTime.UtcNow;
+                if (_signatureSystem == null || _signatureQueryField == null) return;
+                var qObj = _signatureQueryField.GetValue(_signatureSystem);
+                if (qObj is EntityQuery q)
+                {
+                    if (q.IsEmptyIgnoreFilter) return;
+                    var arr = q.ToEntityArray(Allocator.Temp);
+                    try
+                    {
+                        var nameList = new List<string>();
+                        for (int i = 0; i < arr.Length; i++)
+                        {
+                            _signaturePrefabIndices.Add(arr[i].Index);
+                            try
+                            {
+                                if (_prefabSystem != null)
+                                {
+                                    var nm = _prefabSystem.GetPrefabName(arr[i]);
+                                    if (!string.IsNullOrEmpty(nm)) nameList.Add(nm);
+                                }
+                            }
+                            catch { }
+                        }
+                        // Publish debug binding with prefab names as JSON array
+                        try
+                        {
+                            if (_signaturePrefabsBinding != null)
+                            {
+                                // simple JSON array serialization with escaping for quotes and backslashes
+                                for (int i = 0; i < nameList.Count; i++)
+                                {
+                                    if (nameList[i] == null) nameList[i] = "";
+                                    nameList[i] = nameList[i].Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                }
+                                var json = "[" + string.Join(",", nameList.ConvertAll(n => "\"" + n + "\"").ToArray()) + "]";
+                                _signaturePrefabsBinding.Update(json);
+                            }
+                        }
+                        catch { }
+                    }
+                    finally { arr.Dispose(); }
+                }
+            }
+            catch { }
         }
 
         private static string EscapePipe(string s) { return s.Replace("|", " ").Replace(";", " "); }
