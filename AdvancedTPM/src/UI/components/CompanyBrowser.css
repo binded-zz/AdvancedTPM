@@ -57,11 +57,10 @@
 /* Table body — scrollable with custom scrollbar container */
 .cb-table-scroll { flex:1; display:flex; overflow:hidden; position:relative; }
 .cb-table-body { flex:1; overflow-y:scroll; overflow-x:hidden; }
-/* Style native scrollbar for company list where supported */
-.cb-table-body::-webkit-scrollbar { width: 10rem; }
-.cb-table-body::-webkit-scrollbar-track { background: rgba(12,18,24,0.55); border-radius: 6rem; }
-.cb-table-body::-webkit-scrollbar-thumb { background: rgba(80,140,200,0.55); border-radius:6rem; border:2rem solid rgba(12,18,24,0.45); }
-.cb-table-body { scrollbar-color: rgba(80,140,200,0.55) rgba(12,18,24,0.55); scrollbar-width: thin; }
+.cb-table-body { /* prefer standard scrollbar hints; remove vendor pseudo-elements unsupported by CoHTML */
+  scrollbar-color: rgba(80,140,200,0.55) rgba(12,18,24,0.55);
+  scrollbar-width: thin;
+}
 .cb-row { display:flex; align-items:center; padding:4rem 10rem; font-size:12rem; color:rgba(255,255,255,0.8); transition:background-color 0.1s; cursor:pointer; }
 .cb-row:hover { background:rgba(80,184,233,0.12); }
 .cb-row-alt { background:rgba(255,255,255,0.02); }

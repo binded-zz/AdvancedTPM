@@ -139,10 +139,10 @@
 
 /* Advisor custom scrollbar (visible even when native scrollbars hidden) */
 /* Make native scrollbars visible where possible */
-.advisor-content::-webkit-scrollbar { width: 10rem; }
-.advisor-content::-webkit-scrollbar-track { background: rgba(12,18,24,0.55); border-radius: 6rem; }
-.advisor-content::-webkit-scrollbar-thumb { background: rgba(80,140,200,0.65); border-radius:6rem; border:2rem solid rgba(12,18,24,0.45); }
-.advisor-content { scrollbar-color: rgba(80,140,200,0.65) rgba(12,18,24,0.55); scrollbar-width: thin; }
+.advisor-content { /* prefer standard scrollbar hints; remove vendor pseudo-elements unsupported by CoHTML */
+  scrollbar-color: rgba(80,140,200,0.65) rgba(12,18,24,0.55);
+  scrollbar-width: thin;
+}
 
 /* Overview */
 .advisor-stats-grid {
@@ -305,12 +305,16 @@
 
 /* Profiles tab */
 .advisor-profile-list {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* CoHTML has limited grid support; use flexbox-based fallback for predictable layout */
+  display: flex;
+  flex-wrap: wrap;
   gap: 12rem;
 }
 .advisor-profile-list > * {
   margin: 0;
+  /* three-column layout fallback */
+  width: calc(33.333% - 8rem);
+  box-sizing: border-box;
 }
 .advisor-profile-row {
   display: flex;
