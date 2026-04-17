@@ -33,6 +33,11 @@
 }
 .adv-table-content { flex:0 1 auto; overflow-y:auto; overflow-x:visible; }
 
+/* Resources table content: keep vertical list of category groups for correct
+   resource layout (each category group is a full-width row). Avoid grid here
+   because CategoryGroupRow and ResourceSubRow expect full-width flow. */
+.adv-table-content { display:flex; flex-direction:column; gap:0; }
+
 /* Visible scrollbar styling for resources/advisor pages */
 .adv-table-content, .adv-table-section, .adv-table-content-wrapper, .adv-window .advisor-content {
   /* prefer standard scrollbar hints; vendor-prefixed pseudo-elements removed for CoHTML */

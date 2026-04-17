@@ -279,11 +279,8 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
     [profiles]
   );
 
-  // Limit rendered profiles to avoid heavy renders when there are many
-  const displayedProfiles = useMemo(() => {
-    if (showAllProfiles) return sortedProfiles;
-    return sortedProfiles.slice(0, 100);
-  }, [sortedProfiles, showAllProfiles]);
+  // No row limit: render all sorted profiles by default. Keep showAllProfiles state for compatibility.
+  const displayedProfiles = useMemo(() => sortedProfiles, [sortedProfiles]);
 
   const handleReset = () => {
     if (confirmReset) {
@@ -460,8 +457,9 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
             {sortedProfiles.length === 0 && (
               <div className="advisor-empty">No learning profiles yet. Data will appear after tax adjustments are observed.</div>
             )}
+
             <div className="advisor-profile-list">
-              {sortedProfiles.map((p) => (
+              {displayedProfiles.map((p) => (
                 <ProfileRow key={p.key} p={p} />
               ))}
             </div>

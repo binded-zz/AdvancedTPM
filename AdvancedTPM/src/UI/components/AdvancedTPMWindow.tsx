@@ -40,6 +40,8 @@ interface AdvancedTPMWindowProps {
   autoTaxSettings: string;
   companyBrowserData: string;
   companyHappinessData: string;
+  signaturePrefabs?: string;
+  signatureCompanyKeys?: string;
   advisorData: string;
   decisionLogData: string;
   learningStatsData: string;
@@ -521,6 +523,8 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   decisionLogData,
   learningStatsData,
   learningEnabled,
+  signaturePrefabs,
+  signatureCompanyKeys,
   onToggleLearning,
   onAutoTaxToggle,
   onResourceTaxRateChange,
@@ -536,26 +540,26 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   const autoTaxParsed = useMemo(() => parseAutoTaxStatus(autoTaxStatus), [autoTaxStatus]);
   const autoTaxDirections = autoTaxParsed?.directions ?? new Map();
 
-  const signatureCompanies = useMemo(() => parseCompanies(companyBrowserData).filter(c => !!c.isSignature), [companyBrowserData]);
-  const signatureCount = signatureCompanies.length;
-
-  // Heuristic to classify a company as a "Signature Building" for the signature tab.
-  // This is intentionally conservative and configurable here — it currently treats
-  // buildings with top building level or very high efficiency/profit as signature.
-  const isSignatureCompany = (c: any) => {
-    try {
-      // server-provided hint in brandName (explicit marker)
-      if (c.brandName && /signature|landmark|flagship|showcase/i.test(c.brandName)) return true;
-      // Building level 5 is a strong signal
-      if (Number(c.buildingLevel || 0) >= 5) return true;
-      // If efficiencyDetails contains a specialization bonus factor, treat as signature
-      if (c.efficiencyDetails && /Specialization/i.test(c.efficiencyDetails)) return true;
-      // Require very high efficiency or very high profit to qualify
-      if (Number(c.efficiency || 0) >= 130) return true;
-      if (Number(c.profit || 0) >= 75) return true;
-    } catch { }
-    return false;
-  };
+  // Compute signature companies using authoritative flags from the server (isSignature)
+  // and an explicit list of signature company entity keys published by the C# system.
+  let signatureCompanies: any[] = [];
+  let signatureCount = 0;
+  const _signatureCompanies = useMemo(() => {
+    const all = parseCompanies(companyBrowserData || '');
+    // Parse signature company keys published by the system (format: "idx,ver;idx,ver;...")
+    const keySet = new Set<string>();
+    if (signatureCompanyKeys) {
+      signatureCompanyKeys.split(';').map(s => s.trim()).filter(s => s.length > 0).forEach(k => keySet.add(k));
+    }
+    // Optionally accept authoritative prefab name list as well (signaturePrefabs JSON array).
+    let names: string[] = [];
+    if (signaturePrefabs) {
+      try { const parsed = JSON.parse(signaturePrefabs); if (Array.isArray(parsed)) names = parsed.map((s: any) => String(s)); } catch { names = []; }
+    }
+    return all.filter((c) => c.isSignature || keySet.has(`${c.entityIndex},${c.entityVersion}`) || (names.length > 0 && names.includes(c.name)));
+  }, [companyBrowserData, signatureCompanyKeys, signaturePrefabs]);
+  signatureCompanies = _signatureCompanies;
+  signatureCount = signatureCompanies.length;
 
   // Parse panel opacity from autoTaxSettings (slot 8: ...||profitWeight|opacity)
   const panelOpacity = useMemo(() => {
