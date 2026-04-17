@@ -51,3 +51,17 @@
 - English localization with full settings string coverage
 - Debug logging toggle and debug panel
 - Toolbar button with ATPM icon
+
+## [Unreleased] - feature/logging-signature-debug
+### Added
+- `PrefixedLogger` utility for per-system logging with Unity fallback.
+- `signatureCompanies` binding published from C# (authoritative ECS entity keys for signature buildings) as JSON.
+- `signatureCacheStatus` binding with timestamp and signature prefab count for debugging.
+- Debug UI: signature prefab list, signature company keys, and cache status visible in Debug Panel; button to force-refresh signature cache.
+
+### Changed
+- CompanyBrowserSystem now publishes authoritative signature data and uses `PrefixedLogger` for diagnostics.
+- UI no longer uses client-side heuristics to identify signature buildings; it relies on authoritative bindings.
+
+### Notes
+- Feature branch: `feature/logging-signature-debug`. Build and in-game test before merging to `main`.
