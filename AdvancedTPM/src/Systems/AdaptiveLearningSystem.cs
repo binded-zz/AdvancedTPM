@@ -23,6 +23,7 @@ namespace AdvancedTPM
     /// </summary>
     public partial class AdaptiveLearningSystem : UISystemBase
     {
+        private AdvancedTPM.Utilities.PrefixedLogger m_Log;
         private ValueBinding<bool> _learningEnabled;
         private ValueBinding<string> _advisorData;
         private ValueBinding<string> _decisionLogData;
@@ -92,8 +93,8 @@ namespace AdvancedTPM
 
             // Initial UI push
             UpdateAdvisorBindings();
-
-            Mod.log.Info($"AdaptiveLearningSystem initialized -- profiles={_database.Profiles.Count} pending={_database.PendingEvents.Count} decisions={_database.DecisionLog.Count}");
+            m_Log = new AdvancedTPM.Utilities.PrefixedLogger(nameof(AdaptiveLearningSystem));
+            m_Log.Info($"AdaptiveLearningSystem initialized -- profiles={_database.Profiles.Count} pending={_database.PendingEvents.Count} decisions={_database.DecisionLog.Count}");
         }
 
         protected override void OnUpdate()

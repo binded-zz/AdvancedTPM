@@ -41,7 +41,8 @@ interface AdvancedTPMWindowProps {
   companyBrowserData: string;
   companyHappinessData: string;
   signaturePrefabs?: string;
-  signatureCompanyKeys?: string;
+  signatureCompaniesJson?: string;
+  signatureCacheStatus?: string;
   advisorData: string;
   decisionLogData: string;
   learningStatsData: string;
@@ -524,7 +525,8 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   learningStatsData,
   learningEnabled,
   signaturePrefabs,
-  signatureCompanyKeys,
+  signatureCompaniesJson,
+  signatureCacheStatus,
   onToggleLearning,
   onAutoTaxToggle,
   onResourceTaxRateChange,
@@ -546,10 +548,16 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   let signatureCount = 0;
   const _signatureCompanies = useMemo(() => {
     const all = parseCompanies(companyBrowserData || '');
-    // Parse signature company keys published by the system (format: "idx,ver;idx,ver;...")
+    // Parse signature company keys published by the system (JSON array of "idx,ver" strings)
     const keySet = new Set<string>();
-    if (signatureCompanyKeys) {
-      signatureCompanyKeys.split(';').map(s => s.trim()).filter(s => s.length > 0).forEach(k => keySet.add(k));
+    if (signatureCompaniesJson) {
+      try {
+        const parsed = JSON.parse(signatureCompaniesJson);
+        if (Array.isArray(parsed)) parsed.map((s: any) => String(s).trim()).filter((s: string) => s.length > 0).forEach(k => keySet.add(k));
+      } catch {
+        // Fallback: support legacy semicolon-delimited string
+        signatureCompaniesJson.split(';').map((s: any) => String(s).trim()).filter((s: string) => s.length > 0).forEach(k => keySet.add(k));
+      }
     }
     // Optionally accept authoritative prefab name list as well (signaturePrefabs JSON array).
     let names: string[] = [];
@@ -557,7 +565,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
       try { const parsed = JSON.parse(signaturePrefabs); if (Array.isArray(parsed)) names = parsed.map((s: any) => String(s)); } catch { names = []; }
     }
     return all.filter((c) => c.isSignature || keySet.has(`${c.entityIndex},${c.entityVersion}`) || (names.length > 0 && names.includes(c.name)));
-  }, [companyBrowserData, signatureCompanyKeys, signaturePrefabs]);
+  }, [companyBrowserData, signatureCompaniesJson, signaturePrefabs]);
   signatureCompanies = _signatureCompanies;
   signatureCount = signatureCompanies.length;
 

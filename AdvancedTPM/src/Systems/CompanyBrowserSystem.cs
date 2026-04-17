@@ -44,6 +44,7 @@ namespace AdvancedTPM
         private readonly TimeSpan _signatureCacheTtl = TimeSpan.FromSeconds(10);
         private ValueBinding<string> _signaturePrefabsBinding;
         private ValueBinding<string> _signatureCompaniesBinding;
+        private ValueBinding<string> _signatureCacheStatusBinding;
         private int _updateCounter;
 
         // Queries
@@ -68,6 +69,15 @@ namespace AdvancedTPM
                 {
                     _signatureQueryField = _signatureSystem.GetType().GetField("m_UnlockedSignatureBuildingQuery", BindingFlags.NonPublic | BindingFlags.Instance);
                 }
+                                try
+                                {
+                                    if (_signatureCacheStatusBinding != null)
+                                    {
+                                        var statusJson = "{\"timestamp\":\"" + _signatureCacheTimestamp.ToString("o") + "\",\"count\": " + _signaturePrefabIndices.Count + "}";
+                                        _signatureCacheStatusBinding.Update(statusJson);
+                                    }
+                                }
+                                catch { }
             }
             catch { }
 
@@ -96,6 +106,7 @@ namespace AdvancedTPM
             AddBinding(_companyBrowserData = new ValueBinding<string>("taxProduction", "companyBrowserData", ""));
             try { AddBinding(_signaturePrefabsBinding = new ValueBinding<string>("taxProduction", "signaturePrefabs", "")); } catch { }
             try { AddBinding(_signatureCompaniesBinding = new ValueBinding<string>("taxProduction", "signatureCompanies", "")); } catch { }
+            try { AddBinding(_signatureCacheStatusBinding = new ValueBinding<string>("taxProduction", "signatureCacheStatus", "")); } catch { }
 
             m_Log = new PrefixedLogger(nameof(CompanyBrowserSystem));
             m_Log.Info("CompanyBrowserSystem initialized (direct ECS)");
@@ -186,7 +197,7 @@ namespace AdvancedTPM
                 _companyBrowserData.Update(serialized);
                 try
                 {
-                    // Publish authoritative list of signature company entity keys (idx,ver;...)
+                    // Publish authoritative list of signature company entity keys as JSON array ["idx,ver",...]
                     if (_signatureCompaniesBinding != null)
                     {
                         var sigKeys = new List<string>();
@@ -195,8 +206,20 @@ namespace AdvancedTPM
                             if (c.IsSignature)
                                 sigKeys.Add(c.Entity.Index + "," + c.Entity.Version);
                         }
-                        var keysPayload = string.Join(";", sigKeys);
-                        _signatureCompaniesBinding.Update(keysPayload);
+                        var json = "[" + string.Join(",", sigKeys.ConvertAll(k => "\"" + k + "\"")) + "]";
+                        _signatureCompaniesBinding.Update(json);
+                    }
+                    // Publish cache status for debug (timestamp + count of signature prefabs)
+                    if (_signatureCacheStatusBinding != null)
+                    {
+                        var statusObj = new Dictionary<string, object>
+                        {
+                            ["timestamp"] = DateTime.UtcNow.ToString("o"),
+                            ["count"] = _signaturePrefabIndices.Count
+                        };
+                        // Simple JSON serialization
+                        var statusJson = "{\"timestamp\":\"" + statusObj["timestamp"] + "\",\"count\": " + statusObj["count"] + "}";
+                        _signatureCacheStatusBinding.Update(statusJson);
                     }
                 }
                 catch { }

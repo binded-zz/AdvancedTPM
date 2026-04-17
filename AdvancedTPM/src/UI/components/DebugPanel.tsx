@@ -1,4 +1,5 @@
 import React from 'react';
+import { trigger } from 'cs2/api';
 
 interface DebugPanelProps {
   debugEnabled: boolean;
@@ -9,14 +10,18 @@ interface DebugPanelProps {
   onTogglePanel: () => void;
   signaturePrefabs?: string;
   signatureCompanies?: string;
+  signatureCacheStatus?: string;
 }
 
-const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAction, onToggleDebug, onToggleTips, onTogglePanel, signaturePrefabs, signatureCompanies }) => {
+const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAction, onToggleDebug, onToggleTips, onTogglePanel, signaturePrefabs, signatureCompanies, signatureCacheStatus }) => {
   return (
     <div style={{ position: 'absolute', top: 110, right: 30, width: 280, background: 'rgba(16,20,28,0.96)', border: '1px solid rgba(255,255,255,0.2)', color: '#dce6f2', padding: 10, borderRadius: 6 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
         <strong>TPM Debug</strong>
-        <button onClick={onTogglePanel}>✕</button>
+        <div>
+          <button onClick={() => { try { trigger('taxProduction', 'refreshSignatureCache', '1'); } catch {} }} style={{ marginRight: 6 }}>Refresh Sig Cache</button>
+          <button onClick={onTogglePanel}>✕</button>
+        </div>
       </div>
       <label style={{ display: 'block', marginBottom: 8 }}>
         <input type="checkbox" checked={debugEnabled} onChange={(e) => onToggleDebug(e.target.checked)} /> Enable debug logs
@@ -30,7 +35,9 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAct
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Signature Prefabs</div>
           <div style={{ maxHeight: 80, overflow: 'auto', fontSize: 11, background: 'rgba(0,0,0,0.2)', padding: 6, borderRadius: 4, marginBottom: 6 }}>{signaturePrefabs || '—'}</div>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Signature Companies (keys)</div>
-          <div style={{ maxHeight: 80, overflow: 'auto', fontSize: 11, background: 'rgba(0,0,0,0.2)', padding: 6, borderRadius: 4 }}>{signatureCompanies || '—'}</div>
+          <div style={{ maxHeight: 80, overflow: 'auto', fontSize: 11, background: 'rgba(0,0,0,0.2)', padding: 6, borderRadius: 4, marginBottom: 6 }}>{signatureCompanies || '—'}</div>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Signature Cache Status</div>
+          <div style={{ maxHeight: 40, overflow: 'auto', fontSize: 11, background: 'rgba(0,0,0,0.2)', padding: 6, borderRadius: 4 }}>{signatureCacheStatus || '—'}</div>
         </div>
       )}
     </div>
