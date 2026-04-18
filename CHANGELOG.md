@@ -52,7 +52,8 @@
 - Debug logging toggle and debug panel
 - Toolbar button with ATPM icon
 
-## [Unreleased] - feature/logging-signature-debug
+## v1.2.0 — Logging, Signature & Debug
+
 ### Added
 - `PrefixedLogger` utility for per-system logging with Unity fallback.
 - `signatureCompanies` binding published from C# (authoritative ECS entity keys for signature buildings) as JSON.
@@ -64,4 +65,4 @@
 - UI no longer uses client-side heuristics to identify signature buildings; it relies on authoritative bindings.
 
 ### Notes
-- Feature branch: `feature/logging-signature-debug`. Build and in-game test before merging to `main`.
+- Integrated from `feature/logging-signature-debug`. Build and in-game test required for runtime validation.
