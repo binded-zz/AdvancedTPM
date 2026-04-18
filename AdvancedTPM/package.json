@@ -10,6 +10,7 @@
     "update": "npx create-csii-ui-mod update",
     "clean": "npx create-csii-ui-mod clean"
   },
+
   "exclude": [
     "node_modules",
     "build"

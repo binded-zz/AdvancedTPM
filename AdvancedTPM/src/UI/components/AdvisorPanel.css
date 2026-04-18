@@ -128,6 +128,8 @@
 .advisor-content {
   flex: 1;
   position: relative;
+  /* allow flex children to shrink so inner scroll boxes calculate correctly */
+  min-height: 0;
 }
 
 /* scroll body used by ScrollContainer */
@@ -181,6 +183,11 @@
 
 .advisor-section {
   margin-top: 10rem;
+  /* allow sections to participate in flex layout so inner scroll boxes can fill space */
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .advisor-section-title {
   font-size: 12rem;
@@ -189,6 +196,19 @@
   letter-spacing: 0.5px;
   margin-bottom: 8rem;
   padding-bottom: 4rem;
+  border-bottom: 1rem solid rgba(255,255,255,0.1);
+}
+
+/* Keep section titles visible when their column is scrolled */
+.advisor-scroll-box .advisor-section-title {
+  position: sticky;
+  top: 0; /* stick to top of the scrolling column */
+  z-index: 5; /* sit above list items */
+  /* give a matching background so content doesn't show under the title */
+  background: rgba(12,18,24,0.95);
+  /* preserve spacing consistent with non-sticky flow */
+  padding: 8rem 0 4rem 0;
+  margin: 0 0 8rem 0;
   border-bottom: 1rem solid rgba(255,255,255,0.1);
 }
 
@@ -305,16 +325,17 @@
 
 /* Profiles tab */
 .advisor-profile-list {
-  /* CoHTML has limited grid support; use flexbox-based fallback for predictable layout */
-  display: flex;
-  flex-wrap: wrap;
+  /* Use CSS Grid to enforce three columns consistently across rows.
+     Grid provides predictable, row-major ordering: items 0-2 in first row,
+     3-5 in second row, etc. Fallback to flexbox if grid is unavailable. */
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 12rem;
 }
 .advisor-profile-list > * {
   margin: 0;
-  /* three-column layout fallback */
-  width: calc(33.333% - 8rem);
   box-sizing: border-box;
+  width: auto; /* let grid control sizing */
 }
 .advisor-profile-row {
   display: flex;
@@ -368,7 +389,8 @@
 .advisor-profile-bar-label {
   font-size: 11rem;
   color: rgba(255,255,255,0.65);
-  min-width: 65rem;
+  /* reduce min-width to avoid forcing items to full-width in CoHTML */
+  min-width: 45rem;
 }
 .advisor-profile-bar-track {
   flex: 1;
@@ -391,8 +413,25 @@
 .advisor-profile-bar-value {
   font-size: 12rem;
   color: rgba(255,255,255,0.8);
-  min-width: 40rem;
+  min-width: 30rem;
   text-align: right;
+}
+
+/* Fallback for environments that don't support CSS Grid (CoHTML): use flexbox */
+@supports not (display: grid) {
+  .advisor-profile-list {
+    display: flex;
+    flex-wrap: wrap;
+    /* compute widths so three items per row with gap accounted for */
+    gap: 12rem;
+  }
+  .advisor-profile-list > * {
+    /* avoid calc mixing percent and rem (CoHTML parse errors) — use flex sizing */
+    flex: 1 1 30%;
+    max-width: 33.333%;
+    min-width: 120rem;
+    box-sizing: border-box;
+  }
 }
 .advisor-profile-meta {
   display: flex;
@@ -460,3 +499,46 @@
 }
 
 /* Scrollbar: -webkit-scrollbar not supported in CoHTML; use JS-based scrollbar or rely on default */
+
+/* Two-column overview: make left/right columns scrollable boxes */
+.advisor-overview-two {
+  display: flex;
+  gap: 12rem;
+}
+.advisor-overview-left,
+.advisor-overview-right {
+  box-sizing: border-box;
+  flex: 1 1 50%;
+  min-width: 120rem;
+  min-height: 0; /* allow child to shrink for overflow */
+  /* allow scrolling on the column itself so inner boxes don't escape the viewport */
+  overflow: auto;
+}
+
+.advisor-scroll-box {
+  /* Allow the scroll box to grow/shrink with the surrounding flex layout.
+     Remove fixed max-height to let it resize vertically with the window. */
+  max-height: none;
+  overflow: auto;
+  padding-right: 8rem;
+  /* ensure flex children can shrink (min-height:0) and take available space */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.advisor-rec-box {
+  /* Remove fixed max height so recommendations list can grow/shrink.
+     Additional per-box tweaks live later in the file. */
+  max-height: none;
+}
+
+/* Two-column overview: make left/right columns resize vertically with the panel */
+.advisor-overview { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.advisor-overview-two { display: flex; flex: 1 1 auto; gap: 12rem; min-height: 0; }
+.advisor-overview-left, .advisor-overview-right { box-sizing: border-box; flex: 1 1 50%; min-width: 120rem; min-height: 0; display: flex; flex-direction: column; }
+.advisor-rec-box { /* reserved for rec-specific tweaks */ }
+
+/* Slightly tighter rows when inside boxed layout */
+.advisor-decision-list, .advisor-rec-list { display: flex; flex-direction: column; }
+.advisor-decision-row, .advisor-rec-row { padding: 8rem 6rem; border-bottom: 1rem solid rgba(255,255,255,0.02); }
+.advisor-decision-row:last-child, .advisor-rec-row:last-child { border-bottom: none; }

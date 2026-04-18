@@ -49,7 +49,8 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
       const parts = chunk.split('|');
       if (parts.length < 11) return null;
       // optional trailing flags: happiness, garbage, crime, mail, electricity, water
-      const [entityPart, name, zoneType, resourceKey, profit, tier, workers, maxWorkers, px, py, pz, eff, in1, in2, taxR, bLevel, effDetails, brandName, bldgAddr, happiness, producesGarbage, producesCrime, producesMail, needsElectricity, needsWater, isSignature] = parts;
+      // serialization now appends numeric service metrics before the final isSignature flag
+      const [entityPart, name, zoneType, resourceKey, profit, tier, workers, maxWorkers, px, py, pz, eff, in1, in2, taxR, bLevel, effDetails, brandName, bldgAddr, happiness, producesGarbage, producesCrime, producesMail, needsElectricity, needsWater, electricityConsumption, waterConsumption, garbageAccumulation, mailAccumulation, crimeProbability, isSignature] = parts;
       const [idx, ver] = (entityPart || '').split(',');
       return {
         entityIndex: Number(idx) || 0,
@@ -79,6 +80,12 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
         producesMail: Number(producesMail) === 1,
         needsElectricity: Number(needsElectricity) === 1,
         needsWater: Number(needsWater) === 1,
+        // numeric service metrics (may be 0 if unavailable)
+        electricityConsumption: Number(electricityConsumption) || 0,
+        waterConsumption: Number(waterConsumption) || 0,
+        garbageAccumulation: Number(garbageAccumulation) || 0,
+        mailAccumulation: Number(mailAccumulation) || 0,
+        crimeProbability: Number(crimeProbability) || 0,
         isSignature: Number(isSignature) === 1,
       } as CompanyVm;
     })
@@ -275,6 +282,27 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
   const [expandedEntity, setExpandedEntity] = useState<number | null>(null);
   const [happinessMap, setHappinessMap] = useState<CompanyHappinessMap>({});
   const [happinessLoading, setHappinessLoading] = useState<Record<string, boolean>>({});
+
+  // Proactively request lightweight environmental/service metrics for visible companies
+  // to avoid blank/placeholder UI when the user expands rows. Request only a limited
+  // number to avoid spamming the game (first 20 visible companies).
+  useEffect(() => {
+    if (!companies || companies.length === 0) return;
+    const toRequest = [] as string[];
+    for (let i = 0; i < Math.min(20, companies.length); i++) {
+      const c = companies[i];
+      const key = `${c.entityIndex},${c.entityVersion}`;
+      if (!happinessMap[key] && !happinessLoading[key]) {
+        toRequest.push(key);
+      }
+    }
+    if (toRequest.length === 0) return;
+    toRequest.forEach((k) => {
+      setHappinessLoading((prev) => ({ ...prev, [k]: true }));
+      try { trigger('taxProduction', 'requestCompanyHappiness', k); } catch { }
+    });
+  // companies intentionally used rather than filtered/sorted so requests target authoritative entities
+  }, [companies]);
 
   // Merge incoming single-company happiness payloads into local map
   useEffect(() => {

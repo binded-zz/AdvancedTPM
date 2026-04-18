@@ -24,9 +24,15 @@ namespace AdvancedTPM
     /// IndustrialProcessData, Transform, etc.) are public IComponentData in Game.dll.
     /// Pattern reference: InfoLoom IndustrialCompanySystem.
     /// </summary>
+    using AdvancedTPM.Utilities;
+
     public partial class CompanyBrowserSystem : UISystemBase
     {
+        private PrefixedLogger m_Log;
         private ValueBinding<string> _companyBrowserData;
+
+        // Cache component Types for service components to avoid scanning assemblies per-entity
+        private readonly Dictionary<string, Type> _serviceComponentTypeCache = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase);
 
         private PrefabSystem _prefabSystem;
         private TaxSystem _taxSystem;
@@ -37,6 +43,8 @@ namespace AdvancedTPM
         private DateTime _signatureCacheTimestamp = DateTime.MinValue;
         private readonly TimeSpan _signatureCacheTtl = TimeSpan.FromSeconds(10);
         private ValueBinding<string> _signaturePrefabsBinding;
+        private ValueBinding<string> _signatureCompaniesBinding;
+        private ValueBinding<string> _signatureCacheStatusBinding;
         private int _updateCounter;
 
         // Queries
@@ -61,6 +69,15 @@ namespace AdvancedTPM
                 {
                     _signatureQueryField = _signatureSystem.GetType().GetField("m_UnlockedSignatureBuildingQuery", BindingFlags.NonPublic | BindingFlags.Instance);
                 }
+                                try
+                                {
+                                    if (_signatureCacheStatusBinding != null)
+                                    {
+                                        var statusJson = "{\"timestamp\":\"" + _signatureCacheTimestamp.ToString("o") + "\",\"count\": " + _signaturePrefabIndices.Count + "}";
+                                        _signatureCacheStatusBinding.Update(statusJson);
+                                    }
+                                }
+                                catch { }
             }
             catch { }
 
@@ -88,8 +105,81 @@ namespace AdvancedTPM
 
             AddBinding(_companyBrowserData = new ValueBinding<string>("taxProduction", "companyBrowserData", ""));
             try { AddBinding(_signaturePrefabsBinding = new ValueBinding<string>("taxProduction", "signaturePrefabs", "")); } catch { }
+            try { AddBinding(_signatureCompaniesBinding = new ValueBinding<string>("taxProduction", "signatureCompanies", "")); } catch { }
+            try { AddBinding(_signatureCacheStatusBinding = new ValueBinding<string>("taxProduction", "signatureCacheStatus", "")); } catch { }
 
-            Mod.log.Info("CompanyBrowserSystem initialized (direct ECS)");
+            m_Log = new PrefixedLogger(nameof(CompanyBrowserSystem));
+            m_Log.Info("CompanyBrowserSystem initialized (direct ECS)");
+        }
+
+        // Find a value-type component Type matching a short name (e.g. "ElectricityConsumer") and cache it.
+        private Type FindServiceComponentType(string shortName)
+        {
+            if (string.IsNullOrEmpty(shortName)) return null;
+            if (_serviceComponentTypeCache.TryGetValue(shortName, out var cached)) return cached;
+
+            try
+            {
+                var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+                foreach (var asm in assemblies)
+                {
+                    Type[] types = null;
+                    try { types = asm.GetTypes(); } catch { continue; }
+                    foreach (var t in types)
+                    {
+                        if (!t.IsValueType) continue; // component structs are value types
+                        if (t.Name.Equals(shortName, StringComparison.OrdinalIgnoreCase) || t.Name.IndexOf(shortName, StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            _serviceComponentTypeCache[shortName] = t;
+                            return t;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            _serviceComponentTypeCache[shortName] = null;
+            return null;
+        }
+
+        // Read a numeric field from a component struct on the given entity using reflection.
+        // em is passed to avoid referencing EntityManager property via reflection repeatedly.
+        private double? TryReadComponentNumeric(EntityManager em, Entity ent, Type compType, string[] candidateFields)
+        {
+            if (compType == null) return null;
+            try
+            {
+                var gm = em.GetType().GetMethod("GetComponentData", new Type[] { typeof(Entity) });
+                if (gm == null) return null;
+                var mg = gm.MakeGenericMethod(compType);
+                object compData = null;
+                try { compData = mg.Invoke(em, new object[] { ent }); } catch { return null; }
+                if (compData == null) return null;
+                var dt = compData.GetType();
+                foreach (var fn in candidateFields)
+                {
+                    var f = dt.GetField(fn, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (f != null)
+                    {
+                        var v = f.GetValue(compData);
+                        if (v is float fv) return (double)fv;
+                        if (v is double dv) return dv;
+                        if (v is int iv) return (double)iv;
+                        if (v is long lv) return (double)lv;
+                    }
+                    var p = dt.GetProperty(fn, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (p != null)
+                    {
+                        var v = p.GetValue(compData);
+                        if (v is float fv2) return (double)fv2;
+                        if (v is double dv2) return dv2;
+                        if (v is int iv2) return (double)iv2;
+                        if (v is long lv2) return (double)lv2;
+                    }
+                }
+            }
+            catch { }
+            return null;
         }
 
         protected override void OnUpdate()
@@ -105,6 +195,34 @@ namespace AdvancedTPM
                 var companies = CollectCompanyData();
                 var serialized = SerializeCompanies(companies);
                 _companyBrowserData.Update(serialized);
+                try
+                {
+                    // Publish authoritative list of signature company entity keys as JSON array ["idx,ver",...]
+                    if (_signatureCompaniesBinding != null)
+                    {
+                        var sigKeys = new List<string>();
+                        foreach (var c in companies)
+                        {
+                            if (c.IsSignature)
+                                sigKeys.Add(c.Entity.Index + "," + c.Entity.Version);
+                        }
+                        var json = "[" + string.Join(",", sigKeys.ConvertAll(k => "\"" + k + "\"")) + "]";
+                        _signatureCompaniesBinding.Update(json);
+                    }
+                    // Publish cache status for debug (timestamp + count of signature prefabs)
+                    if (_signatureCacheStatusBinding != null)
+                    {
+                        var statusObj = new Dictionary<string, object>
+                        {
+                            ["timestamp"] = DateTime.UtcNow.ToString("o"),
+                            ["count"] = _signaturePrefabIndices.Count
+                        };
+                        // Simple JSON serialization
+                        var statusJson = "{\"timestamp\":\"" + statusObj["timestamp"] + "\",\"count\": " + statusObj["count"] + "}";
+                        _signatureCacheStatusBinding.Update(statusJson);
+                    }
+                }
+                catch { }
             }
             catch (Exception ex)
             {
@@ -134,6 +252,12 @@ namespace AdvancedTPM
             public string BrandName;           // rendered company brand name (e.g. "Ordinateur")
             public string BuildingAddress;     // rendered building address (e.g. "32 Kingsgate Street")
             public int HappinessEstimate;
+            // Lightweight numeric service metrics (optional, may be 0 if unavailable)
+            public float ElectricityConsumption;
+            public float WaterConsumption;
+            public float GarbageAccumulation;
+            public float MailAccumulation;
+            public float CrimeProbability;
             public bool ProducesGarbage;
             public bool ProducesCrime;
             public bool ProducesMail;
@@ -427,6 +551,65 @@ namespace AdvancedTPM
                     info.NeedsElectricity = needsElec;
                     info.NeedsWater = needsWater;
 
+                    // Attempt to read numeric service metrics from the property or prefab (use cached component type lookups)
+                    double elecConsumption = double.NaN, waterConsumption = double.NaN, garbageAccum = double.NaN, mailAccum = double.NaN, crimeProb = double.NaN;
+                    try
+                    {
+                        var elecType = FindServiceComponentType("ElectricityConsumer");
+                        var waterType = FindServiceComponentType("WaterConsumer");
+                        var garbageType = FindServiceComponentType("GarbageProducer");
+                        var mailType = FindServiceComponentType("MailProducer");
+                        var crimeType = FindServiceComponentType("CrimeProducer");
+
+                        // Try on the property entity first
+                        if (prop != Entity.Null && em.Exists(prop))
+                        {
+                            var r = TryReadComponentNumeric(em, prop, elecType, new[] { "m_CurrentConsumption", "m_PowerUsage", "m_Consumption", "m_ElectricityConsumption" });
+                            if (r.HasValue) elecConsumption = r.Value;
+                            r = TryReadComponentNumeric(em, prop, waterType, new[] { "m_CurrentConsumption", "m_WaterUsage", "m_Consumption", "m_WaterConsumption" });
+                            if (r.HasValue) waterConsumption = r.Value;
+                            r = TryReadComponentNumeric(em, prop, garbageType, new[] { "m_Accumulation", "m_GarbageAccumulation", "m_Amount" });
+                            if (r.HasValue) garbageAccum = r.Value;
+                            r = TryReadComponentNumeric(em, prop, mailType, new[] { "m_Accumulation", "m_MailAccumulation" });
+                            if (r.HasValue) mailAccum = r.Value;
+                            r = TryReadComponentNumeric(em, prop, crimeType, new[] { "m_Probability", "m_CrimeProbability" });
+                            if (r.HasValue) crimeProb = r.Value;
+                        }
+
+                        // Fallback to prefab-level components if property didn't yield values
+                        try
+                        {
+                            if (em.HasComponent<PropertyRenter>(entity))
+                            {
+                                var renter = em.GetComponentData<PropertyRenter>(entity);
+                                var bldg = renter.m_Property;
+                                if (em.Exists(bldg) && em.HasComponent<PrefabRef>(bldg))
+                                {
+                                    var bRef = em.GetComponentData<PrefabRef>(bldg);
+                                    var bPrefab = bRef.m_Prefab;
+                                    var r = TryReadComponentNumeric(em, bPrefab, elecType, new[] { "m_CurrentConsumption", "m_PowerUsage", "m_Consumption", "m_ElectricityConsumption" });
+                                    if (r.HasValue && double.IsNaN(elecConsumption)) elecConsumption = r.Value;
+                                    r = TryReadComponentNumeric(em, bPrefab, waterType, new[] { "m_CurrentConsumption", "m_WaterUsage", "m_Consumption", "m_WaterConsumption" });
+                                    if (r.HasValue && double.IsNaN(waterConsumption)) waterConsumption = r.Value;
+                                    r = TryReadComponentNumeric(em, bPrefab, garbageType, new[] { "m_Accumulation", "m_GarbageAccumulation", "m_Amount" });
+                                    if (r.HasValue && double.IsNaN(garbageAccum)) garbageAccum = r.Value;
+                                    r = TryReadComponentNumeric(em, bPrefab, mailType, new[] { "m_Accumulation", "m_MailAccumulation" });
+                                    if (r.HasValue && double.IsNaN(mailAccum)) mailAccum = r.Value;
+                                    r = TryReadComponentNumeric(em, bPrefab, crimeType, new[] { "m_Probability", "m_CrimeProbability" });
+                                    if (r.HasValue && double.IsNaN(crimeProb)) crimeProb = r.Value;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    catch { }
+
+                    info.ElectricityConsumption = double.IsNaN(elecConsumption) ? 0f : (float)elecConsumption;
+                    info.WaterConsumption = double.IsNaN(waterConsumption) ? 0f : (float)waterConsumption;
+                    info.GarbageAccumulation = double.IsNaN(garbageAccum) ? 0f : (float)garbageAccum;
+                    info.MailAccumulation = double.IsNaN(mailAccum) ? 0f : (float)mailAccum;
+                    info.CrimeProbability = double.IsNaN(crimeProb) ? 0f : (float)crimeProb;
+
                     // Server-side happiness estimate (same formula as client-side fallback)
                     var eff = Math.Max(0, info.Efficiency);
                     var profit = Math.Max(-100, Math.Min(100, info.Profit));
@@ -558,6 +741,33 @@ namespace AdvancedTPM
             base.OnStartRunning();
             try { AddBinding(_companyHappinessData = new ValueBinding<string>("taxProduction", "companyHappinessData", "")); } catch { }
             try { AddBinding(new TriggerBinding<string>("taxProduction", "requestCompanyHappiness", HandleCompanyHappinessRequest)); } catch { }
+            try { AddBinding(new TriggerBinding<string>("taxProduction", "refreshSignatureCache", (s) => { RefreshSignatureCache(); })); } catch { }
+
+            // Ensure signature prefab binding exists and refresh signature cache early so signature view is populated
+            try
+            {
+                if (_signaturePrefabsBinding == null)
+                {
+                    AddBinding(_signaturePrefabsBinding = new ValueBinding<string>("taxProduction", "signaturePrefabs", ""));
+                }
+            }
+            catch { }
+
+            try
+            {
+                // Re-acquire signature system if it wasn't available at OnCreate
+                if (_signatureSystem == null)
+                {
+                    try { _signatureSystem = World.GetOrCreateSystemManaged<Game.UI.InGame.SignatureBuildingUISystem>(); } catch { _signatureSystem = null; }
+                    if (_signatureSystem != null && _signatureQueryField == null)
+                    {
+                        try { _signatureQueryField = _signatureSystem.GetType().GetField("m_UnlockedSignatureBuildingQuery", BindingFlags.NonPublic | BindingFlags.Instance); } catch { }
+                    }
+                }
+            }
+            catch { }
+
+            try { RefreshSignatureCache(); } catch { }
         }
 
         private void HandleCompanyHappinessRequest(string payload)
@@ -808,6 +1018,12 @@ namespace AdvancedTPM
                     c.ProducesMail ? 1 : 0,
                     c.NeedsElectricity ? 1 : 0,
                     c.NeedsWater ? 1 : 0,
+                    // numeric service metrics
+                    c.ElectricityConsumption.ToString(CultureInfo.InvariantCulture),
+                    c.WaterConsumption.ToString(CultureInfo.InvariantCulture),
+                    c.GarbageAccumulation.ToString(CultureInfo.InvariantCulture),
+                    c.MailAccumulation.ToString(CultureInfo.InvariantCulture),
+                    c.CrimeProbability.ToString(CultureInfo.InvariantCulture),
                     c.IsSignature ? 1 : 0));
             }
             return string.Join(";", parts);
@@ -817,17 +1033,27 @@ namespace AdvancedTPM
         {
             try
             {
+                m_Log.Debug("Refreshing signature cache...");
                 _signaturePrefabIndices.Clear();
                 _signatureCacheTimestamp = DateTime.UtcNow;
-                if (_signatureSystem == null || _signatureQueryField == null) return;
+                if (_signatureSystem == null || _signatureQueryField == null)
+                {
+                    m_Log.Debug("Signature system or query field missing; aborting refresh.");
+                    return;
+                }
                 var qObj = _signatureQueryField.GetValue(_signatureSystem);
                 if (qObj is EntityQuery q)
                 {
-                    if (q.IsEmptyIgnoreFilter) return;
+                    if (q.IsEmptyIgnoreFilter)
+                    {
+                        m_Log.Debug("Signature query is empty.");
+                        return;
+                    }
                     var arr = q.ToEntityArray(Allocator.Temp);
                     try
                     {
                         var nameList = new List<string>();
+                        m_Log.Debug($"Found {arr.Length} signature prefab entities.");
                         for (int i = 0; i < arr.Length; i++)
                         {
                             _signaturePrefabIndices.Add(arr[i].Index);
@@ -839,7 +1065,7 @@ namespace AdvancedTPM
                                     if (!string.IsNullOrEmpty(nm)) nameList.Add(nm);
                                 }
                             }
-                            catch { }
+                            catch (Exception ex) { m_Log.Warn($"Failed to query prefab name: {ex.Message}"); }
                         }
                         // Publish debug binding with prefab names as JSON array
                         try
@@ -854,9 +1080,10 @@ namespace AdvancedTPM
                                 }
                                 var json = "[" + string.Join(",", nameList.ConvertAll(n => "\"" + n + "\"").ToArray()) + "]";
                                 _signaturePrefabsBinding.Update(json);
+                                m_Log.Debug($"Published {nameList.Count} signature prefab names to binding.");
                             }
                         }
-                        catch { }
+                        catch (Exception ex) { m_Log.Warn($"Failed to publish signaturePrefabs binding: {ex.Message}"); }
                     }
                     finally { arr.Dispose(); }
                 }

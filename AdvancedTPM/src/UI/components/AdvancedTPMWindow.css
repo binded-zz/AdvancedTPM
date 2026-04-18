@@ -28,17 +28,16 @@
 .adv-table-content-wrapper { flex:1; background:rgba(28,36,48,1); overflow:auto; display:flex; flex-direction:column; border:1rem solid rgba(255,255,255,0.02); }
 
 /* Ensure pages with long content scroll when needed */
-.adv-window .adv-table-section, .adv-window .adv-table-content-wrapper, .adv-window .adv-table-content, .adv-window .adv-footer, .adv-window .adv-autotax-status-bar {
-  -webkit-overflow-scrolling: touch;
-}
+.adv-window .adv-table-section, .adv-window .adv-table-content-wrapper, .adv-window .adv-table-content, .adv-window .adv-footer, .adv-window .adv-autotax-status-bar { }
 .adv-table-content { flex:0 1 auto; overflow-y:auto; overflow-x:visible; }
 
+/* Resources table content: keep vertical list of category groups for correct
+   resource layout (each category group is a full-width row). Avoid grid here
+   because CategoryGroupRow and ResourceSubRow expect full-width flow. */
+.adv-table-content { display:flex; flex-direction:column; }
+
 /* Visible scrollbar styling for resources/advisor pages */
-.adv-table-content, .adv-table-section, .adv-table-content-wrapper, .adv-window .advisor-content {
-  /* prefer standard scrollbar hints; vendor-prefixed pseudo-elements removed for CoHTML */
-  scrollbar-color: rgba(120,160,200,0.85) rgba(12,18,24,0.6);
-  scrollbar-width: thin;
-}
+.adv-table-content, .adv-table-section, .adv-table-content-wrapper, .adv-window .advisor-content { }
 .adv-table-lines { flex:1 0 0; display:flex; pointer-events:none; overflow:hidden; }
 .adv-table-lines-name { flex:1; border-top:2rem solid rgba(255,255,255,0.1); }
 .adv-table-lines-rate { width:420rem; border-left:2rem solid rgba(255,255,255,0.1); border-top:2rem solid rgba(255,255,255,0.1); }
@@ -162,5 +161,5 @@
 .adv-view-tab-active { background:rgba(80,184,233,0.22); color:#50b8e9; border-bottom:2rem solid #50b8e9; }
 
 /* Badge for counts on tabs */
-.adv-tab-badge { display:inline-block; margin-left:8rem; background:#50b8e9; color:#042; font-weight:800; padding:2rem 6rem; border-radius:8rem; font-size:10rem; vertical-align:middle; }
+.adv-tab-badge { display:inline-block; margin-left:8rem; background:#50b8e9; color:#042; font-weight:800; padding:2rem 6rem; border-radius:8rem; font-size:10rem; }
 

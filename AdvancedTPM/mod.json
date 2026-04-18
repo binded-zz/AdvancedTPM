@@ -4,6 +4,45 @@
   "version": "1.0.0",
   "displayName": "AdvancedTPM — Advanced Tax & Production Manager",
   "description": "Advanced per-resource tax and production management with adaptive AI advisor, company browser, auto-tax engine.",
-  "dependencies": []
-
+  "dependencies": [],
+  "CompanyVm": {
+    "electricityConsumption": 0,
+    "waterConsumption": 0,
+    "garbageAccumulation": 0,
+    "mailAccumulation": 0,
+    "crimeProbability": 0
+  },
+  "parseCompanies": [
+    "entityPart",
+    "name",
+    "zoneType",
+    "resourceKey",
+    "profit",
+    "tier",
+    "workers",
+    "maxWorkers",
+    "px",
+    "py",
+    "pz",
+    "eff",
+    "in1",
+    "in2",
+    "taxR",
+    "bLevel",
+    "effDetails",
+    "brandName",
+    "bldgAddr",
+    "happiness",
+    "producesGarbage",
+    "producesCrime",
+    "producesMail",
+    "needsElectricity",
+    "needsWater",
+    "electricityConsumption",
+    "waterConsumption",
+    "garbageAccumulation",
+    "mailAccumulation",
+    "crimeProbability",
+    "isSignature"
+  ]
 }

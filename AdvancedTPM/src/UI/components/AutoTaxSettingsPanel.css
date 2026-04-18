@@ -37,7 +37,7 @@
   width:14rem;
   height:14rem;
   margin-left:6rem;
-  display:inline-flex;
+  display:flex;
   align-items:center;
   justify-content:center;
   font-size:12rem;
@@ -91,7 +91,7 @@
 .ats-btn-close:hover { background:rgba(40,55,75,0.98) !important; color:#ffffff !important; }
 
 /* Info icon — ? badge next to slider labels */
-.ats-info-icon { display:flex; align-items:center; justify-content:center; width:14rem; height:14rem; margin-left:5rem; font-size:10rem; font-weight:700; color:rgba(80,184,233,0.85); background:rgba(80,184,233,0.12); border:1rem solid rgba(80,184,233,0.4); border-radius:50%; cursor:pointer; vertical-align:middle; line-height:1; position:relative; }
+.ats-info-icon { display:flex; align-items:center; justify-content:center; width:14rem; height:14rem; margin-left:5rem; font-size:10rem; font-weight:700; color:rgba(80,184,233,0.85); background:rgba(80,184,233,0.12); border:1rem solid rgba(80,184,233,0.4); border-radius:50%; cursor:pointer; line-height:1; position:relative; }
 .ats-info-icon:hover { background:rgba(80,184,233,0.25); color:#50b8e9; }
 
 /* Info popup — click-toggle tooltip for CoHTML */

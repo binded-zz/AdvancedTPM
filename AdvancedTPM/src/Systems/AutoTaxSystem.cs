@@ -14,6 +14,7 @@ namespace AdvancedTPM
 {
     public partial class AutoTaxSystem : UISystemBase
     {
+        private AdvancedTPM.Utilities.PrefixedLogger m_Log;
         private ValueBinding<bool> _autoTaxEnabled;
         private ValueBinding<string> _autoTaxStatus;
         private ValueBinding<string> _autoTaxSettings;
@@ -189,8 +190,8 @@ namespace AdvancedTPM
 
             AddBinding(new TriggerBinding<bool>("taxProduction", "setAutoTaxEnabled", SetAutoTaxEnabled));
             AddBinding(new TriggerBinding<string>("taxProduction", "setAutoTaxSettings", ApplyAutoTaxSettings));
-
-            Mod.log.Info("AutoTaxSystem initialized");
+            m_Log = new AdvancedTPM.Utilities.PrefixedLogger(nameof(AutoTaxSystem));
+            m_Log.Info("AutoTaxSystem initialized");
         }
 
         protected override void OnUpdate()
