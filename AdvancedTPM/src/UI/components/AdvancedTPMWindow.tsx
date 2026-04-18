@@ -39,11 +39,11 @@ interface AdvancedTPMWindowProps {
   autoTaxStatus: string;
   autoTaxSettings: string;
   companyBrowserData: string;
-  companyHappinessData: string;
   companySummaries?: string;
   companyDetail?: string;
   companyPerf?: string;
   overviewTwoColumn?: boolean;
+  companyHappinessData: string;
   signaturePrefabs?: string;
   signatureCompaniesJson?: string;
   signatureCacheStatus?: string;
