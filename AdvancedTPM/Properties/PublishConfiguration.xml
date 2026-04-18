@@ -1,37 +1,49 @@
-﻿<Publish>
-<?xml version="1.0" encoding="utf-8"?>
+﻿
 <Publish>
   <!--Id must be set in order to update existing mod. It is not required for publishing mod for the first time--> 
-  <ModId Value="" />
+  <ModId Value="141486" />
   <!--Name of the mod to display to players-->
   <DisplayName Value="AdvancedTPM" />
   <!--Short description of the mod-->
   <ShortDescription Value="AdvancedTPM - Advanced Tax &amp; Production Manager" />
   <!--Long description of the mod. Single line or multi line. Supports minimal markdown subset-->
-  <!--LongDescription Value="Advanced per-resource tax and production management with adaptive AI advisor, company browser, auto-tax engine." /-->
   <LongDescription>
-Advanced per-resource tax and production management with adaptive AI advisor, company browser, auto-tax engine.
+AdvancedTPM provides per-resource tax and production management with an AI-powered advisor and a detailed company browser. Key features include per-resource tax sliders, real-time production/consumption bars, category grouping, tax income tracking, and a company browser with efficiency and happiness indicators. The mod also includes an auto-tax engine with configurable rules and an adaptive learning advisor that records outcomes and recommends confidence-weighted adjustments.
+
+For full feature details, screenshots and installation instructions, please see the project's README or edit the mod page on the hosting site.
   </LongDescription>
   <!--Thumbnail-->
   <Thumbnail Value="Properties/Thumbnail.png" />
   <!--Screenshot, can be set multiple times-->
-  <Screenshot Value="" />
-  <!--Tag, can be set multiple times-->
+  <Screenshot Value="Properties/Screenshots/sc1.jpg" />
+  <Screenshot Value="Properties/Screenshots/sc2.jpg" />
+	<Screenshot Value="Properties/Screenshots/sc3.jpg" />
+	<Screenshot Value="Properties/Screenshots/sc4.jpg" />
+	<Screenshot Value="Properties/Screenshots/sc5.jpg" />
+	<Screenshot Value="Properties/Screenshots/sc6.jpg" />
+	<Screenshot Value="Properties/Screenshots/sc7.jpg" />
+	<Screenshot Value="Properties/Screenshots/sc8.jpg" />
+	<Screenshot Value="Properties/Screenshots/sc9.jpg" />
+	<Screenshot Value="Properties/Screenshots/sc10.jpg" />
+
+	<!--Tag, can be set multiple times-->
   <Tag Value="" />
   <!--Link to the forum post where the mod can be discussed-->
-  <ForumLink Value="" />
+  <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/advanced-tax-production-manager.1917448/" />
   <!--Version of the mod-->
-  <ModVersion Value="1.0" />
+  <ModVersion Value="1.0.3" />
   <!--Recommended version of the base game to use the mod-->
-  <GameVersion Value="1.0.*" />
+  <GameVersion Value="1.5.4*" />
   <!--Dependency for the mod, can be set multiple times-->
   <Dependency Id="" />
   <!--Required DLC, can be set multiple times. Supported values are "Landmark Buildings", "San Fransisco Set", "Beach Properties", "Urban Promenades", "Modern Architecture"-->
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
-  <ChangeLog Value="" />
+	<ChangeLog>
+		## Changelog 1.0.2
+	</ChangeLog> 
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
-  <ExternalLink Type="" Url="" />
+  <ExternalLink Type="" Url="https://github.com/binded-zz/AdvancedTPM" />
   <!--Supported values Public, Private, Unlisted-->
   <AccessLevel Value="Public" />
 </Publish>

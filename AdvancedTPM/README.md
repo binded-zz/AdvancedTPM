@@ -10,7 +10,7 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 
 ## What's new (recent)
 - Company Happiness: compact, colorized happiness score visible in company rows and in the expanded detail panel.
-- Signature buildings: detection and flagging for special landmark/prefab types exposed in the Company Browser and used by advisor features where applicable.
+- Signature buildings & debug: server-side detection and enhanced debug UI for signature prefabs and cached signature company data; logging improvements for troubleshooting.
 - Learning DB loader: more robust handling of persisted profiles (now accepts gzipped payloads saved by the mod).
 
 
@@ -81,23 +81,24 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 ## Building from Source
 
 ### Prerequisites
-- .NET Framework 4.7.2 SDK
+- .NET Framework 4.8 SDK (project targets .NET Framework 4.8)
 - Node.js 18+ with npm
 - Cities: Skylines 2 installed (for game DLL references)
 
 ### Build
 ```bash
-# Install UI dependencies
+# Install UI dependencies (from the repo root or the `AdvancedTPM` UI folder)
+cd AdvancedTPM
 npm install
 
 # Build (compiles C# + bundles TypeScript/React UI + deploys to game Mods folder)
-dotnet build cities/cities.csproj
+# Run from the repository root
+dotnet build AdvancedTPM/AdvancedTPM.csproj
 ```
 
-The build automatically:
-1. Compiles the C# mod DLL (`AdvancedTPM.dll`)
-2. Runs webpack to bundle the React/TypeScript UI
-3. Deploys everything to the CS2 Mods folder
+Notes:
+1. The `dotnet build` target invokes the UI bundler (webpack) and will deploy the generated `.mjs`/`.css` assets to your local CS2 Mods folder if `CSII_USERDATAPATH` is configured in the environment.
+2. You can run `npm run dev` in `AdvancedTPM` for a faster watch-mode UI iteration loop (webpack --watch) while the game is running.
 
 ### Project Structure
 ```
