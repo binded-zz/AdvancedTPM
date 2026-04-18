@@ -8,9 +8,19 @@
   <ShortDescription Value="AdvancedTPM - Advanced Tax &amp; Production Manager" />
   <!--Long description of the mod. Single line or multi line. Supports minimal markdown subset-->
   <LongDescription>
-AdvancedTPM provides per-resource tax and production management with an AI-powered advisor and a detailed company browser. Key features include per-resource tax sliders, real-time production/consumption bars, category grouping, tax income tracking, and a company browser with efficiency and happiness indicators. The mod also includes an auto-tax engine with configurable rules and an adaptive learning advisor that records outcomes and recommends confidence-weighted adjustments.
+## AdvancedTPM
 
-For full feature details, screenshots and installation instructions, please see the project's README or edit the mod page on the hosting site.
+Advanced per-resource tax and production manager with an AI advisor and in-depth company browser. Configure taxes for individual resources, monitor production and consumption, and get adaptive recommendations from a learning advisor.
+
+## Key features
+
+- Per-resource tax sliders and real-time production/consumption bars
+- Category grouping: Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial
+- Company Browser: sortable table, efficiency factor analysis, happiness indicator, and camera jump
+- Auto-Tax engine with configurable rules and per-resource min/max ranges
+- Adaptive Learning Advisor: records outcomes and provides confidence-weighted recommendations
+
+For full details, screenshots and installation steps please see the project README or edit the mod page on the hosting site.
   </LongDescription>
   <!--Thumbnail-->
   <Thumbnail Value="Properties/Thumbnail.png" />
