@@ -12,4 +12,26 @@ namespace AdvancedTPM.Utilities
             m_prefix = prefix ?? "";
         }
 
-        private string Prefix(string msg) => $
+        private string Prefix(string msg) => "[" + m_prefix + "] " + msg;
+
+        public void Info(string msg)
+        {
+            try { UnityEngine.Debug.Log(Prefix(msg)); } catch { }
+        }
+
+        public void Debug(string msg)
+        {
+            try { UnityEngine.Debug.Log(Prefix(msg)); } catch { }
+        }
+
+        public void Warn(string msg)
+        {
+            try { UnityEngine.Debug.LogWarning(Prefix(msg)); } catch { }
+        }
+
+        public void Error(string msg)
+        {
+            try { UnityEngine.Debug.LogError(Prefix(msg)); } catch { }
+        }
+    }
+}

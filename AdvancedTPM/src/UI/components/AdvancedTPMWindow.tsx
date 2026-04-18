@@ -40,9 +40,14 @@ interface AdvancedTPMWindowProps {
   autoTaxSettings: string;
   companyBrowserData: string;
   companyHappinessData: string;
+  companySummaries?: string;
+  companyDetail?: string;
+  companyPerf?: string;
+  overviewTwoColumn?: boolean;
   signaturePrefabs?: string;
   signatureCompaniesJson?: string;
   signatureCacheStatus?: string;
+  signatureInfo?: string;
   advisorData: string;
   decisionLogData: string;
   learningStatsData: string;

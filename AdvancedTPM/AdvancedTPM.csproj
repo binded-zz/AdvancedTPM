@@ -6,6 +6,16 @@
 		<!--The file where mod information which is required for publishing mod on PDX mods are stored-->
 		<PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
 	</PropertyGroup>
+
+  <!--
+	Override DeployDir to avoid attempting to remove the game's Mods folder during a normal build
+	(the Mod.targets imported below normally points DeployDir to the game's Mods directory and
+	RemoveDir can fail if the game has the DLL locked). This keeps build+local tests safe; set
+	a temporary deploy path inside the project.
+  -->
+  <PropertyGroup>
+	<DeployDir>$(ProjectDir)bin\$(Configuration)\temp_deploy\</DeployDir>
+  </PropertyGroup>
 	
 	<!--Imports must be after PropertyGroup block-->
 	<Import Project="$([System.Environment]::GetEnvironmentVariable('CSII_TOOLPATH', 'EnvironmentVariableTarget.User'))\Mod.props" />

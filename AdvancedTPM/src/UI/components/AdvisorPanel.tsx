@@ -384,73 +384,55 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                 <div className="advisor-stat-label">Pending</div>
               </div>
             </div>
-            {/* Quick explanation area to help interpret the three-column view */}
-            <div className="advisor-explain">
-              <strong>How to read this panel:</strong>
-              <ul>
-                <li><strong>Overview (left)</strong> — recommendations and resource sensitivity summaries.</li>
-                <li><strong>Profiles (center)</strong> — learned response profiles showing sensitivity, income and production responses.</li>
-                <li><strong>Log (right)</strong> — recent auto-tax adjustments and outcomes with confidence scores.</li>
-              </ul>
-              <div style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.6)' }}>If text appears clipped, expand the window or use the panel's drag handles; long explanations will wrap across lines.</div>
+            {/* Overview explanation removed per user request; info popup available via header info button */}
+
+            {/* Two-column: Recent Decisions (left) and Recommendations (right) */}
+            <div className="advisor-overview-two">
+              <div className="advisor-overview-left">
+                {decisions.length > 0 ? (
+                  <div className="advisor-section">
+                    <div className="advisor-scroll-box">
+                      <div className="advisor-section-title">Recent Decisions</div>
+                      <div className="advisor-decision-list">
+                        {decisions.slice(-50).reverse().map((d, i) => (
+                          <div key={i} className="advisor-decision-row">
+                            <span className="advisor-decision-resource">{getResourceLabel(d.key)}</span>
+                            <span className="advisor-decision-change">{`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}</span>
+                            <span className="advisor-decision-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>{d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}</span>
+                            <span className="advisor-decision-summary">{d.summary}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="advisor-empty">No recent decisions.</div>
+                )}
+              </div>
+
+              <div className="advisor-overview-right">
+                {recommendations.length > 0 ? (
+                  <div className="advisor-section">
+                    <div className="advisor-scroll-box advisor-rec-box">
+                      <div className="advisor-section-title">Recommendations</div>
+                      <div className="advisor-rec-list">
+                        {recommendations.map((rec) => (
+                          <div key={rec.key} className="advisor-rec-row">
+                            <span className="advisor-rec-dir" style={{ color: getDirectionColor(rec.direction) }}>{getDirectionSymbol(rec.direction)}</span>
+                            <span className="advisor-rec-name">{getResourceLabel(rec.key)}</span>
+                            <span className="advisor-rec-rate">{`${rec.currentRate}\u00a0%`}</span>
+                            <span className="advisor-rec-conf" style={{ color: getConfidenceColor(rec.confidence) }}>{`${(rec.confidence * 100).toFixed(0)}\u00a0%`}</span>
+                            <span className="advisor-rec-reason">{rec.reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="advisor-empty">No recommendations yet.</div>
+                )}
+              </div>
             </div>
-
-            {/* Recommendations */}
-            {recommendations.length > 0 && (
-              <div className="advisor-section">
-                <div className="advisor-section-title">Recommendations</div>
-                <div className="advisor-rec-list">
-                  {recommendations.map((rec) => (
-                    <div key={rec.key} className="advisor-rec-row">
-                      <span className="advisor-rec-dir" style={{ color: getDirectionColor(rec.direction) }}>
-                        {getDirectionSymbol(rec.direction)}
-                      </span>
-                      <span className="advisor-rec-name">{getResourceLabel(rec.key)}</span>
-                      <span className="advisor-rec-rate">{`${rec.currentRate}\u00a0%`}</span>
-                      <span className="advisor-rec-conf" style={{ color: getConfidenceColor(rec.confidence) }}>
-                        {`${(rec.confidence * 100).toFixed(0)}\u00a0%`}
-                      </span>
-                      <span className="advisor-rec-reason">{rec.reason}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {recommendations.length === 0 && stats.totalSamples > 0 && (
-              <div className="advisor-empty">
-                Analyzing city responses... Recommendations will appear after enough data is collected.
-              </div>
-            )}
-
-            {stats.totalSamples === 0 && (
-              <div className="advisor-empty">
-                {learningEnabled
-                  ? 'Learning is active. The advisor will begin collecting data when auto-tax makes adjustments.'
-                  : 'Enable adaptive learning to start collecting city response data.'}
-              </div>
-            )}
-
-            {/* Recent decisions */}
-            {decisions.length > 0 && (
-              <div className="advisor-section">
-                <div className="advisor-section-title">Recent Decisions</div>
-                <div className="advisor-decision-list">
-                  {decisions.slice(-5).reverse().map((d, i) => (
-                    <div key={i} className="advisor-decision-row">
-                      <span className="advisor-decision-resource">{getResourceLabel(d.key)}</span>
-                      <span className="advisor-decision-change">
-                        {`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}
-                      </span>
-                      <span className="advisor-decision-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
-                        {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
-                      </span>
-                      <span className="advisor-decision-summary">{d.summary}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
         <div className="advisor-profiles" style={{ display: activeTab === 'profiles' ? undefined : 'none' }}>
