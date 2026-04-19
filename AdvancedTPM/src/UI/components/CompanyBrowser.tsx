@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { trigger } from 'cs2/api';
 import { Entity } from 'cs2/utils';
 import './CompanyBrowser.css';
@@ -462,11 +462,15 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
   }, []);
 
   useEffect(() => {
-    updateScrollbar();
     const onResize = () => updateScrollbar();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [updateScrollbar]);
+
+  // Ensure scrollbar updates after layout changes (sorted list, expansion, companies)
+  useLayoutEffect(() => {
+    updateScrollbar();
+  }, [sorted.length, companies, expandedEntity, updateScrollbar]);
 
   const handleBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
     updateScrollbar();
@@ -729,7 +733,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
                     </button>
         </div>
         <div ref={trackRef} className="cb-scrollbar-track" aria-hidden>
-          <div ref={thumbRef} className="cb-scrollbar-thumb" style={{ top: thumbTop, height: thumbHeight }} />
+          <div ref={thumbRef} className="cb-scrollbar-thumb" style={{ top: `${thumbTop}px`, height: `${thumbHeight}px` }} />
         </div>
                 </div>
                 {isExpanded && (
