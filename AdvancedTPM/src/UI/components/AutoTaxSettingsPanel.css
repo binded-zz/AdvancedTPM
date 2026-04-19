@@ -6,8 +6,8 @@
 .ats-close-btn { border:1rem solid rgba(124,152,189,0.95) !important; background:rgba(34,46,62,0.98) !important; color:#ffffff !important; font-size:14rem; font-weight:800; width:24rem; height:24rem; border-radius:2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s; line-height:1; }
 .ats-close-btn:hover { background:rgba(185,52,52,0.95) !important; color:#fff !important; }
 
-.ats-body-wrapper { flex:1; display:flex; overflow:hidden; position:relative; }
-.ats-body { flex:1; overflow-y:scroll; overflow-x:hidden; padding:8rem 0; }
+.ats-body-wrapper { flex:1; display:flex; overflow:hidden; position:relative; min-height:0; }
+.ats-body { flex:1; overflow-y:scroll; overflow-x:hidden; padding:8rem 0; min-height:0; }
 
 .ats-section { padding:0 12rem; margin-bottom:10rem; }
 .ats-section-title { font-size:12rem; font-weight:700; text-transform:uppercase; letter-spacing:0.4rem; color:#50b8e9; padding-bottom:6rem; border-bottom:1rem solid rgba(255,255,255,0.1); margin-bottom:8rem; display:flex; align-items:center; justify-content:space-between; }

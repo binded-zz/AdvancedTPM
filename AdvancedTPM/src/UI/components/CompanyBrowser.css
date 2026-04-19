@@ -1,5 +1,5 @@
 /* == Company Browser — CS2 rem-scaled == */
-.cb-container { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+.cb-container { display:flex; flex-direction:column; height:100%; overflow:hidden; min-height:0; }
 
 /* Filters */
 .cb-filters { display:flex; align-items:center; padding:6rem 10rem; border-bottom:1rem solid rgba(255,255,255,0.08); }
@@ -55,8 +55,8 @@
 .cb-col-locate { width:40rem; padding:0 4rem; flex-shrink:0; text-align:center; }
 
 /* Table body — scrollable with custom scrollbar container */
-.cb-table-scroll { flex:1; display:flex; overflow:hidden; position:relative; }
-.cb-table-body { flex:1; overflow-y:scroll; overflow-x:hidden; }
+.cb-table-scroll { flex:1; display:flex; overflow:hidden; position:relative; min-height:0; }
+.cb-table-body { flex:1; overflow-y:scroll; overflow-x:hidden; min-height:0; }
 .cb-table-body { }
 .cb-row { display:flex; align-items:center; padding:4rem 10rem; font-size:12rem; color:rgba(255,255,255,0.8); transition:background-color 0.1s; cursor:pointer; }
 .cb-row:hover { background:rgba(80,184,233,0.12); }

@@ -17,7 +17,7 @@
 .adv-collapse-btn { position:absolute; right:44rem; top:50%; transform:translateY(-50%); border:1rem solid rgba(124,152,189,0.75); background:rgba(15,24,37,0.98); color:rgba(233,243,255,0.95); font-size:16rem; font-weight:800; width:28rem; height:28rem; border-radius:2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s, border-color 0.15s, color 0.15s; line-height:1; }
 .adv-collapse-btn:hover { background:rgba(62,98,145,0.88); border-color:rgba(140,186,235,0.95); color:#fff; }
 .adv-tip-bar { padding:6rem 14rem; font-size:12rem; color:rgba(255,255,255,0.6); border-bottom:1rem solid rgba(255,255,255,0.08); }
-.adv-table-section { flex:1; display:flex; flex-direction:column; margin:8rem 12rem; border:1rem solid rgba(56,72,104,0.7); border-radius:4rem; overflow:auto; }
+.adv-table-section { flex:1; display:flex; flex-direction:column; margin:8rem 12rem; border:1rem solid rgba(56,72,104,0.7); border-radius:4rem; overflow:auto; min-height:0; }
 .adv-table-header { background:rgba(31,45,60,1); }
 .adv-column-headers { display:flex; align-items:center; }
 .adv-bar-legend { padding:0 16rem 6rem 16rem; font-size:11rem; color:rgba(255,255,255,0.6); text-align:right; white-space:nowrap; }
@@ -25,7 +25,7 @@
 .adv-col-rate { width:420rem; padding:8rem 16rem; color:rgba(255,255,255,0.7); font-size:14rem; font-weight:600; text-transform:uppercase; text-align:center; border-left:2rem solid rgba(255,255,255,0.1); }
 .adv-col-production { width:240rem; padding:8rem 16rem; color:rgba(255,255,255,0.7); font-size:14rem; font-weight:600; text-transform:uppercase; text-align:center; border-left:2rem solid rgba(255,255,255,0.1); }
 .adv-col-income { width:140rem; padding:8rem 16rem; color:rgba(255,255,255,0.7); font-size:14rem; font-weight:600; text-transform:uppercase; text-align:center; border-left:2rem solid rgba(255,255,255,0.1); }
-.adv-table-content-wrapper { flex:1; background:rgba(28,36,48,1); overflow:auto; display:flex; flex-direction:column; border:1rem solid rgba(255,255,255,0.02); }
+.adv-table-content-wrapper { flex:1; background:rgba(28,36,48,1); overflow:auto; display:flex; flex-direction:column; border:1rem solid rgba(255,255,255,0.02); min-height:0; }
 
 /* Ensure pages with long content scroll when needed */
 .adv-window .adv-table-section, .adv-window .adv-table-content-wrapper, .adv-window .adv-table-content, .adv-window .adv-footer, .adv-window .adv-autotax-status-bar { }
