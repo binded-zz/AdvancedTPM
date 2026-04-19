@@ -58,6 +58,11 @@
 .cb-table-scroll { flex:1; display:flex; overflow:hidden; position:relative; min-height:0; }
 .cb-table-body { flex:1; overflow-y:scroll; overflow-x:hidden; min-height:0; }
 
+/* Overlay scrollbar track and thumb (used when native scrollbars are hidden) */
+.cb-scrollbar-track { position:absolute; right:6rem; top:0; bottom:0; width:6rem; background:transparent; z-index:10000; pointer-events:auto; display:flex; align-items:flex-start; }
+.cb-scrollbar-thumb { position:absolute; right:0; width:6rem; background:rgba(80,140,200,0.8); border-radius:4rem; cursor:grab; box-shadow:inset 0 -2rem 4rem rgba(0,0,0,0.25); z-index:10001; }
+.cb-scrollbar-thumb:active { cursor:grabbing; }
+
 /* Visible scrollbar styling (WebKit / CoHTML) for company table */
 .cb-table-body {
   scrollbar-gutter: stable;

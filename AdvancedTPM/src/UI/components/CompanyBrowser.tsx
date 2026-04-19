@@ -439,6 +439,85 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
   const bankruptCount = filtered.filter((c) => c.profitabilityTier === 'Bankrupt').length;
   const losingCount = filtered.filter((c) => c.profitabilityTier === 'LosingMoney').length;
 
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const thumbRef = useRef<HTMLDivElement | null>(null);
+  const [thumbTop, setThumbTop] = useState(0);
+  const [thumbHeight, setThumbHeight] = useState(48);
+
+  const updateScrollbar = useCallback(() => {
+    const body = bodyRef.current;
+    const track = trackRef.current;
+    if (!body || !track) return;
+    const visible = body.clientHeight;
+    const total = body.scrollHeight || 1;
+    const ratio = Math.max(0.03, Math.min(1, visible / total));
+    const trackHeight = track.clientHeight;
+    const thumbH = Math.max(16, Math.round(trackHeight * ratio));
+    const scrollTop = body.scrollTop;
+    const maxScroll = total - visible;
+    const top = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * (trackHeight - thumbH)) : 0;
+    setThumbHeight(thumbH);
+    setThumbTop(top);
+  }, []);
+
+  useEffect(() => {
+    updateScrollbar();
+    const onResize = () => updateScrollbar();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [updateScrollbar]);
+
+  const handleBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    updateScrollbar();
+  };
+
+  // Simple drag support for overlay thumb
+  useEffect(() => {
+    let dragging = false;
+    let startY = 0;
+    let startTop = 0;
+    const thumb = thumbRef.current;
+    const track = trackRef.current;
+    const body = bodyRef.current;
+    if (!thumb || !track || !body) return;
+    const onDown = (ev: any) => {
+      // Prevent the row's click handler from receiving this event
+      try { if (ev.stopPropagation) ev.stopPropagation(); } catch {}
+      dragging = true;
+      startY = ev.clientY || (ev.touches && ev.touches[0] && ev.touches[0].clientY) || 0;
+      startTop = thumbTop;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMove as any, { passive: false });
+      document.addEventListener('touchend', onUp as any);
+      ev.preventDefault();
+    };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging) return;
+      const dy = ev.clientY - startY;
+      const trackH = track.clientHeight;
+      const maxTop = trackH - thumbHeight;
+      const newTop = Math.max(0, Math.min(maxTop, startTop + dy));
+      const total = body.scrollHeight - body.clientHeight;
+      const scrollPos = total > 0 ? Math.round((newTop / (trackH - thumbHeight)) * total) : 0;
+      body.scrollTop = scrollPos;
+      setThumbTop(newTop);
+    };
+    const onUp = () => {
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    // Support pointer/touch as well as mouse so drag works reliably in CoHTML
+    try { thumb.addEventListener('pointerdown', onDown as any); } catch {}
+    try { thumb.addEventListener('mousedown', onDown as any); } catch {}
+    try { thumb.addEventListener('touchstart', onDown as any); } catch {}
+    return () => {
+      try { thumb.removeEventListener('mousedown', onDown as any); } catch { }
+    };
+  }, [thumbTop, thumbHeight]);
+
   return (
     <div className="cb-container">
       {/* Filters */}
@@ -539,7 +618,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
 
       {/* Company rows with custom scrollbar */}
       <div className="cb-table-scroll">
-        <div className="cb-table-body">
+        <div ref={bodyRef} className="cb-table-body" onScroll={handleBodyScroll}>
           {sorted.length === 0 && (
             <div className="cb-empty">No companies found. Companies will appear once the game simulation is running.</div>
           )}
@@ -648,7 +727,10 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
                     >
                       GO
                     </button>
-                  </div>
+        </div>
+        <div ref={trackRef} className="cb-scrollbar-track" aria-hidden>
+          <div ref={thumbRef} className="cb-scrollbar-thumb" style={{ top: thumbTop, height: thumbHeight }} />
+        </div>
                 </div>
                 {isExpanded && (
                   <div className="cb-expanded-panel">
