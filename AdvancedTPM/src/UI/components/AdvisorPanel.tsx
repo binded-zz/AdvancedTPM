@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import './AdvisorPanel.css';
+import { resourceCategories } from '../data/resourceTaxonomy';
 
 interface LearningProfile {
   key: string;
@@ -168,10 +169,26 @@ const AGGRESSIVENESS_LABELS: Record<number, string> = {
 };
 
 // Move ProfileRow to module scope so its identity is stable across renders.
+// Find icon name for a given resource key using the shared taxonomy.
+const findResourceIcon = (key: string): string | null => {
+  if (!key) return null;
+  const normalized = key.replace(/^c_/, '');
+  for (const cat of resourceCategories) {
+    for (const r of cat.resources) {
+      if (r.key === normalized) return r.icon;
+    }
+  }
+  return null;
+};
+
 const ProfileRow: React.FC<{ p: LearningProfile }> = React.memo(({ p }) => {
+  const icon = findResourceIcon(p.key);
   return (
     <div className="advisor-profile-row">
-      <div className="advisor-profile-name">{getResourceLabel(p.key)}</div>
+      <div className="advisor-profile-name">
+        {icon && <img src={`Media/Game/Resources/${icon}.svg`} className="advisor-profile-icon" alt="" />}
+        {getResourceLabel(p.key)}
+      </div>
       <div className="advisor-profile-bars">
         <div className="advisor-profile-bars-row">
           <div className="advisor-profile-bar-group">
@@ -218,13 +235,13 @@ const ProfileRow: React.FC<{ p: LearningProfile }> = React.memo(({ p }) => {
           </div>
         </div>
         <div className="advisor-profile-meta">
-          <span style={{ color: getConfidenceColor(p.confidence), marginRight: '10rem' }}>
-            {`${(p.confidence * 100).toFixed(0)}\u00a0%`} conf
+          <span style={{ color: getConfidenceColor(p.confidence), marginRight: '6px' }}>
+            {`${Math.round(p.confidence * 100)}%`}
           </span>
-          <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
-          <span style={{ marginRight: '10rem' }}>{p.sampleCount} samples</span>
-          <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
-          <span style={{ color: getOutcomeColor(p.avgOutcome), marginRight: '10rem' }}>
+          <span style={{ color: 'rgba(255,255,255,0.25)', margin: '0 6px' }}>{'\u00B7'}</span>
+          <span style={{ marginRight: '6px' }}>{`${p.sampleCount} samples`}</span>
+          <span style={{ color: 'rgba(255,255,255,0.25)', margin: '0 6px' }}>{'\u00B7'}</span>
+          <span style={{ color: getOutcomeColor(p.avgOutcome) }}>
             avg: {p.avgOutcome > 0 ? '+' : ''}{p.avgOutcome.toFixed(2)}
           </span>
           {p.volatility > 0.15 && (
@@ -264,6 +281,154 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   onResetLearning,
   onSetAggressiveness,
 }) => {
+  // Overlay scrollbar refs for Recent Decisions (left) and Recommendations (right)
+  const leftBodyRef = React.useRef<HTMLDivElement | null>(null);
+  const leftTrackRef = React.useRef<HTMLDivElement | null>(null);
+  const leftThumbRef = React.useRef<HTMLDivElement | null>(null);
+  const [leftThumbTop, setLeftThumbTop] = React.useState(0);
+  const [leftThumbHeight, setLeftThumbHeight] = React.useState(48);
+
+  const rightBodyRef = React.useRef<HTMLDivElement | null>(null);
+  const rightTrackRef = React.useRef<HTMLDivElement | null>(null);
+  const rightThumbRef = React.useRef<HTMLDivElement | null>(null);
+  const [rightThumbTop, setRightThumbTop] = React.useState(0);
+  const [rightThumbHeight, setRightThumbHeight] = React.useState(48);
+
+  const makeUpdater = (bodyRef: React.RefObject<HTMLDivElement>, trackRef: React.RefObject<HTMLDivElement>, setThumbH: (h: number) => void, setThumbT: (t: number) => void) => {
+    return () => {
+      const body = bodyRef.current;
+      const track = trackRef.current;
+      if (!body || !track) return;
+      try {
+        // Use offsetTop relative to the positioned wrapper when possible — more stable for normal flow
+        const wrapper = (track.parentElement as HTMLElement) || body.parentElement || body;
+        // ensure wrapper is positioned
+        // compute body's offsetTop relative to wrapper
+        let relTop = 0;
+        if (body.offsetTop != null) {
+          // Walk up offsets until reaching wrapper
+          let el: HTMLElement | null = body;
+          relTop = 0;
+          while (el && el !== wrapper) {
+            relTop += (el as HTMLElement).offsetTop || 0;
+            el = (el.parentElement as HTMLElement) || null;
+          }
+        } else {
+          const bodyRect = body.getBoundingClientRect();
+          const wrapperRect = wrapper.getBoundingClientRect();
+          relTop = bodyRect.top - wrapperRect.top;
+        }
+        // Clamp into wrapper bounds
+        try {
+          const wrapperRect = wrapper.getBoundingClientRect();
+          relTop = Math.max(0, Math.min(relTop, Math.max(0, wrapperRect.height - body.clientHeight)));
+        } catch {}
+        track.style.top = `${relTop}px`;
+        track.style.height = `${body.clientHeight}px`;
+      } catch {}
+      const visible = body.clientHeight;
+      const total = body.scrollHeight || 1;
+      if (visible >= total || !Number.isFinite(visible) || !Number.isFinite(total)) {
+        try { track.style.display = 'none'; } catch {}
+        return;
+      }
+      try { track.style.display = 'block'; } catch {}
+      const ratio = Math.max(0.03, Math.min(1, visible / total));
+      const trackHeight = track.clientHeight;
+      const thumbH = Math.max(16, Math.round(trackHeight * ratio));
+      const scrollTop = body.scrollTop;
+      const maxScroll = total - visible;
+      const top = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * (trackHeight - thumbH)) : 0;
+      setThumbH(thumbH);
+      setThumbT(top);
+    };
+  };
+
+  const updateLeftScrollbar = React.useCallback(makeUpdater(leftBodyRef, leftTrackRef, setLeftThumbHeight, setLeftThumbTop), []);
+  const updateRightScrollbar = React.useCallback(makeUpdater(rightBodyRef, rightTrackRef, setRightThumbHeight, setRightThumbTop), []);
+
+  // Profiles and Log overlays
+  const profilesBodyRef = React.useRef<HTMLDivElement | null>(null);
+  const profilesTrackRef = React.useRef<HTMLDivElement | null>(null);
+  const profilesThumbRef = React.useRef<HTMLDivElement | null>(null);
+  const [profilesThumbTop, setProfilesThumbTop] = React.useState(0);
+  const [profilesThumbHeight, setProfilesThumbHeight] = React.useState(48);
+
+  const logBodyRef = React.useRef<HTMLDivElement | null>(null);
+  const logTrackRef = React.useRef<HTMLDivElement | null>(null);
+  const logThumbRef = React.useRef<HTMLDivElement | null>(null);
+  const [logThumbTop, setLogThumbTop] = React.useState(0);
+  const [logThumbHeight, setLogThumbHeight] = React.useState(48);
+
+  const updateProfilesScrollbar = React.useCallback(makeUpdater(profilesBodyRef, profilesTrackRef, setProfilesThumbHeight, setProfilesThumbTop), []);
+  const updateLogScrollbar = React.useCallback(makeUpdater(logBodyRef, logTrackRef, setLogThumbHeight, setLogThumbTop), []);
+
+  React.useEffect(() => { const onResize = () => { updateProfilesScrollbar(); updateLogScrollbar(); }; window.addEventListener('resize', onResize); return () => window.removeEventListener('resize', onResize); }, [updateProfilesScrollbar, updateLogScrollbar]);
+
+  // Hook up drag handlers for profiles and log (invoked after makeDrag is defined)
+
+  React.useEffect(() => {
+    const body = profilesBodyRef.current;
+    if (body) {
+      const mo = new MutationObserver(() => updateProfilesScrollbar());
+      mo.observe(body, { childList: true, subtree: true, attributes: true });
+      return () => mo.disconnect();
+    }
+  }, [profilesBodyRef.current, updateProfilesScrollbar]);
+  React.useEffect(() => {
+    const body = logBodyRef.current;
+    if (body) {
+      const mo = new MutationObserver(() => updateLogScrollbar());
+      mo.observe(body, { childList: true, subtree: true, attributes: true });
+      return () => mo.disconnect();
+    }
+  }, [logBodyRef.current, updateLogScrollbar]);
+
+  React.useEffect(() => { const onResize = () => { updateLeftScrollbar(); updateRightScrollbar(); }; window.addEventListener('resize', onResize); return () => window.removeEventListener('resize', onResize); }, [updateLeftScrollbar, updateRightScrollbar]);
+
+  // Drag handlers for left and right thumbs
+  const makeDrag = (thumbRef: React.RefObject<HTMLDivElement>, trackRef: React.RefObject<HTMLDivElement>, bodyRef: React.RefObject<HTMLDivElement>, thumbTop: number, thumbH: number, setThumbTop: (t: number) => void) => {
+    React.useEffect(() => {
+      let dragging = false;
+      let startY = 0;
+      let startTop = 0;
+      const thumb = thumbRef.current;
+      const track = trackRef.current;
+      const body = bodyRef.current;
+      if (!thumb || !track || !body) return;
+      const onDown = (ev: any) => { try { if (ev.stopPropagation) ev.stopPropagation(); } catch {}; dragging = true; startY = ev.clientY || (ev.touches && ev.touches[0] && ev.touches[0].clientY) || 0; startTop = thumbTop; document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); ev.preventDefault(); };
+      const onMove = (ev: MouseEvent) => { if (!dragging) return; const dy = ev.clientY - startY; const trackH = track.clientHeight; const maxTop = trackH - thumbH; const newTop = Math.max(0, Math.min(maxTop, startTop + dy)); const total = body.scrollHeight - body.clientHeight; const scrollPos = total > 0 ? Math.round((newTop / (trackH - thumbH)) * total) : 0; body.scrollTop = scrollPos; setThumbTop(newTop); };
+      const onUp = () => { dragging = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+      try { thumb.addEventListener('pointerdown', onDown as any); } catch {};
+      try { thumb.addEventListener('mousedown', onDown as any); } catch {};
+      return () => { try { thumb.removeEventListener('mousedown', onDown as any); } catch {} };
+    }, [thumbTop, thumbH, thumbRef, trackRef, bodyRef, setThumbTop]);
+  };
+
+  makeDrag(leftThumbRef, leftTrackRef, leftBodyRef, leftThumbTop, leftThumbHeight, setLeftThumbTop);
+  makeDrag(rightThumbRef, rightTrackRef, rightBodyRef, rightThumbTop, rightThumbHeight, setRightThumbTop);
+
+  // Now hook up drag handlers for profiles and log
+  makeDrag(profilesThumbRef, profilesTrackRef, profilesBodyRef, profilesThumbTop, profilesThumbHeight, setProfilesThumbTop);
+  makeDrag(logThumbRef, logTrackRef, logBodyRef, logThumbTop, logThumbHeight, setLogThumbTop);
+
+  React.useEffect(() => {
+    const body = leftBodyRef.current;
+    if (body) {
+      const mo = new MutationObserver(() => updateLeftScrollbar());
+      mo.observe(body, { childList: true, subtree: true, attributes: true });
+      return () => mo.disconnect();
+    }
+  }, [leftBodyRef.current, updateLeftScrollbar]);
+  React.useEffect(() => {
+    const body = rightBodyRef.current;
+    if (body) {
+      const mo = new MutationObserver(() => updateRightScrollbar());
+      mo.observe(body, { childList: true, subtree: true, attributes: true });
+      return () => mo.disconnect();
+    }
+  }, [rightBodyRef.current, updateRightScrollbar]);
+
   const [activeTab, setActiveTab] = useState<'overview' | 'profiles' | 'log'>('overview');
   const [confirmReset, setConfirmReset] = useState(false);
   const [showAllProfiles, setShowAllProfiles] = useState(false);
@@ -273,6 +438,22 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   const { profiles, recommendations } = useMemo(() => parseAdvisorData(advisorData), [advisorData]);
   const decisions = useMemo(() => parseDecisionLog(decisionLogData), [decisionLogData]);
   const stats = useMemo(() => parseLearningStats(learningStatsData), [learningStatsData]);
+
+  // Recompute left/right scrollbars when profiles/decisions/activeTab change
+  useEffect(() => {
+    updateLeftScrollbar();
+    updateRightScrollbar();
+  }, [profiles.length, decisions.length, activeTab, updateLeftScrollbar, updateRightScrollbar]);
+
+  // Recompute profiles/log scrollbars when their data or active tab changes
+  useEffect(() => {
+    if (activeTab === 'profiles') {
+      requestAnimationFrame(() => requestAnimationFrame(() => updateProfilesScrollbar()));
+    }
+    if (activeTab === 'log') {
+      requestAnimationFrame(() => requestAnimationFrame(() => updateLogScrollbar()));
+    }
+  }, [activeTab, profiles.length, decisions.length, updateProfilesScrollbar, updateLogScrollbar]);
 
   const sortedProfiles = useMemo(
     () => [...profiles].sort((a, b) => b.sampleCount - a.sampleCount),
@@ -382,7 +563,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
               <div className="advisor-stat">
                 <div className="advisor-stat-value">{stats.pendingEvents}</div>
                 <div className="advisor-stat-label">Pending</div>
-              </div>
+        </div>
             </div>
             {/* Overview explanation removed per user request; info popup available via header info button */}
 
@@ -391,8 +572,8 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
               <div className="advisor-overview-left">
                 {decisions.length > 0 ? (
                   <div className="advisor-section">
-                    <div className="advisor-scroll-box">
-                      <div className="advisor-section-title">Recent Decisions</div>
+                    <div className="advisor-section-title">Recent Decisions</div>
+                    <div className="advisor-scroll-box" ref={leftBodyRef} onScroll={updateLeftScrollbar}>
                       <div className="advisor-decision-list">
                         {decisions.slice(-50).reverse().map((d, i) => (
                           <div key={i} className="advisor-decision-row">
@@ -404,6 +585,9 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                         ))}
                       </div>
                     </div>
+                    <div ref={leftTrackRef} className="advisor-scrollbar-track" aria-hidden>
+                      <div ref={leftThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${leftThumbTop}px`, height: `${leftThumbHeight}px` }} />
+                    </div>
                   </div>
                 ) : (
                   <div className="advisor-empty">No recent decisions.</div>
@@ -413,8 +597,8 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
               <div className="advisor-overview-right">
                 {recommendations.length > 0 ? (
                   <div className="advisor-section">
-                    <div className="advisor-scroll-box advisor-rec-box">
-                      <div className="advisor-section-title">Recommendations</div>
+                    <div className="advisor-section-title">Recommendations</div>
+                    <div className="advisor-scroll-box advisor-rec-box" ref={rightBodyRef} onScroll={updateRightScrollbar}>
                       <div className="advisor-rec-list">
                         {recommendations.map((rec) => (
                           <div key={rec.key} className="advisor-rec-row">
@@ -426,6 +610,9 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                           </div>
                         ))}
                       </div>
+                    </div>
+                    <div ref={rightTrackRef} className="advisor-scrollbar-track" aria-hidden>
+                      <div ref={rightThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${rightThumbTop}px`, height: `${rightThumbHeight}px` }} />
                     </div>
                   </div>
                 ) : (
@@ -440,10 +627,15 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
               <div className="advisor-empty">No learning profiles yet. Data will appear after tax adjustments are observed.</div>
             )}
 
-            <div className="advisor-profile-list">
-              {displayedProfiles.map((p) => (
-                <ProfileRow key={p.key} p={p} />
-              ))}
+            <div className="advisor-scroll-box" ref={profilesBodyRef} onScroll={updateProfilesScrollbar}>
+              <div className="advisor-profile-list">
+                {displayedProfiles.map((p) => (
+                  <ProfileRow key={p.key} p={p} />
+                ))}
+              </div>
+            </div>
+            <div ref={profilesTrackRef} className="advisor-scrollbar-track" aria-hidden>
+              <div ref={profilesThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${profilesThumbTop}px`, height: `${profilesThumbHeight}px` }} />
             </div>
           </div>
 
@@ -452,22 +644,27 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
             {decisions.length === 0 && (
               <div className="advisor-empty">No decisions logged yet.</div>
             )}
-            <div className="advisor-log-list">
-              {[...decisions].reverse().map((d, i) => (
-                <div key={i} className="advisor-log-row">
-                  <div className="advisor-log-header">
-                    <span className="advisor-log-resource">{getResourceLabel(d.key)}</span>
-                    <span className="advisor-log-change">{`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}</span>
-                    <span className="advisor-log-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
-                      {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
-                    </span>
-                    <span className="advisor-log-conf" style={{ color: getConfidenceColor(d.confidence) }}>
-                      {`${(d.confidence * 100).toFixed(0)}\u00a0%`}
-                    </span>
+            <div className="advisor-scroll-box" ref={logBodyRef} onScroll={updateLogScrollbar}>
+              <div className="advisor-log-list">
+                {[...decisions].reverse().map((d, i) => (
+                  <div key={i} className="advisor-log-row">
+                    <div className="advisor-log-header">
+                      <span className="advisor-log-resource">{getResourceLabel(d.key)}</span>
+                      <span className="advisor-log-change">{`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}</span>
+                      <span className="advisor-log-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
+                        {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
+                      </span>
+                      <span className="advisor-log-conf" style={{ color: getConfidenceColor(d.confidence) }}>
+                        {`${(d.confidence * 100).toFixed(0)}\u00a0%`}
+                      </span>
+                    </div>
+                    {d.summary && <div className="advisor-log-summary">{d.summary}</div>}
                   </div>
-                  {d.summary && <div className="advisor-log-summary">{d.summary}</div>}
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+            <div ref={logTrackRef} className="advisor-scrollbar-track" aria-hidden>
+              <div ref={logThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${logThumbTop}px`, height: `${logThumbHeight}px` }} />
             </div>
           </div>
       </div>

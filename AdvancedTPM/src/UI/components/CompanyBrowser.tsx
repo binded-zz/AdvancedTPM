@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+// React hooks are provided by the environment. Do not import to avoid duplicate type declarations.
 import { trigger } from 'cs2/api';
 import { Entity } from 'cs2/utils';
 import './CompanyBrowser.css';
@@ -110,7 +111,7 @@ export const parseCompanyHappinessPayload = (payload: string): [string, Record<s
   return [key, map];
 };
 
-type SortField = 'name' | 'zoneType' | 'resourceKey' | 'profit' | 'profitabilityTier' | 'workers';
+type SortField = 'name' | 'zoneType' | 'resourceKey' | 'profit' | 'profitabilityTier' | 'workers' | 'tax' | 'happiness' | 'lv';
 type SortDir = 'asc' | 'desc';
 
 const ZONE_FILTERS = ['All', 'Industrial', 'Commercial', 'Office'];
@@ -364,6 +365,22 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
           return dir * ((TIER_ORDER[a.profitabilityTier] ?? -1) - (TIER_ORDER[b.profitabilityTier] ?? -1));
         case 'workers':
           return dir * (a.workers - b.workers);
+        case 'tax':
+          return dir * ((a.taxRate || 0) - (b.taxRate || 0));
+        case 'happiness': {
+          const compute = (c: CompanyVm) => {
+            const eff = Math.max(0, c.efficiency || 100);
+            const profitVal = Math.max(-100, Math.min(100, c.profit || 0));
+            const staffPct = c.maxWorkers > 0 ? Math.round((c.workers / c.maxWorkers) * 100) : 0;
+            const tax = c.taxRate || 0;
+            return typeof c.happiness === 'number'
+              ? c.happiness
+              : Math.max(0, Math.min(100, Math.round(50 + (eff - 100) * 0.2 + profitVal * 0.25 + (staffPct - 75) * 0.3 - Math.max(0, tax - 10) * 0.5)));
+          };
+          return dir * (compute(a) - compute(b));
+        }
+        case 'lv':
+          return dir * ((a.buildingLevel || 0) - (b.buildingLevel || 0));
         default:
           return 0;
       }
@@ -451,6 +468,22 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
     if (!body || !track) return;
     const visible = body.clientHeight;
     const total = body.scrollHeight || 1;
+    // Position the overlay track relative to the scroll wrapper using bounding rects
+    try {
+      const bodyRect = body.getBoundingClientRect();
+      const wrapper = body.parentElement || body;
+      const wrapperRect = wrapper.getBoundingClientRect();
+      let relTop = bodyRect.top - wrapperRect.top;
+      // clamp into wrapper bounds
+      relTop = Math.max(0, Math.min(relTop, Math.max(0, wrapperRect.height - body.clientHeight)));
+      track.style.top = `${relTop}px`;
+      track.style.height = `${body.clientHeight}px`;
+    } catch {}
+    if (visible >= total || !Number.isFinite(visible) || !Number.isFinite(total)) {
+      try { track.style.display = 'none'; } catch { }
+      return;
+    }
+    try { track.style.display = 'block'; } catch { }
     const ratio = Math.max(0.03, Math.min(1, visible / total));
     const trackHeight = track.clientHeight;
     const thumbH = Math.max(16, Math.round(trackHeight * ratio));
@@ -512,6 +545,10 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
       dragging = false;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove as any);
+      document.removeEventListener('touchend', onUp as any);
+      // ensure thumb is synced after drag ends
+      updateScrollbar();
     };
     // Support pointer/touch as well as mouse so drag works reliably in CoHTML
     try { thumb.addEventListener('pointerdown', onDown as any); } catch {}
@@ -521,6 +558,26 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
       try { thumb.removeEventListener('mousedown', onDown as any); } catch { }
     };
   }, [thumbTop, thumbHeight]);
+
+  // Observe DOM changes in the body (row expansion, sorting, etc.) and update scrollbar
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const mo = new MutationObserver(() => updateScrollbar());
+    mo.observe(body, { childList: true, subtree: true, attributes: true });
+    return () => mo.disconnect();
+  }, [bodyRef.current, updateScrollbar]);
+
+  // Ensure scrollbar updates after any pointer up anywhere (in case drag ended outside)
+  React.useEffect(() => {
+    const onGlobalUp = () => updateScrollbar();
+    document.addEventListener('mouseup', onGlobalUp);
+    document.addEventListener('touchend', onGlobalUp as any);
+    return () => {
+      document.removeEventListener('mouseup', onGlobalUp);
+      document.removeEventListener('touchend', onGlobalUp as any);
+    };
+  }, [updateScrollbar]);
 
   return (
     <div className="cb-container">
@@ -585,43 +642,44 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
         <span className="cb-summary-bankrupt" style={{ color: '#e05050' }}>{`${bankruptCount} bankrupt`}</span>
       </div>
 
-      {/* Table header */}
-      <div className="cb-table-header">
-        <div className="cb-col-name cb-sortable" onClick={() => handleSort('name')}>
-          Company{sortIndicator('name')}
-        </div>
-        <div className="cb-col-address">
-          {/* Label changes depending on view */}
-          {isSignatureView ? 'Building' : 'Address'}
-        </div>
-        <div className="cb-col-zone cb-sortable" onClick={() => handleSort('zoneType')}>
-          Zone Type{sortIndicator('zoneType')}
-        </div>
-        <div className="cb-col-resource cb-sortable" onClick={() => handleSort('resourceKey')}>
-          Resource{sortIndicator('resourceKey')}
-        </div>
-        <div className="cb-col-profit cb-sortable" onClick={() => handleSort('profit')}>
-          {'Profit\u00a0%' + sortIndicator('profit')}
-        </div>
-        <div className="cb-col-tax">
-          Tax %
-        </div>
-        <div className="cb-col-happiness">
-          Happiness
-        </div>
-        <div className="cb-col-tier cb-sortable" onClick={() => handleSort('profitabilityTier')}>
-          Status{sortIndicator('profitabilityTier')}
-        </div>
-        <div className="cb-col-level">
-          Lv
-        </div>
-        <div className="cb-col-locate">
-          Locate
-        </div>
-      </div>
+      {/* Table header is rendered inside the scroll container so columns align with rows */}
 
       {/* Company rows with custom scrollbar */}
       <div className="cb-table-scroll">
+        {/* Table header (sticky) inside scroll wrapper so columns align with rows */}
+        <div className="cb-table-header">
+          <div className="cb-col-name cb-sortable" onClick={() => handleSort('name')}>
+            Company{sortIndicator('name')}
+          </div>
+          <div className="cb-col-address">
+            {/* Label changes depending on view */}
+            {isSignatureView ? 'Building' : 'Zone Density'}
+          </div>
+          <div className="cb-col-zone cb-sortable" onClick={() => handleSort('zoneType')}>
+            Zone Type{sortIndicator('zoneType')}
+          </div>
+          <div className="cb-col-resource cb-sortable" onClick={() => handleSort('resourceKey')}>
+            Resource{sortIndicator('resourceKey')}
+          </div>
+          <div className="cb-col-profit cb-sortable" onClick={() => handleSort('profit')}>
+            {'Profit\u00a0%' + sortIndicator('profit')}
+          </div>
+          <div className="cb-col-tax">
+            <div className="cb-sortable" onClick={() => handleSort('tax')}>Tax %{sortIndicator('tax')}</div>
+          </div>
+          <div className="cb-col-happiness">
+            <div className="cb-sortable" onClick={() => handleSort('happiness')}>Happiness{sortIndicator('happiness')}</div>
+          </div>
+          <div className="cb-col-tier cb-sortable" onClick={() => handleSort('profitabilityTier')}>
+            Status{sortIndicator('profitabilityTier')}
+          </div>
+          <div className="cb-col-level">
+            <div className="cb-sortable" onClick={() => handleSort('lv')}>Lv{sortIndicator('lv')}</div>
+          </div>
+          <div className="cb-col-locate">
+            Locate
+          </div>
+        </div>
         <div ref={bodyRef} className="cb-table-body" onScroll={handleBodyScroll}>
           {sorted.length === 0 && (
             <div className="cb-empty">No companies found. Companies will appear once the game simulation is running.</div>
@@ -731,9 +789,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
                     >
                       GO
                     </button>
-        </div>
-        <div ref={trackRef} className="cb-scrollbar-track" aria-hidden>
-          <div ref={thumbRef} className="cb-scrollbar-thumb" style={{ top: `${thumbTop}px`, height: `${thumbHeight}px` }} />
         </div>
                 </div>
                 {isExpanded && (
@@ -1076,6 +1131,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
               </div>
             );
           })}
+        </div>
+        <div ref={trackRef} className="cb-scrollbar-track" aria-hidden>
+          <div ref={thumbRef} className="cb-scrollbar-thumb" style={{ top: `${thumbTop}px`, height: `${thumbHeight}px` }} />
         </div>
       </div>
     </div>

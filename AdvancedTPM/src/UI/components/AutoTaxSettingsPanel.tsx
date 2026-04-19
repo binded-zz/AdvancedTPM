@@ -272,9 +272,19 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
     const thumb = scrollThumbRef.current;
     const track = scrollTrackRef.current;
     if (!body || !thumb || !track) return;
+    // Position track relative to wrapper using bounding rects
+    try {
+      const bodyRect = body.getBoundingClientRect();
+      const wrapper = body.parentElement || body;
+      const wrapperRect = wrapper.getBoundingClientRect();
+      let relTop = bodyRect.top - wrapperRect.top;
+      relTop = Math.max(0, Math.min(relTop, Math.max(0, wrapperRect.height - body.clientHeight)));
+      track.style.top = `${relTop}px`;
+      track.style.height = `${body.clientHeight}px`;
+    } catch {}
     const ratio = body.clientHeight / body.scrollHeight;
-    if (ratio >= 1 || !Number.isFinite(ratio)) { track.style.display = 'none'; return; }
-    track.style.display = 'block';
+    if (ratio >= 1 || !Number.isFinite(ratio)) { try { track.style.display = 'none'; } catch {} ; return; }
+    try { track.style.display = 'block'; } catch {}
     const trackH = track.clientHeight;
     if (trackH <= 0) return;
     const thumbH = Math.max(20, trackH * ratio);

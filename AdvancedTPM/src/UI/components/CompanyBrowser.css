@@ -38,7 +38,7 @@
 .cb-summary-bankrupt { color: #e05050; font-weight:700; text-shadow:0 1rem 0 rgba(0,0,0,0.45); }
 
 /* Table header */
-.cb-table-header { display:flex; align-items:center; padding:5rem 10rem; background:rgba(18,28,42,0.9); border-bottom:2rem solid rgba(93,128,170,0.3); font-size:11rem; font-weight:700; color:rgba(200,220,240,0.8); text-transform:uppercase; letter-spacing:0.3rem; }
+.cb-table-header { display:flex; align-items:center; padding:5rem 6rem; background:rgba(18,28,42,0.9); border-bottom:2rem solid rgba(93,128,170,0.3); font-size:11rem; font-weight:700; color:rgba(200,220,240,0.8); text-transform:uppercase; letter-spacing:0.3rem; box-sizing: border-box; position: sticky; top: 0; left: 0; z-index: 50; }
 .cb-sortable { cursor:pointer; }
 .cb-sortable:hover { color:#50b8e9; }
 
@@ -52,15 +52,40 @@
 .cb-col-tier { width:80rem; padding:0 4rem; flex-shrink:0; text-align:center; }
 .cb-col-level { width:48rem; padding:0 4rem; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
 .cb-level-badge { background:rgba(255,255,255,0.03); border:1rem solid rgba(255,255,255,0.04); padding:2rem 6rem; border-radius:3rem; font-size:10rem; color:rgba(255,255,255,0.75); }
-.cb-col-locate { width:40rem; padding:0 4rem; flex-shrink:0; text-align:center; }
+.cb-col-locate { width:40rem; padding:0 16rem 0 4rem; flex-shrink:0; text-align:center; }
 
 /* Table body — scrollable with custom scrollbar container */
-.cb-table-scroll { flex:1; display:flex; overflow:hidden; position:relative; min-height:0; }
-.cb-table-body { flex:1; overflow-y:scroll; overflow-x:hidden; min-height:0; }
+.cb-table-scroll { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; min-height:0; /* reserve space on the right for overlay/thumb */ padding-right: 20rem; box-sizing: border-box; }
+.cb-table-body { flex:1 1 auto; width:100%; overflow-y:scroll; overflow-x:hidden; min-height:0; box-sizing: border-box; }
+/* Reserve a small gutter inside the body so content doesn't touch the right edge */
+.cb-table-body { padding-right: 4rem; box-sizing: border-box; }
+
+/* Overlay scrollbar styles (track and thumb) */
+.cb-scrollbar-track {
+  position: absolute;
+  right: 8rem;
+  width: 12rem;
+  top: 0;
+  height: 100%;
+  display: none;
+  pointer-events: auto;
+  z-index: 30;
+}
+.cb-scrollbar-thumb {
+  position: absolute;
+  right: 0.5rem;
+  width: 8rem;
+  background: rgba(80,120,160,0.85);
+  border-radius: 6rem;
+  pointer-events: auto;
+  box-shadow: 0 2rem 6rem rgba(0,0,0,0.5);
+  cursor: grab;
+  z-index: 31;
+}
 
 /* Overlay scrollbar track and thumb (used when native scrollbars are hidden) */
-.cb-scrollbar-track { position:absolute; right:6rem; top:0; bottom:0; width:6rem; background:transparent; z-index:10000; pointer-events:auto; display:flex; align-items:flex-start; }
-.cb-scrollbar-thumb { position:absolute; right:0; width:6rem; background:rgba(80,140,200,0.8); border-radius:4rem; cursor:grab; box-shadow:inset 0 -2rem 4rem rgba(0,0,0,0.25); z-index:10001; }
+.cb-scrollbar-track { position:absolute; right:8rem; top:8rem; bottom:8rem; width:12rem; background:transparent; z-index:10000; pointer-events:auto; display:flex; align-items:flex-start; }
+.cb-scrollbar-thumb { position:absolute; right:3rem; width:6rem; background:rgba(80,140,200,0.92); border-radius:6rem; cursor:grab; box-shadow:inset 0 -2rem 4rem rgba(0,0,0,0.25); z-index:10001; pointer-events:auto; }
 .cb-scrollbar-thumb:active { cursor:grabbing; }
 
 /* Visible scrollbar styling (WebKit / CoHTML) for company table */
@@ -79,7 +104,7 @@
   border-radius: 6rem;
 }
 .cb-table-body { }
-.cb-row { display:flex; align-items:center; padding:4rem 10rem; font-size:12rem; color:rgba(255,255,255,0.8); transition:background-color 0.1s; cursor:pointer; }
+.cb-row { display:flex; align-items:center; padding:4rem 6rem; font-size:12rem; color:rgba(255,255,255,0.8); transition:background-color 0.1s; cursor:pointer; width:100%; box-sizing:border-box; }
 .cb-row:hover { background:rgba(80,184,233,0.12); }
 .cb-row-alt { background:rgba(255,255,255,0.02); }
 

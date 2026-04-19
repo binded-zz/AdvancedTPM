@@ -372,11 +372,17 @@ const CategoryGroupRow: React.FC<{
   onTooltipHide: () => void;
   // when true (viewing 'All' resources) this group should start collapsed on mount
   isAllView?: boolean;
-}> = ({ category, categoryRows, isFirst, iconMap, localRates, selectedRowKey, autoTaxDirections, onRateChange, onSelect, onTooltipShow, onTooltipHide, isAllView }) => {
+  onToggle?: (expanded: boolean) => void;
+}> = ({ category, categoryRows, isFirst, iconMap, localRates, selectedRowKey, autoTaxDirections, onRateChange, onSelect, onTooltipShow, onTooltipHide, isAllView, onToggle }) => {
   const [expanded, setExpanded] = useState<boolean>(isAllView ? false : true);
   // Keep expanded state in sync when view mode changes between 'all' and a single category
   useEffect(() => {
-    setExpanded(isAllView ? false : true);
+    const next = isAllView ? false : true;
+    setExpanded(next);
+    if (onToggle) {
+      // allow layout to settle
+      requestAnimationFrame(() => requestAnimationFrame(() => onToggle!(next)));
+    }
   }, [isAllView]);
   const [headerHover, setHeaderHover] = useState(false);
   const [buttonHover, setButtonHover] = useState(false);
@@ -444,7 +450,12 @@ const CategoryGroupRow: React.FC<{
         <div className="adv-category-title">{category.label}</div>
         <div
           className={`adv-expand-button${buttonHover ? ' adv-expand-button-hover' : ''}`}
-          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            const next = !expanded;
+            setExpanded(next);
+            if (onToggle) requestAnimationFrame(() => requestAnimationFrame(() => onToggle(next)));
+          }}
           onMouseOver={() => setButtonHover(true)}
           onMouseOut={() => setButtonHover(false)}
         >
@@ -637,6 +648,116 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   const handleRowSelect = (key: string) => {
     setSelectedRowKey((prev) => prev === key ? null : key);
   };
+
+  // Overlay scrollbar for resources list
+  const tableBodyRef = useRef<HTMLDivElement | null>(null);
+  const tableWrapperRef = useRef<HTMLDivElement | null>(null);
+  const tableTrackRef = useRef<HTMLDivElement | null>(null);
+  const tableThumbRef = useRef<HTMLDivElement | null>(null);
+  const [tableThumbTop, setTableThumbTop] = useState(0);
+  const [tableThumbHeight, setTableThumbHeight] = useState(48);
+
+  const updateTableScrollbar = useCallback(() => {
+    const body = tableBodyRef.current;
+    const track = tableTrackRef.current;
+    const thumb = tableThumbRef.current;
+    const wrapper = tableWrapperRef.current;
+    if (!body || !track || !thumb || !wrapper) return;
+    // position track relative to wrapper using bounding rects
+    try {
+      const bodyRect = body.getBoundingClientRect();
+      const wrapperRect = wrapper.getBoundingClientRect();
+      let relTop = bodyRect.top - wrapperRect.top;
+      relTop = Math.max(0, Math.min(relTop, Math.max(0, wrapperRect.height - body.clientHeight)));
+      track.style.top = `${relTop}px`;
+      track.style.height = `${body.clientHeight}px`;
+    } catch {}
+    const visible = body.clientHeight;
+    const total = body.scrollHeight || 1;
+    if (visible >= total || !Number.isFinite(visible) || !Number.isFinite(total)) {
+      try { track.style.display = 'none'; } catch {}
+      return;
+    }
+    try { track.style.display = 'block'; } catch {}
+    const ratio = Math.max(0.03, Math.min(1, visible / total));
+    const trackHeight = track.clientHeight;
+    const thumbH = Math.max(16, Math.round(trackHeight * ratio));
+    const scrollTop = body.scrollTop;
+    const maxScroll = total - visible;
+    const top = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * (trackHeight - thumbH)) : 0;
+    setTableThumbHeight(thumbH);
+    setTableThumbTop(top);
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => updateTableScrollbar();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [updateTableScrollbar]);
+
+  useEffect(() => {
+    updateTableScrollbar();
+  }, [displayCategories.length, rows, selectedRowKey, updateTableScrollbar]);
+
+  const handleTableBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    updateTableScrollbar();
+  };
+
+  // Thumb drag
+  useEffect(() => {
+    let dragging = false;
+    let startY = 0;
+    let startTop = 0;
+    const thumb = tableThumbRef.current;
+    const track = tableTrackRef.current;
+    const body = tableBodyRef.current;
+    if (!thumb || !track || !body) return;
+    const onDown = (ev: any) => {
+      try { if (ev.stopPropagation) ev.stopPropagation(); } catch {}
+      dragging = true;
+      startY = ev.clientY || (ev.touches && ev.touches[0] && ev.touches[0].clientY) || 0;
+      startTop = tableThumbTop;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMove as any, { passive: false });
+      document.addEventListener('touchend', onUp as any);
+      ev.preventDefault();
+    };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging) return;
+      const dy = ev.clientY - startY;
+      const trackH = track.clientHeight;
+      const maxTop = trackH - tableThumbHeight;
+      const newTop = Math.max(0, Math.min(maxTop, startTop + dy));
+      const total = body.scrollHeight - body.clientHeight;
+      const scrollPos = total > 0 ? Math.round((newTop / (trackH - tableThumbHeight)) * total) : 0;
+      body.scrollTop = scrollPos;
+      setTableThumbTop(newTop);
+    };
+    const onUp = () => {
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove as any);
+      document.removeEventListener('touchend', onUp as any);
+      updateTableScrollbar();
+    };
+    try { thumb.addEventListener('pointerdown', onDown as any); } catch {}
+    try { thumb.addEventListener('mousedown', onDown as any); } catch {}
+    try { thumb.addEventListener('touchstart', onDown as any); } catch {}
+    return () => {
+      try { thumb.removeEventListener('mousedown', onDown as any); } catch {}
+    };
+  }, [tableThumbTop, tableThumbHeight]);
+
+  useEffect(() => {
+    const body = tableBodyRef.current;
+    if (!body) return;
+    const mo = new MutationObserver(() => updateTableScrollbar());
+    mo.observe(body, { childList: true, subtree: true, attributes: true });
+    return () => mo.disconnect();
+  }, [tableBodyRef.current, updateTableScrollbar]);
+
 
   const handleRateChange = (key: string, rate: number) => {
     setLocalRates((prev) => ({ ...prev, [key]: rate }));
@@ -849,8 +970,8 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
           {/* Legend removed - colors shown inline on bars and footer */}
         </div>
 
-        <div className="adv-table-content-wrapper">
-          <div className="adv-table-content">
+      <div className="adv-table-content-wrapper" ref={tableWrapperRef}>
+        <div className="adv-table-content" ref={tableBodyRef} onScroll={handleTableBodyScroll}>
             {displayCategories.map((cat, idx) => {
               const catRows = getCategoryRows(cat);
               if (catRows.length === 0) return null;
@@ -866,12 +987,19 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
                   autoTaxDirections={autoTaxDirections}
                   onRateChange={handleRateChange}
                   onSelect={handleRowSelect}
-                isAllView={safeCategory === 'all'}
+                  isAllView={safeCategory === 'all'}
                   onTooltipShow={showTooltip}
                   onTooltipHide={hideTooltip}
+                  onToggle={() => {
+                    // allow CSS transitions/layout to settle before recalculating
+                    requestAnimationFrame(() => requestAnimationFrame(() => updateTableScrollbar()));
+                  }}
                 />
               );
             })}
+          </div>
+          <div ref={tableTrackRef} className="adv-scrollbar-track" aria-hidden>
+            <div ref={tableThumbRef} className="adv-scrollbar-thumb" style={{ top: `${tableThumbTop}px`, height: `${tableThumbHeight}px` }} />
           </div>
 
           <div className="adv-table-lines">

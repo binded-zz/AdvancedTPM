@@ -25,11 +25,11 @@
 .adv-col-rate { width:420rem; padding:8rem 16rem; color:rgba(255,255,255,0.7); font-size:14rem; font-weight:600; text-transform:uppercase; text-align:center; border-left:2rem solid rgba(255,255,255,0.1); }
 .adv-col-production { width:240rem; padding:8rem 16rem; color:rgba(255,255,255,0.7); font-size:14rem; font-weight:600; text-transform:uppercase; text-align:center; border-left:2rem solid rgba(255,255,255,0.1); }
 .adv-col-income { width:140rem; padding:8rem 16rem; color:rgba(255,255,255,0.7); font-size:14rem; font-weight:600; text-transform:uppercase; text-align:center; border-left:2rem solid rgba(255,255,255,0.1); }
-.adv-table-content-wrapper { flex:1; background:rgba(28,36,48,1); overflow:auto; display:flex; flex-direction:column; border:1rem solid rgba(255,255,255,0.02); min-height:0; }
+.adv-table-content-wrapper { flex:1; background:rgba(28,36,48,1); overflow:auto; display:flex; flex-direction:column; border:1rem solid rgba(255,255,255,0.02); min-height:0; position:relative; }
 
 /* Ensure pages with long content scroll when needed */
 .adv-window .adv-table-section, .adv-window .adv-table-content-wrapper, .adv-window .adv-table-content, .adv-window .adv-footer, .adv-window .adv-autotax-status-bar { }
-.adv-table-content { flex:0 1 auto; overflow-y:auto; overflow-x:visible; }
+.adv-table-content { flex:0 1 auto; overflow-y:auto; overflow-x:visible; padding-right:18rem; box-sizing:border-box; }
 
 /* Resources table content: keep vertical list of category groups for correct
    resource layout (each category group is a full-width row). Avoid grid here
@@ -39,6 +39,30 @@
 /* Visible scrollbar styling for resources/advisor pages */
 .adv-table-content, .adv-table-section, .adv-table-content-wrapper, .adv-window .advisor-content { }
 .adv-table-lines { flex:1 0 0; display:flex; pointer-events:none; overflow:hidden; }
+
+/* Overlay scrollbar track positioned in the table wrapper; shown only when needed */
+.adv-scrollbar-track {
+  position: absolute;
+  right: 8rem;
+  width: 12rem;
+  top: 0;
+  height: 100%;
+  display: none;
+  /* allow the track to receive clicks (jump-to-scroll) */
+  pointer-events: auto;
+  z-index: 30;
+}
+.adv-scrollbar-thumb {
+  position: absolute;
+  right: 0.5rem;
+  width: 8rem;
+  background: rgba(80,120,160,0.85);
+  border-radius: 6rem;
+  pointer-events: auto; /* enable dragging */
+  box-shadow: 0 2rem 6rem rgba(0,0,0,0.5);
+  cursor: grab;
+  z-index: 31;
+}
 .adv-table-lines-name { flex:1; border-top:2rem solid rgba(255,255,255,0.1); }
 .adv-table-lines-rate { width:420rem; border-left:2rem solid rgba(255,255,255,0.1); border-top:2rem solid rgba(255,255,255,0.1); }
 .adv-table-lines-production { width:240rem; border-left:2rem solid rgba(255,255,255,0.1); border-top:2rem solid rgba(255,255,255,0.1); }
