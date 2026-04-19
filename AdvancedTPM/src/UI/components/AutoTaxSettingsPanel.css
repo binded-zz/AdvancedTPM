@@ -9,6 +9,22 @@
 .ats-body-wrapper { flex:1; display:flex; overflow:hidden; position:relative; min-height:0; }
 .ats-body { flex:1; overflow-y:scroll; overflow-x:hidden; padding:8rem 0; min-height:0; }
 
+/* Visible scrollbar styling for AutoTax panel */
+.ats-body {
+  scrollbar-gutter: stable;
+}
+.ats-body::-webkit-scrollbar {
+  width: 6rem;
+}
+.ats-body::-webkit-scrollbar-track {
+  background: rgba(12,18,24,0.5);
+  border-radius: 4rem;
+}
+.ats-body::-webkit-scrollbar-thumb {
+  background: rgba(80,140,200,0.6);
+  border-radius: 4rem;
+}
+
 .ats-section { padding:0 12rem; margin-bottom:10rem; }
 .ats-section-title { font-size:12rem; font-weight:700; text-transform:uppercase; letter-spacing:0.4rem; color:#50b8e9; padding-bottom:6rem; border-bottom:1rem solid rgba(255,255,255,0.1); margin-bottom:8rem; display:flex; align-items:center; justify-content:space-between; }
 .ats-resource-count { font-size:11rem; font-weight:500; color:rgba(255,255,255,0.5); text-transform:none; letter-spacing:0; }

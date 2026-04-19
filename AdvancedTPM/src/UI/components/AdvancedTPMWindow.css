@@ -120,6 +120,23 @@
 .adv-prod-bar-label { position:relative; z-index:1; padding:0 4rem; font-size:10rem; color:rgba(255,255,255,0.85); white-space:nowrap; font-weight:600; }
 .adv-row-tooltip { min-width:220rem; background:#0c1218; border:1rem solid rgba(120,160,200,0.9); border-radius:4rem; padding:8rem 10rem; font-size:11rem; line-height:1.35; color:#ffffff; box-shadow:0 3rem 10rem rgba(0,0,0,0.65); pointer-events:none; }
 
+/* Make native scrollbars visible in CoHTML/WebKit when supported */
+.adv-table-content, .adv-table-content-wrapper, .adv-table-section {
+  scrollbar-gutter: stable;
+}
+.adv-table-content::-webkit-scrollbar, .adv-table-content-wrapper::-webkit-scrollbar, .adv-table-section::-webkit-scrollbar {
+  width: 8rem;
+}
+.adv-table-content::-webkit-scrollbar-track, .adv-table-content-wrapper::-webkit-scrollbar-track, .adv-table-section::-webkit-scrollbar-track {
+  background: rgba(6,10,16,0.6);
+  border-radius: 6rem;
+}
+.adv-table-content::-webkit-scrollbar-thumb, .adv-table-content-wrapper::-webkit-scrollbar-thumb, .adv-table-section::-webkit-scrollbar-thumb {
+  background: rgba(80,120,160,0.6);
+  border-radius: 6rem;
+  border: 1rem solid rgba(6,10,16,0.0);
+}
+
 /* == Auto-Tax Styles == */
 .adv-autotax-toggle { position:absolute; right:112rem; top:50%; transform:translateY(-50%); border:1rem solid rgba(124,152,189,0.75); background:rgba(15,24,37,0.98); color:rgba(233,243,255,0.65); font-size:11rem; font-weight:800; padding:4rem 10rem; border-radius:3rem; cursor:pointer; letter-spacing:0.5rem; text-transform:uppercase; transition:background-color 0.15s, border-color 0.15s, color 0.15s; }
 .adv-autotax-toggle:hover { background:rgba(62,98,145,0.88); border-color:rgba(140,186,235,0.95); color:#fff; }

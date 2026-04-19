@@ -57,6 +57,22 @@
 /* Table body — scrollable with custom scrollbar container */
 .cb-table-scroll { flex:1; display:flex; overflow:hidden; position:relative; min-height:0; }
 .cb-table-body { flex:1; overflow-y:scroll; overflow-x:hidden; min-height:0; }
+
+/* Visible scrollbar styling (WebKit / CoHTML) for company table */
+.cb-table-body {
+  scrollbar-gutter: stable;
+}
+.cb-table-body::-webkit-scrollbar {
+  width: 8rem;
+}
+.cb-table-body::-webkit-scrollbar-track {
+  background: rgba(12,18,24,0.6);
+  border-radius: 6rem;
+}
+.cb-table-body::-webkit-scrollbar-thumb {
+  background: rgba(80,140,200,0.6);
+  border-radius: 6rem;
+}
 .cb-table-body { }
 .cb-row { display:flex; align-items:center; padding:4rem 10rem; font-size:12rem; color:rgba(255,255,255,0.8); transition:background-color 0.1s; cursor:pointer; }
 .cb-row:hover { background:rgba(80,184,233,0.12); }
