@@ -54,6 +54,8 @@
 
 ## v1.2.0 — Logging, Signature & Debug
 
+**Released:** Published to Paradox Mods (PDX) and GitHub — 2026-04-19
+
 ### Added
 - `PrefixedLogger` utility for per-system logging with Unity fallback.
 - `signatureCompanies` binding published from C# (authoritative ECS entity keys for signature buildings) as JSON.
