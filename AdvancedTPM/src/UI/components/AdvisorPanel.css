@@ -276,8 +276,8 @@
 .advisor-rec-row {
   display: flex;
   align-items: center;
-  /* add larger right padding so long text doesn't clip under the overlay scrollbar */
-  padding: 4rem 24rem 4rem 6rem;
+  /* small background padding only; reserve visual gutter with inner content margins below */
+  padding: 4rem 6rem;
   background: rgba(255,255,255,0.02);
   border-radius: 3rem;
 }
@@ -330,11 +330,19 @@
 .advisor-decision-row {
   display: flex;
   align-items: center;
-  /* reserve right-side space for overlay scrollbar/thumb to avoid clipping */
-  padding: 5rem 24rem 5rem 8rem;
+  padding: 5rem 8rem;
   background: rgba(255,255,255,0.03);
   border-radius: 3rem;
   font-size: 13rem;
+}
+
+/* Reserve space for the overlay scrollbar by adding right margin to the textual content
+   so the visual row background remains full-width while text doesn't flow under the thumb. */
+.advisor-rec-name,
+.advisor-rec-reason,
+.advisor-decision-resource,
+.advisor-decision-summary {
+  margin-right: 24rem;
 }
 .advisor-decision-row > * {
   margin-right: 8rem;
