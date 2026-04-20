@@ -188,5 +188,5 @@
 .adv-view-tab-active { background:rgba(80,184,233,0.22); color:#50b8e9; border-bottom:2rem solid #50b8e9; }
 
 /* Badge for counts on tabs */
-.adv-tab-badge { display:inline-block; margin-left:8rem; background:#50b8e9; color:#042; font-weight:800; padding:2rem 6rem; border-radius:8rem; font-size:10rem; }
+.adv-tab-badge { margin-left:8rem; background:#50b8e9; color:#042; font-weight:800; padding:2rem 6rem; border-radius:8rem; font-size:10rem; }
 

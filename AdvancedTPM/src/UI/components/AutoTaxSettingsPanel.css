@@ -75,7 +75,7 @@
   transition:transform 0.15s, color 0.12s, filter 0.12s;
   transform:rotate(-90deg);
 }
-.ats-collapse-arrow::before { content: '▸'; display:inline-block; }
+.ats-collapse-arrow::before { content: '▸'; display:block; }
 .ats-collapse-arrow-expanded { transform:rotate(0deg); color:#50b8e9; }
 .ats-collapse-arrow:hover { filter:brightness(1.25); }
 
