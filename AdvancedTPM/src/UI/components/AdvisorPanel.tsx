@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import './AdvisorPanel.css';
+import * as ReactDOM from 'react-dom';
 import { resourceCategories } from '../data/resourceTaxonomy';
 
 interface LearningProfile {
@@ -45,6 +46,7 @@ interface AdvisorPanelProps {
   decisionLogData: string;
   learningStatsData: string;
   learningEnabled: boolean;
+  useGameIcons?: boolean;
   onToggleLearning: (enabled: boolean) => void;
   onResetLearning: () => void;
   onSetAggressiveness: (level: number) => void;
@@ -181,12 +183,64 @@ const findResourceIcon = (key: string): string | null => {
   return null;
 };
 
-const ProfileRow: React.FC<{ p: LearningProfile }> = React.memo(({ p }) => {
+// Map a stage string to the game's zone icon path. These icons are provided
+// by the base game under Media/Game/Icons; use exact names so we don't invent
+// fallbacks. This returns a path like 'Media/Game/Icons/ZoneIndustrial.svg'.
+const getZoneIconPath = (stage: string | null): string | null => {
+  if (!stage) return null;
+  const ICON_BASE = 'Media/Game/Icons/';
+  const map: Record<string, string> = {
+    Industrial: 'ZoneIndustrial',
+    Commercial: 'ZoneCommercial',
+    Retail: 'ZoneCommercial',
+    RawResource: 'ZoneIndustrial',
+    Immaterial: 'Economy',
+    Office: 'Economy',
+  };
+  const name = map[stage] || stage.replace(/[^a-zA-Z0-9]/g, '');
+  return `${ICON_BASE}${name}.svg`;
+};
+
+// Find resource stage (e.g., 'Commercial' or 'Industrial') for a given key.
+// Try exact key match first (so commercial keys like `c_food` map to the
+// commercial entry), then fall back to the base resource name (remove `c_`).
+const findResourceStage = (key: string): string | null => {
+  if (!key) return null;
+  // First try exact match
+  for (const cat of resourceCategories) {
+    for (const r of cat.resources) {
+      if (r.key === key) return r.stage as string;
+    }
+  }
+  // Fallback: normalized (remove c_ prefix)
+  const normalized = key.replace(/^c_/, '');
+  for (const cat of resourceCategories) {
+    for (const r of cat.resources) {
+      if (r.key === normalized) return r.stage as string;
+    }
+  }
+  return null;
+};
+
+// Use the game's icon assets for zone/zone-type icons. CompanyBrowser uses
+// icons from Media/Game/Icons (e.g. ZoneIndustrial.svg). Reuse the same
+// convention here so advisor rows match the resources/company UI.
+// Render a small zone-type badge next to the resource icon. The badge is
+// pure CSS (no SVGs) and styled via advisor-zone-* classes in CSS so it
+// matches the look used elsewhere in the UI.
+
+const ProfileRow: React.FC<{ p: LearningProfile; useGameIcons?: boolean }> = React.memo(({ p, useGameIcons }) => {
   const icon = findResourceIcon(p.key);
+  const stage = findResourceStage(p.key);
   return (
     <div className="advisor-profile-row">
       <div className="advisor-profile-name">
         {icon && <img src={`Media/Game/Resources/${icon}.svg`} className="advisor-profile-icon" alt="" />}
+        {stage && (useGameIcons ? (
+          <img src={getZoneIconPath(stage) as string} className="advisor-zone-icon" title={stage} alt="" />
+        ) : (
+          <span className={`advisor-zone-badge advisor-zone-${(stage || '').toLowerCase()}`} title={stage} />
+        ))}
         {getResourceLabel(p.key)}
       </div>
       <div className="advisor-profile-bars">
@@ -235,21 +289,16 @@ const ProfileRow: React.FC<{ p: LearningProfile }> = React.memo(({ p }) => {
           </div>
         </div>
         <div className="advisor-profile-meta">
-          <span style={{ color: getConfidenceColor(p.confidence), marginRight: '6px' }}>
-            {`${Math.round(p.confidence * 100)}%`}
-          </span>
-          <span style={{ color: 'rgba(255,255,255,0.25)', margin: '0 6px' }}>{'\u00B7'}</span>
-          <span style={{ marginRight: '6px' }}>{`${p.sampleCount} samples`}</span>
-          <span style={{ color: 'rgba(255,255,255,0.25)', margin: '0 6px' }}>{'\u00B7'}</span>
-          <span style={{ color: getOutcomeColor(p.avgOutcome) }}>
-            avg: {p.avgOutcome > 0 ? '+' : ''}{p.avgOutcome.toFixed(2)}
-          </span>
+          <span className="advisor-profile-meta-label">conf:</span>
+          <span style={{ color: getConfidenceColor(p.confidence) }}>{`${Math.round(p.confidence * 100)}%`}</span>
+          <span className="advisor-profile-meta-sep">{'\u00B7'}</span>
+          <span className="advisor-profile-meta-samples">{`${p.sampleCount} samples`}</span>
+          <span className="advisor-profile-meta-sep">{'\u00B7'}</span>
+          <span style={{ color: getOutcomeColor(p.avgOutcome) }}>avg: {p.avgOutcome > 0 ? '+' : ''}{p.avgOutcome.toFixed(2)}</span>
           {p.volatility > 0.15 && (
             <>
-              <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
-              <span style={{ color: '#f0c040' }}>
-                vol: {(p.volatility * 100).toFixed(0)}%
-              </span>
+              <span className="advisor-profile-meta-sep">{'\u00B7'}</span>
+              <span style={{ color: '#f0c040' }}>vol: {(p.volatility * 100).toFixed(0)}%</span>
             </>
           )}
         </div>
@@ -268,7 +317,8 @@ const ProfileRow: React.FC<{ p: LearningProfile }> = React.memo(({ p }) => {
     a.confidence === b.confidence &&
     a.sampleCount === b.sampleCount &&
     a.avgOutcome === b.avgOutcome &&
-    a.volatility === b.volatility
+    a.volatility === b.volatility &&
+    prev.useGameIcons === next.useGameIcons
   );
 });
 
@@ -277,6 +327,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   decisionLogData,
   learningStatsData,
   learningEnabled,
+  useGameIcons = true,
   onToggleLearning,
   onResetLearning,
   onSetAggressiveness,
@@ -318,13 +369,36 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
           const wrapperRect = wrapper.getBoundingClientRect();
           relTop = bodyRect.top - wrapperRect.top;
         }
-        // Clamp into wrapper bounds
+      // Clamp into wrapper bounds
         try {
           const wrapperRect = wrapper.getBoundingClientRect();
           relTop = Math.max(0, Math.min(relTop, Math.max(0, wrapperRect.height - body.clientHeight)));
         } catch {}
-        track.style.top = `${relTop}px`;
-        track.style.height = `${body.clientHeight}px`;
+        // Anchor the overlay track to the main panel viewport (.advisor-content) instead
+        // so the scrollbar appears at the far-right of the panel rather than inside
+        // a narrower section column which would overlay content.
+        try {
+          // Anchor the overlay track to the nearest column wrapper (usually the
+          // parent `.advisor-section`) so each column has its own track positioned
+          // at that column's right edge. The wrapper is already positioned in CSS
+          // (see `.advisor-section { position: relative; }`).
+          const column = (body.parentElement as HTMLElement) || wrapper || body;
+          track.style.position = 'absolute';
+          // small distance (8rem) from the column's right edge
+          const rootFont = parseFloat(getComputedStyle(document.documentElement).fontSize || '16');
+          const gutterPx = Math.round(8 * rootFont);
+          track.style.right = `${gutterPx}px`;
+          // top should be relative to the column's top
+          track.style.top = `${relTop}px`;
+          track.style.height = `${body.clientHeight}px`;
+          // ensure the track is a child of the column so absolute positioning is anchored correctly
+          if (track.parentElement !== column) {
+            try { column.appendChild(track); } catch {}
+          }
+        } catch {
+          // Fallback: absolute positioning relative to wrapper
+          try { track.style.position = 'absolute'; track.style.top = `${relTop}px`; track.style.height = `${body.clientHeight}px`; } catch {}
+        }
       } catch {}
       const visible = body.clientHeight;
       const total = body.scrollHeight || 1;
@@ -432,6 +506,24 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'profiles' | 'log'>('overview');
   const [confirmReset, setConfirmReset] = useState(false);
   const [showAllProfiles, setShowAllProfiles] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
+  const legendBtnRef = React.useRef<HTMLButtonElement | null>(null);
+  const [legendPos, setLegendPos] = React.useState<DOMRect | null>(null);
+
+  // Keep legend positioned near the button when open — update on resize/scroll
+  React.useEffect(() => {
+    if (!showLegend) return;
+    const update = () => {
+      try {
+        const rect = legendBtnRef.current && legendBtnRef.current.getBoundingClientRect();
+        setLegendPos(rect || null);
+      } catch { setLegendPos(null); }
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
+  }, [showLegend]);
 
 
 
@@ -487,6 +579,22 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
 
   // ProfileRow component moved to module scope to ensure stable identity and allow memoization
 
+  const LegendPopup: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
+    // use the same styling as the settings info popup for consistent appearance
+    <div className="ats-info-popup" role="dialog" aria-label="Advisor legend" style={style}>
+      <div className="advisor-legend-title">Legend</div>
+      <ul>
+        <li><span className="legend-icon legend-up">▲</span> Green up arrow: recommend increase</li>
+        <li><span className="legend-icon legend-down">▼</span> Red down arrow: recommend decrease</li>
+        <li><span className="legend-icon legend-dot">●</span> Grey dot: neutral / no change</li>
+        <li><strong>Change</strong>: shows old% → new% (tax rate change)</li>
+        <li><strong>Outcome</strong>: effect on outcome metric (positive is good)</li>
+        <li><strong>Confidence</strong>: model confidence (0–100%)</li>
+        <li>Example: <em>14% → 13% &nbsp; -0.02 &nbsp; 59%</em> — old rate 14%, new rate 13%, outcome change -0.02, confidence 59%</li>
+      </ul>
+    </div>
+  );
+
   return (
     <div className="advisor-panel">
       {/* Controls bar */}
@@ -516,6 +624,25 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
         >
           {confirmReset ? 'Confirm Reset' : 'Reset'}
         </button>
+        <button ref={legendBtnRef} className="advisor-legend-btn" onClick={() => {
+          // toggle and capture button position for portal positioning
+          const next = !showLegend;
+          setShowLegend(next);
+          try {
+            const rect = legendBtnRef.current && legendBtnRef.current.getBoundingClientRect();
+            setLegendPos(rect || null);
+          } catch { setLegendPos(null); }
+        }} title="Legend">?</button>
+        {showLegend && legendPos && (() => {
+          // Prefer appending the popup to the same top-level container as the main window
+          // so it participates in the same stacking context used by other tooltips.
+          const win = document.querySelector('.adv-window');
+          const container = (win && (win.parentElement || document.body)) || document.body;
+          return ReactDOM.createPortal(
+            <LegendPopup style={{ position: 'fixed', top: legendPos.bottom + 8, left: legendPos.left, zIndex: 10000 }} />,
+            container
+          );
+        })()}
       </div>
 
       {/* Tab bar */}
@@ -543,7 +670,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
       {/* Content area */}
       {/* Content area */}
       <div className="advisor-content">
-        <div className="advisor-overview" style={{ display: activeTab === 'overview' ? undefined : 'none' }}>
+          <div className="advisor-overview" style={{ display: activeTab === 'overview' ? undefined : 'none' }}>
             {/* Stats summary */}
             <div className="advisor-stats-grid">
               <div className="advisor-stat">
@@ -573,16 +700,38 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                 {decisions.length > 0 ? (
                   <div className="advisor-section">
                     <div className="advisor-section-title">Recent Decisions</div>
+                    <div className="advisor-decision-headers">
+                      <span className="advisor-decision-resource">Resource</span>
+                      <span className="advisor-decision-change">Change</span>
+                      <span className="advisor-decision-outcome">Outcome</span>
+                      <span className="advisor-decision-summary">Summary</span>
+                    </div>
                     <div className="advisor-scroll-box" ref={leftBodyRef} onScroll={updateLeftScrollbar}>
                       <div className="advisor-decision-list">
-                        {decisions.slice(-50).reverse().map((d, i) => (
+                        {decisions.slice(-50).reverse().map((d, i) => {
+                          const icon = findResourceIcon(d.key);
+                          return (
                           <div key={i} className="advisor-decision-row">
-                            <span className="advisor-decision-resource">{getResourceLabel(d.key)}</span>
+                              <span className="advisor-decision-resource">
+                                {icon && <img src={`Media/Game/Resources/${icon}.svg`} className="advisor-resource-icon" alt="" />}
+                                {/* zone badge for decision rows (no SVG) */}
+                                {(() => {
+                                  const stage = findResourceStage(d.key);
+                                  return stage ? (
+                                    useGameIcons ? (
+                                      <img src={getZoneIconPath(stage) as string} className="advisor-zone-icon" title={stage} alt="" />
+                                    ) : (
+                                      <span className={`advisor-zone-badge advisor-zone-${(stage || '').toLowerCase()}`} title={stage} />
+                                    )
+                                  ) : null;
+                                })()}
+                                {getResourceLabel(d.key)}
+                              </span>
                             <span className="advisor-decision-change">{`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}</span>
                             <span className="advisor-decision-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>{d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}</span>
                             <span className="advisor-decision-summary">{d.summary}</span>
                           </div>
-                        ))}
+                        )})}
                       </div>
                     </div>
                     <div ref={leftTrackRef} className="advisor-scrollbar-track" aria-hidden>
@@ -598,17 +747,39 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                 {recommendations.length > 0 ? (
                   <div className="advisor-section">
                     <div className="advisor-section-title">Recommendations</div>
+                    <div className="advisor-rec-headers">
+                      <span className="advisor-rec-dir">Dir</span>
+                      <span className="advisor-rec-name">Resource</span>
+                      <span className="advisor-rec-rate">Rate</span>
+                      <span className="advisor-rec-conf">Confidence</span>
+                      <span className="advisor-rec-reason">Reason</span>
+                    </div>
                     <div className="advisor-scroll-box advisor-rec-box" ref={rightBodyRef} onScroll={updateRightScrollbar}>
                       <div className="advisor-rec-list">
-                        {recommendations.map((rec) => (
+                        {recommendations.map((rec) => {
+                          const icon = findResourceIcon(rec.key);
+                          return (
                           <div key={rec.key} className="advisor-rec-row">
                             <span className="advisor-rec-dir" style={{ color: getDirectionColor(rec.direction) }}>{getDirectionSymbol(rec.direction)}</span>
-                            <span className="advisor-rec-name">{getResourceLabel(rec.key)}</span>
+                            <span className="advisor-rec-name">
+                              {icon && <img src={`Media/Game/Resources/${icon}.svg`} className="advisor-resource-icon" alt="" />}
+                              {(() => {
+                                const stage = findResourceStage(rec.key);
+                                return stage ? (
+                                  useGameIcons ? (
+                                    <img src={getZoneIconPath(stage) as string} className="advisor-zone-icon-small" title={stage} alt="" />
+                                  ) : (
+                                    <span className={`advisor-zone-badge advisor-zone-${(stage || '').toLowerCase()}`} title={stage} />
+                                  )
+                                ) : null;
+                              })()}
+                              {getResourceLabel(rec.key)}
+                            </span>
                             <span className="advisor-rec-rate">{`${rec.currentRate}\u00a0%`}</span>
                             <span className="advisor-rec-conf" style={{ color: getConfidenceColor(rec.confidence) }}>{`${(rec.confidence * 100).toFixed(0)}\u00a0%`}</span>
                             <span className="advisor-rec-reason">{rec.reason}</span>
                           </div>
-                        ))}
+                        )})}
                       </div>
                     </div>
                     <div ref={rightTrackRef} className="advisor-scrollbar-track" aria-hidden>
@@ -630,7 +801,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
             <div className="advisor-scroll-box" ref={profilesBodyRef} onScroll={updateProfilesScrollbar}>
               <div className="advisor-profile-list">
                 {displayedProfiles.map((p) => (
-                  <ProfileRow key={p.key} p={p} />
+                  <ProfileRow key={p.key} p={p} useGameIcons={useGameIcons} />
                 ))}
               </div>
             </div>
@@ -644,12 +815,33 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
             {decisions.length === 0 && (
               <div className="advisor-empty">No decisions logged yet.</div>
             )}
+            <div className="advisor-log-headers">
+              <span className="advisor-log-resource">Resource</span>
+              <span className="advisor-log-change">Change</span>
+              <span className="advisor-log-outcome">Outcome</span>
+              <span className="advisor-log-conf">Confidence</span>
+            </div>
             <div className="advisor-scroll-box" ref={logBodyRef} onScroll={updateLogScrollbar}>
               <div className="advisor-log-list">
-                {[...decisions].reverse().map((d, i) => (
+                {[...decisions].reverse().map((d, i) => {
+                  const icon = findResourceIcon(d.key);
+                  return (
                   <div key={i} className="advisor-log-row">
                     <div className="advisor-log-header">
-                      <span className="advisor-log-resource">{getResourceLabel(d.key)}</span>
+                      <span className="advisor-log-resource">
+                        {icon && <img src={`Media/Game/Resources/${icon}.svg`} className="advisor-resource-icon" alt="" />}
+                        {(() => {
+                                  const stage = findResourceStage(d.key);
+                          return stage ? (
+                            useGameIcons ? (
+                              <img src={getZoneIconPath(stage) as string} className="advisor-zone-icon" title={stage} alt="" />
+                            ) : (
+                              <span className={`advisor-zone-badge advisor-zone-${(stage || '').toLowerCase()}`} title={stage} />
+                            )
+                          ) : null;
+                        })()}
+                        {getResourceLabel(d.key)}
+                      </span>
                       <span className="advisor-log-change">{`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}</span>
                       <span className="advisor-log-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
                         {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
@@ -660,7 +852,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                     </div>
                     {d.summary && <div className="advisor-log-summary">{d.summary}</div>}
                   </div>
-                ))}
+                )})}
               </div>
             </div>
             <div ref={logTrackRef} className="advisor-scrollbar-track" aria-hidden>

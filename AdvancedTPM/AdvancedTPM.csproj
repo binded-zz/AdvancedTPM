@@ -63,8 +63,11 @@
 		</Reference>
 	</ItemGroup>
 
-	<ItemGroup>
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <ItemGroup>
+		<!-- Newtonsoft is provided by the game runtime. Exclude runtime assets so the DLL is not copied into the mod package. -->
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3">
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</PackageReference>
 	</ItemGroup>
 
 	<ItemGroup>

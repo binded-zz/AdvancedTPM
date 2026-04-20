@@ -256,6 +256,13 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
   const [perResourceRanges, setPerResourceRanges] = useState<Map<string, ResourceRange>>(() => new Map(parsed.perResourceRanges));
   const [profitWeight, setProfitWeight] = useState(parsed.profitWeight);
   const [opacity, setOpacity] = useState(parsed.opacity);
+  const [useGameIcons, setUseGameIcons] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem('atpm.useGameZoneIcons');
+      if (v === null) return true;
+      return v === '1' || v === 'true';
+    } catch { return true; }
+  });
 
   // Drag state
   const panelRef = useRef<HTMLDivElement>(null);
@@ -358,6 +365,13 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
     pushSettings({ interval, minRate, maxRate, happinessWeight, updateSpeed, excluded, perResourceRanges, profitWeight, opacity });
   }, [interval, minRate, maxRate, happinessWeight, updateSpeed, excluded, perResourceRanges, profitWeight, opacity]);
 
+  // Notify host and persist icon mode when changed in this panel
+  useEffect(() => {
+    try { localStorage.setItem('atpm.useGameZoneIcons', useGameIcons ? '1' : '0'); } catch {}
+    try { trigger('taxProduction', 'setAdvisorUseGameIcons', useGameIcons ? '1' : '0'); } catch {}
+    try { window.dispatchEvent(new CustomEvent('atpm.useGameIconsChanged', { detail: useGameIcons })); } catch {}
+  }, [useGameIcons]);
+
   const setResourceRange = useCallback((key: string, lo: number, hi: number) => {
     setPerResourceRanges((prev) => {
       const next = new Map(prev);
@@ -440,6 +454,17 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
       <div className="ats-header" onMouseDown={handleHeaderMouseDown} style={{ cursor: 'move' }}>
         <span className="ats-header-title">Auto-Tax Settings</span>
         <button className="ats-close-btn" onMouseDown={(e) => e.stopPropagation()} onClick={onClose}>X</button>
+      </div>
+      <div className="ats-row" style={{ padding: '8rem 12rem', display: 'flex', alignItems: 'center', gap: '8rem' }}>
+        <div style={{ fontSize: '12rem', color: 'rgba(255,255,255,0.9)', flex: '1' }}>Use in-game zone icons in Advisor</div>
+        <div
+          role="checkbox"
+          aria-checked={useGameIcons}
+          className={`ats-checkbox${useGameIcons ? ' ats-checkbox-checked' : ''}`}
+          onClick={(e) => { e.stopPropagation(); setUseGameIcons((v) => !v); }}
+          style={{ cursor: 'pointer' }}
+          title={useGameIcons ? 'Using in-game icons' : 'Using simple badges'}
+        />
       </div>
 
       <div className="ats-body-wrapper">

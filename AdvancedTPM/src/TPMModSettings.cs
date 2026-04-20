@@ -103,6 +103,10 @@ namespace AdvancedTPM
         [SettingsUIDisplayName("ShowAdvisorPanel", "Show Advisor Tab")]
         public bool ShowAdvisorPanel { get; set; } = true;
 
+        [SettingsUISection(TabSettings, GroupAdvisor)]
+        [SettingsUIDisplayName("UseGameZoneIcons", "Use in-game zone icons in Advisor")]
+        public bool UseGameZoneIcons { get; set; } = true;
+
         [SettingsUISection(TabSettings, GroupDebug)]
         [SettingsUIDisplayName("DebugEnabled", "Enable Debug Logs")]
         public bool DebugEnabled { get; set; } = false;
@@ -154,6 +158,7 @@ namespace AdvancedTPM
             AdaptiveLearningEnabled = false;
             LearningAggressiveness = 3;
             ShowAdvisorPanel = true;
+            UseGameZoneIcons = true;
             DebugEnabled = false;
             ShowDebugPanel = false;
             ShowTips = true;

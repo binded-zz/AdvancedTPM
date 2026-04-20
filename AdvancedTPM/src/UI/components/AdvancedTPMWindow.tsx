@@ -552,6 +552,25 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [useGameIcons, setUseGameIcons] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem('atpm.useGameZoneIcons');
+      if (v === null) return true; // default on
+      return v === '1' || v === 'true';
+    } catch { return true; }
+  });
+
+  // Listen for in-page changes to the icon mode (from settings panel) and update state
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        const val = e && typeof e.detail !== 'undefined' ? !!e.detail : (localStorage.getItem('atpm.useGameZoneIcons') === '1');
+        setUseGameIcons(val);
+      } catch { }
+    };
+    window.addEventListener('atpm.useGameIconsChanged', handler as EventListener);
+    return () => window.removeEventListener('atpm.useGameIconsChanged', handler as EventListener);
+  }, []);
   const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor'>('resources');
   const safeCategory = (selectedCategory || 'all').toLowerCase();
   const iconMap = new Map(resourceCategories.flatMap((c) => c.resources.map((r) => [r.key, r.icon] as const)));
@@ -950,6 +969,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
             decisionLogData={decisionLogData}
             learningStatsData={learningStatsData}
             learningEnabled={learningEnabled}
+            useGameIcons={useGameIcons}
             onToggleLearning={(enabled) => trigger('taxProduction', 'setLearningEnabled', enabled)}
             onResetLearning={() => trigger('taxProduction', 'resetLearning')}
             onSetAggressiveness={(level) => trigger('taxProduction', 'setLearningAggressiveness', level)}

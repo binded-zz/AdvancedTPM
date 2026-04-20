@@ -160,10 +160,9 @@
 .advisor-scroll-body {
   flex: 1;
   overflow-y: auto;
-  /* reserve a larger right padding inside the scrollable area so text
-     doesn't flow under the overlay scrollbar while the row background
-     remains full-width */
-  padding: 8rem 40rem 8rem 10rem;
+  /* reserve right padding inside the scrollable area so text doesn't flow under
+     the overlay scrollbar while the row background remains full-width */
+  padding: 8rem 18rem 8rem 10rem;
 }
 
 /* Advisor custom scrollbar (visible even when native scrollbars hidden) */
@@ -233,8 +232,8 @@
 .advisor-scroll-box {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 8rem 10rem 8rem 0;
-  padding-right: 18rem; /* reserve space for overlay thumb */
+  /* reserve right padding to keep content clear of the overlay scrollbar/thumb */
+  padding: 8rem 18rem 8rem 0;
   box-sizing: border-box;
   position: relative; /* for any absolutely positioned children */
 }
@@ -417,6 +416,51 @@
   /* object-fit not supported by Cohtml; size is controlled by width/height */
   display: block;
 }
+
+/* Zone icon image shown between resource icon and name. Use the game's
+   icon assets (Media/Game/Icons) so visuals match the resource/company UI. */
+.advisor-zone-icon {
+  width: 20rem;
+  height: 20rem;
+  margin-right: 8rem;
+  flex-shrink: 0;
+  vertical-align: middle;
+  display: inline-block;
+}
+.advisor-zone-icon-small {
+  width: 18rem;
+  height: 18rem;
+  margin-right: 6rem;
+  flex-shrink: 0;
+  vertical-align: middle;
+  display: inline-block;
+}
+/* Fallback badge style when user chooses 'badges' mode */
+.advisor-zone-badge {
+  display: inline-block;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 2rem;
+  margin-right: 6rem;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+/* Per-stage colored badges (restore the colored look used on Resources page) */
+.advisor-zone-industrial { background: rgba(232,140,58,0.95); color: #ffffff; }
+.advisor-zone-commercial { background: rgba(80,184,233,0.95); color: #ffffff; }
+.advisor-zone-retail { background: rgba(139,219,70,0.95); color: #ffffff; }
+.advisor-zone-rawresource { background: rgba(200,200,200,0.95); color: #0a0a0a; }
+.advisor-zone-immaterial { background: rgba(172,140,232,0.95); color: #ffffff; }
+.advisor-zone-office { background: rgba(160,100,220,0.95); color: #ffffff; }
+
+/* Small resource icon used in lists (decisions, recommendations, log) */
+.advisor-resource-icon {
+  width: 18rem;
+  height: 18rem;
+  margin-right: 8rem;
+  vertical-align: middle;
+  display: inline-block;
+}
 .advisor-profile-bars {
   display: flex;
   flex-direction: column;
@@ -486,8 +530,17 @@
   padding-left: 0;
   color: rgba(255,255,255,0.7);
 }
-.advisor-profile-meta > span { margin-right: 12rem; }
-.advisor-profile-meta-sep { color: rgba(255,255,255,0.25); margin-right: 12rem; }
+.advisor-profile-meta > span { margin-right: 6rem; }
+.advisor-profile-meta-sep { color: rgba(255,255,255,0.25); margin: 0 6rem; }
+
+/* Colorize the confidence label and tweak spacing for the meta line */
+.advisor-profile-meta-label {
+  color: #50b8e9; /* accent blue used in other UI labels */
+  font-weight: 700;
+  margin-right: 6rem;
+  font-size: 11rem;
+}
+.advisor-profile-meta .advisor-profile-meta-samples { color: rgba(255,255,255,0.85); }
 
 /* Log tab */
 .advisor-log-list {
@@ -561,7 +614,9 @@
      Remove fixed max-height to let it resize vertically with the window. */
   max-height: none;
   overflow: auto;
-  padding-right: 8rem;
+  /* Keep the same gutter used by the main scroll areas to avoid content
+     overlapping the overlay scrollbar/thumb. */
+  padding-right: 18rem;
   /* ensure flex children can shrink (min-height:0) and take available space */
   flex: 1 1 auto;
   min-height: 0;
@@ -578,6 +633,86 @@
 .advisor-overview-two { display: flex; flex: 1 1 auto; gap: 12rem; min-height: 0; }
 .advisor-overview-left, .advisor-overview-right { box-sizing: border-box; flex: 1 1 50%; min-width: 120rem; min-height: 0; display: flex; flex-direction: column; }
 .advisor-rec-box { /* reserved for rec-specific tweaks */ }
+
+/* Legend button & popup (per-page) */
+.advisor-controls { position: relative; }
+.advisor-legend-btn {
+  position: absolute;
+  right: 56rem; /* place near header right controls; adjust if needed */
+  top: 50%;
+  transform: translateY(-50%);
+  border: 1rem solid rgba(124,152,189,0.55);
+  background: rgba(15,24,37,0.98);
+  color: rgba(233,243,255,0.6);
+  width: 28rem;
+  height: 28rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+  padding: 0;
+}
+.advisor-legend-btn:hover { background: rgba(62,98,145,0.88); border-color: rgba(140,186,235,0.95); color: #fff; }
+.advisor-legend-popup { pointer-events: auto; }
+.advisor-legend-title { font-weight: 700; margin-bottom: 8rem; }
+.advisor-legend-popup ul { margin: 0; padding-left: 14rem; font-size: 12rem; }
+.advisor-legend-popup li { margin-bottom: 6rem; }
+.legend-icon { display: inline-block; width: 18rem; text-align: center; margin-right: 8rem; }
+.legend-up { color: #8bdb46; }
+.legend-down { color: #e05050; }
+.legend-dot { color: rgba(255,255,255,0.6); }
+
+/* Ensure the portal popup appears above the main window and UI chrome */
+.advisor-legend-popup {
+  z-index: 10000 !important;
+}
+
+/* Header alignment: ensure headers stay on one line and match column widths */
+.advisor-decision-headers,
+.advisor-rec-headers,
+.advisor-log-headers {
+  display: flex;
+  align-items: center;
+  padding: 5rem 8rem; /* match row vertical padding so labels align */
+  font-size: 11rem;
+  color: rgba(255,255,255,0.7);
+  border-bottom: 1rem solid rgba(255,255,255,0.04);
+  white-space: nowrap;
+  background: rgba(12,18,24,0.95); /* ensure header visible above scrolled content */
+  z-index: 5;
+}
+.advisor-decision-headers > *, .advisor-rec-headers > *, .advisor-log-headers > * { margin-right: 8rem; }
+.advisor-decision-headers > *:last-child, .advisor-rec-headers > *:last-child, .advisor-log-headers > *:last-child { margin-right: 0; }
+.advisor-decision-headers .advisor-decision-resource::before,
+.advisor-rec-headers .advisor-rec-name::before,
+.advisor-log-headers .advisor-log-resource::before {
+  content: '';
+  display: inline-block;
+  width: 14rem;
+  margin-right: 8rem;
+}
+.advisor-decision-headers .advisor-decision-resource,
+.advisor-rec-headers .advisor-rec-name,
+.advisor-log-headers .advisor-log-resource { display: flex; align-items: center; }
+
+/* Ensure header columns match the widths of the row columns so they align exactly */
+.advisor-decision-headers .advisor-decision-resource { flex: 1; }
+.advisor-decision-headers .advisor-decision-change { min-width: 80rem; text-align: center; }
+.advisor-decision-headers .advisor-decision-outcome { min-width: 45rem; text-align: right; }
+.advisor-decision-headers .advisor-decision-summary { max-width: 240rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.advisor-rec-headers .advisor-rec-dir { width: 18rem; text-align: center; }
+.advisor-rec-headers .advisor-rec-name { flex: 1; }
+.advisor-rec-headers .advisor-rec-rate { min-width: 36rem; text-align: right; }
+.advisor-rec-headers .advisor-rec-conf { min-width: 36rem; text-align: right; }
+.advisor-rec-headers .advisor-rec-reason { max-width: 300rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.advisor-log-headers .advisor-log-resource { flex: 1; }
+.advisor-log-headers .advisor-log-change { min-width: 80rem; text-align: center; }
+.advisor-log-headers .advisor-log-outcome { min-width: 40rem; text-align: right; }
+.advisor-log-headers .advisor-log-conf { min-width: 36rem; text-align: right; }
 
 /* Slightly tighter rows when inside boxed layout */
 .advisor-decision-list, .advisor-rec-list { display: flex; flex-direction: column; }
