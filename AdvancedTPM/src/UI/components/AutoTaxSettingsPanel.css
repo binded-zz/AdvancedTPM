@@ -35,21 +35,8 @@
   z-index: 31;
 }
 
-/* Visible scrollbar styling for AutoTax panel */
-.ats-body {
-  scrollbar-gutter: stable;
-}
-.ats-body::-webkit-scrollbar {
-  width: 6rem;
-}
-.ats-body::-webkit-scrollbar-track {
-  background: rgba(12,18,24,0.5);
-  border-radius: 4rem;
-}
-.ats-body::-webkit-scrollbar-thumb {
-  background: rgba(80,140,200,0.6);
-  border-radius: 4rem;
-}
+/* Visible scrollbar styling removed for Cohtml compatibility */
+.ats-body { /* simplified: avoid vendor scrollbar pseudoelements */ }
 
 .ats-section { padding:0 12rem; margin-bottom:10rem; }
 .ats-section-title { font-size:12rem; font-weight:700; text-transform:uppercase; letter-spacing:0.4rem; color:#50b8e9; padding-bottom:6rem; border-bottom:1rem solid rgba(255,255,255,0.1); margin-bottom:8rem; display:flex; align-items:center; justify-content:space-between; }

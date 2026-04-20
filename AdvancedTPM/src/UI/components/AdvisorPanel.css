@@ -166,9 +166,8 @@
 
 /* Advisor custom scrollbar (visible even when native scrollbars hidden) */
 /* Make native scrollbars visible where possible */
-.advisor-content { /* prefer standard scrollbar hints; remove vendor pseudo-elements unsupported by CoHTML */
-  scrollbar-color: rgba(80,140,200,0.65) rgba(12,18,24,0.55);
-  scrollbar-width: thin;
+.advisor-content { /* keep simple, avoid vendor scrollbar properties unsupported by CoHTML */
+  /* intentionally minimal for Cohtml compatibility */
 }
 
 /* Overview */
@@ -219,7 +218,6 @@
 /* Two-column overview layout */
 .advisor-overview-two {
   display: flex;
-  gap: 12rem;
   margin-top: 12rem;
 }
 .advisor-overview-left, .advisor-overview-right {
@@ -375,17 +373,16 @@
 
 /* Profiles tab */
 .advisor-profile-list {
-  /* Use CSS Grid to enforce three columns consistently across rows.
-     Grid provides predictable, row-major ordering: items 0-2 in first row,
-     3-5 in second row, etc. Fallback to flexbox if grid is unavailable. */
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12rem;
+  /* Use flexbox for widest compatibility with Cohtml */
+  display: flex;
+  flex-wrap: wrap;
+  margin: -6rem 0 0 -12rem; /* compensate child margins */
 }
 .advisor-profile-list > * {
-  margin: 0;
+  margin: 6rem 0 0 12rem;
   box-sizing: border-box;
-  width: auto; /* let grid control sizing */
+  width: calc(33.333% - 12rem);
+  min-width: 120rem;
 }
 .advisor-profile-row {
   display: flex;
@@ -477,36 +474,16 @@
   text-align: right;
 }
 
-/* Fallback for environments that don't support CSS Grid (CoHTML): use flexbox */
-@supports not (display: grid) {
-  .advisor-profile-list {
-    display: flex;
-    flex-wrap: wrap;
-    /* compute widths so three items per row with gap accounted for */
-    gap: 12rem;
-  }
-  .advisor-profile-list > * {
-    /* avoid calc mixing percent and rem (CoHTML parse errors) — use flex sizing */
-    flex: 1 1 30%;
-    max-width: 33.333%;
-    min-width: 120rem;
-    box-sizing: border-box;
-  }
-}
+/* No grid support: layout uses flexbox above for Cohtml compatibility */
 .advisor-profile-meta {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   font-size: 12rem;
   padding-left: 0;
   color: rgba(255,255,255,0.7);
 }
-.advisor-profile-meta > span {
-  margin-right: 14rem;
-}
-.advisor-profile-meta-sep {
-  color: rgba(255,255,255,0.25);
-  margin-right: 14rem;
-}
+.advisor-profile-meta > span { margin-right: 12rem; }
+.advisor-profile-meta-sep { color: rgba(255,255,255,0.25); margin-right: 12rem; }
 
 /* Log tab */
 .advisor-log-list {
