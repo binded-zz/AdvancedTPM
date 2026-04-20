@@ -160,7 +160,10 @@
 .advisor-scroll-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8rem 10rem;
+  /* reserve a larger right padding inside the scrollable area so text
+     doesn't flow under the overlay scrollbar while the row background
+     remains full-width */
+  padding: 8rem 40rem 8rem 10rem;
 }
 
 /* Advisor custom scrollbar (visible even when native scrollbars hidden) */
@@ -338,12 +341,8 @@
 
 /* Reserve space for the overlay scrollbar by adding right margin to the textual content
    so the visual row background remains full-width while text doesn't flow under the thumb. */
-.advisor-rec-name,
-.advisor-rec-reason,
-.advisor-decision-resource,
-.advisor-decision-summary {
-  margin-right: 24rem;
-}
+/* removed content-level right margins — layout reserves gutter via
+   the scroll body padding instead to keep row backgrounds full-width */
 .advisor-decision-row > * {
   margin-right: 8rem;
 }
