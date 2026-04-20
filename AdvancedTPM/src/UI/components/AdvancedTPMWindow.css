@@ -190,3 +190,29 @@
 /* Badge for counts on tabs */
 .adv-tab-badge { margin-left:8rem; background:#50b8e9; color:#042; font-weight:800; padding:2rem 6rem; border-radius:8rem; font-size:10rem; }
 
+/* Bottom resize handle — visually indicates the window is resizable from the bottom edge */
+.adv-resize-handle {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 6rem;
+  width: 120rem;
+  height: 8rem;
+  border-radius: 6rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  box-shadow: 0 2rem 6rem rgba(0,0,0,0.5), inset 0 1rem 0 rgba(255,255,255,0.02);
+  border: 1rem solid rgba(255,255,255,0.04);
+  cursor: ns-resize;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.adv-resize-handle::before {
+  content: '';
+  width: 40rem;
+  height: 2rem;
+  background: rgba(255,255,255,0.18);
+  border-radius: 2rem;
+}
+

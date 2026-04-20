@@ -33,8 +33,10 @@ namespace AdvancedTPM
         {
             try
             {
-                var baseWidth = 520f; // design value at 1080p
-                var baseHeight = 420f;
+                // Use a larger default window size for 1080p reference screenshots
+                // The screenshot provided uses a large centered window — use 1200x720 as base at 1080p
+                var baseWidth = 1200f; // design value at 1080p
+                var baseHeight = 720f;
                 var height = UnityEngine.Screen.height;
                 var scale = (height > 0) ? (height / 1080f) : 1f;
                 var proposedW = (int)System.Math.Round(baseWidth * scale);

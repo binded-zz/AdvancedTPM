@@ -1050,6 +1050,8 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
       </div>
       )}
       </>
+      {/* Bottom resize handle — visual cue for users that window can be resized from bottom edge */}
+      <div className="adv-resize-handle" title="Drag to resize vertically" />
       )}
 
       </div>
