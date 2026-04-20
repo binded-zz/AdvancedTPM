@@ -27,32 +27,21 @@ namespace AdvancedTPM
         try { settingsFileExists = !string.IsNullOrEmpty(settingsPath) && System.IO.File.Exists(settingsPath); } catch { }
         try { AdvancedTPM.Utilities.SettingsFileModel.LoadInto(Settings); } catch { }
 
-        // If there was no settings file (first run), compute a sensible default window size
-        // scaled for the current screen resolution (UI uses rem units with 1rem ~= 1px at 1080p).
+        // If there was no settings file (first run), set the user-provided default window position/size
         if (!settingsFileExists)
         {
             try
             {
-                // Use a larger default window size for 1080p reference screenshots
-                // The screenshot provided uses a large centered window — use 1200x720 as base at 1080p
-                var baseWidth = 1200f; // design value at 1080p
-                var baseHeight = 720f;
-                var height = UnityEngine.Screen.height;
-                var scale = (height > 0) ? (height / 1080f) : 1f;
-                var proposedW = (int)System.Math.Round(baseWidth * scale);
-                var proposedH = (int)System.Math.Round(baseHeight * scale);
-                // Clamp to allowed slider bounds in TPMModSettings attributes
-                proposedW = System.Math.Max(360, System.Math.Min(1200, proposedW));
-                proposedH = System.Math.Max(240, System.Math.Min(900, proposedH));
-                Settings.AdvancedWindowWidth = proposedW;
-                Settings.AdvancedWindowHeight = proposedH;
-                log.Info($"First-run: setting default advanced window size to {proposedW}x{proposedH} (scale={scale:F2})");
-                // Persist the computed defaults so subsequent launches use them
+                Settings.AdvancedWindowX = 180;
+                Settings.AdvancedWindowY = 20;
+                Settings.AdvancedWindowWidth = 1300;
+                Settings.AdvancedWindowHeight = 940;
+                log.Info($"First-run: applying default advanced window position/size {Settings.AdvancedWindowX},{Settings.AdvancedWindowY} {Settings.AdvancedWindowWidth}x{Settings.AdvancedWindowHeight}");
                 try { AdvancedTPM.Utilities.SettingsFileModel.Save(Settings); } catch { }
             }
             catch (System.Exception ex)
             {
-                log.Warn($"Failed to compute scaled default window size: {ex.Message}");
+                log.Warn($"Failed to apply default window size: {ex.Message}");
             }
         }
             Settings.RegisterInOptionsUI();
