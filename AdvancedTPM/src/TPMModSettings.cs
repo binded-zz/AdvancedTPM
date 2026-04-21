@@ -31,22 +31,22 @@ namespace AdvancedTPM
         [SettingsUISection(TabSettings, GroupGeneral)]
         [SettingsUIHidden]
         [SettingsUISlider(min = 20, max = 2400, step = 10)]
-        public int AdvancedWindowX { get; set; } = 180;
+        public int AdvancedWindowX { get; set; } = 140;
 
         [SettingsUISection(TabSettings, GroupGeneral)]
         [SettingsUIHidden]
         [SettingsUISlider(min = 20, max = 1400, step = 10)]
-        public int AdvancedWindowY { get; set; } = 20;
+        public int AdvancedWindowY { get; set; } = 150;
 
         [SettingsUISection(TabSettings, GroupGeneral)]
         [SettingsUIHidden]
-        [SettingsUISlider(min = 360, max = 1400, step = 10)]
-        public int AdvancedWindowWidth { get; set; } = 1300;
+        [SettingsUISlider(min = 360, max = 1200, step = 10)]
+        public int AdvancedWindowWidth { get; set; } = 520;
 
         [SettingsUISection(TabSettings, GroupGeneral)]
         [SettingsUIHidden]
-        [SettingsUISlider(min = 240, max = 1200, step = 10)]
-        public int AdvancedWindowHeight { get; set; } = 940;
+        [SettingsUISlider(min = 240, max = 900, step = 10)]
+        public int AdvancedWindowHeight { get; set; } = 420;
 
         [SettingsUISection(TabSettings, GroupAutoTax)]
         [SettingsUIDisplayName("AutoTaxEnabled", "Enable Auto Tax")]
@@ -142,10 +142,10 @@ namespace AdvancedTPM
         {
             DefaultGlobalTaxRate = 15;
             UpdateSpeed = 2;
-            AdvancedWindowX = 180;
-            AdvancedWindowY = 20;
-            AdvancedWindowWidth = 1300;
-            AdvancedWindowHeight = 940;
+            AdvancedWindowX = 140;
+            AdvancedWindowY = 150;
+            AdvancedWindowWidth = 520;
+            AdvancedWindowHeight = 420;
             AutoTaxEnabled = false;
             AutoTaxInterval = 3;
             AutoTaxMinRate = 0;

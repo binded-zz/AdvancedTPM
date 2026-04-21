@@ -8,22 +8,19 @@
   <ShortDescription Value="AdvancedTPM - Advanced Tax &amp; Production Manager" />
   <!--Long description of the mod. Single line or multi line. Supports minimal markdown subset-->
   <LongDescription>
-	  ## AdvancedTPM
+## AdvancedTPM
 
-	  Advanced per-resource tax and production manager with an AI advisor and in-depth company browser. Configure taxes for individual resources, monitor production and consumption, and get adaptive recommendations from a learning advisor.
+Advanced per-resource tax and production manager with an AI advisor and in-depth company browser. Configure taxes for individual resources, monitor production and consumption, and get adaptive recommendations from a learning advisor.
 
-	  ## Key features
+## Key features
 
-	  - Per-resource tax sliders and real-time production/consumption bars
-	  - Category grouping: Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial
-	  - Company Browser: sortable table, efficiency factor analysis, happiness indicator, and camera jump
-	  - Auto-Tax engine with configurable rules and per-resource min/max ranges
-	  - Adaptive Learning Advisor: records outcomes and provides confidence-weighted recommendations
-	  
-	  - Customizable UI with adjustable window size and layout bottom right region grey box is the draggable area for resizing the window
+- Per-resource tax sliders and real-time production/consumption bars
+- Category grouping: Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial
+- Company Browser: sortable table, efficiency factor analysis, happiness indicator, and camera jump
+- Auto-Tax engine with configurable rules and per-resource min/max ranges
+- Adaptive Learning Advisor: records outcomes and provides confidence-weighted recommendations
 
-	  For full details, screenshots and installation steps please see the project README or edit the mod page on the hosting site.
-
+For full details, screenshots and installation steps please see the project README or edit the mod page on the hosting site.
   </LongDescription>
   <!--Thumbnail-->
   <Thumbnail Value="Properties/Thumbnail.png" />
@@ -44,17 +41,16 @@
   <!--Link to the forum post where the mod can be discussed-->
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/advanced-tax-production-manager.1917448/" />
   <!--Version of the mod-->
-  <ModVersion Value="1.0.5" />
+  <ModVersion Value="1.0.3" />
   <!--Recommended version of the base game to use the mod-->
-  <GameVersion Value="1.5.6.f1" />
+  <GameVersion Value="1.5.4*" />
   <!--Dependency for the mod, can be set multiple times-->
   <Dependency Id="" />
   <!--Required DLC, can be set multiple times. Supported values are "Landmark Buildings", "San Fransisco Set", "Beach Properties", "Urban Promenades", "Modern Architecture"-->
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
-		## Changelog 1.0.5
-		-update default window size to 800x600
+		## Changelog 1.0.2
 	</ChangeLog> 
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
   <ExternalLink Type="" Url="https://github.com/binded-zz/AdvancedTPM" />
