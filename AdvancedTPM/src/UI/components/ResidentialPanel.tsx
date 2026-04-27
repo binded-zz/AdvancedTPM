@@ -26,6 +26,9 @@ interface ResidentialBuilding {
   level: number;
   occupied: number;
   capacity: number;
+  theme: string;
+  assetPack: string;
+  isSignature: boolean;
 }
 
 const parseResidentialData = (payload: string): ResidentialData | null => {
@@ -52,7 +55,7 @@ const parseResidentialData = (payload: string): ResidentialData | null => {
   }
 };
 
-// Parse per-building payload: "entityKey|address|density|level|occupied|capacity;..."
+// Parse per-building payload: "entityKey|address|density|level|occupied|capacity|theme|assetPack|isSignature;..."
 const parseResidentialBuildings = (payload: string): ResidentialBuilding[] => {
   if (!payload) return [];
   return payload.split(';').map((chunk) => {
@@ -65,6 +68,9 @@ const parseResidentialBuildings = (payload: string): ResidentialBuilding[] => {
       level: Number(parts[3]) || 1,
       occupied: Number(parts[4]) || 0,
       capacity: Number(parts[5]) || 0,
+      theme: parts[6] || 'Unknown',
+      assetPack: parts[7] || 'Base Game',
+      isSignature: parts[8] === '1',
     } as ResidentialBuilding;
   }).filter((x): x is ResidentialBuilding => x !== null);
 };
@@ -78,7 +84,7 @@ const DENSITY_COLORS: Record<string, string> = {
   Residential: 'rgba(255,255,255,0.6)',
 };
 
-type ResBldgSortField = 'address' | 'density' | 'level' | 'occupied' | 'capacity' | 'occupancy';
+type ResBldgSortField = 'address' | 'density' | 'level' | 'occupied' | 'capacity' | 'occupancy' | 'theme' | 'assetPack';
 type SortDir = 'asc' | 'desc';
 
 const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialBuildingsData?: string }> = ({
@@ -89,6 +95,10 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
   const buildings = React.useMemo(() => parseResidentialBuildings(residentialBuildingsData), [residentialBuildingsData]);
 
   const [densityFilter, setDensityFilter] = React.useState('All');
+  const [themeFilter, setThemeFilter] = React.useState('All');
+  const [assetPackFilter, setAssetPackFilter] = React.useState('All');
+  const [levelFilter, setLevelFilter] = React.useState('All');
+  const [showSignatureOnly, setShowSignatureOnly] = React.useState(false);
   const [sortField, setSortField] = React.useState<ResBldgSortField>('occupied');
   const [sortDir, setSortDir] = React.useState<SortDir>('desc');
   const [searchText, setSearchText] = React.useState('');
@@ -124,7 +134,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     setThumbTop(top);
   }, []);
 
-  React.useLayoutEffect(() => { updateScrollbar(); }, [buildings.length, densityFilter, searchText, sortField, sortDir, updateScrollbar]);
+  React.useLayoutEffect(() => { updateScrollbar(); }, [buildings.length, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, searchText, sortField, sortDir, updateScrollbar]);
 
   React.useEffect(() => {
     const body = bodyRef.current;
@@ -172,9 +182,29 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
   };
   const sortIndicator = (field: ResBldgSortField) => sortField === field ? (sortDir === 'asc' ? ' ?' : ' ?') : '';
 
+  // Extract unique values for filter dropdowns
+  const uniqueThemes = React.useMemo(() => {
+    const themes = new Set(buildings.map(b => b.theme));
+    return ['All', ...Array.from(themes).sort()];
+  }, [buildings]);
+
+  const uniqueAssetPacks = React.useMemo(() => {
+    const packs = new Set(buildings.map(b => b.assetPack));
+    return ['All', ...Array.from(packs).sort()];
+  }, [buildings]);
+
+  const uniqueLevels = React.useMemo(() => {
+    const levels = new Set(buildings.map(b => b.level));
+    return ['All', ...Array.from(levels).sort((a, b) => a - b)];
+  }, [buildings]);
+
   const filteredBuildings = React.useMemo(() => {
     let list = buildings;
     if (densityFilter !== 'All') list = list.filter((b) => b.density === densityFilter);
+    if (themeFilter !== 'All') list = list.filter((b) => b.theme === themeFilter);
+    if (assetPackFilter !== 'All') list = list.filter((b) => b.assetPack === assetPackFilter);
+    if (levelFilter !== 'All') list = list.filter((b) => b.level === Number(levelFilter));
+    if (showSignatureOnly) list = list.filter((b) => b.isSignature);
     if (searchText) { const lower = searchText.toLowerCase(); list = list.filter((b) => b.address.toLowerCase().includes(lower)); }
     return [...list].sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1;
@@ -184,6 +214,8 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
         case 'level': return dir * (a.level - b.level);
         case 'occupied': return dir * (a.occupied - b.occupied);
         case 'capacity': return dir * (a.capacity - b.capacity);
+        case 'theme': return dir * a.theme.localeCompare(b.theme);
+        case 'assetPack': return dir * a.assetPack.localeCompare(b.assetPack);
         case 'occupancy': {
           const oA = a.capacity > 0 ? a.occupied / a.capacity : 0;
           const oB = b.capacity > 0 ? b.occupied / b.capacity : 0;
@@ -192,7 +224,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
         default: return 0;
       }
     });
-  }, [buildings, densityFilter, searchText, sortField, sortDir]);
+  }, [buildings, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, searchText, sortField, sortDir]);
 
   if (!data) {
     return <div className="res-panel-empty">Residential data will appear when the simulation is running.</div>;
@@ -265,6 +297,18 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                 </button>
               ))}
             </div>
+            <select className="res-bldg-dropdown" value={themeFilter} onChange={(e: any) => setThemeFilter(e.target.value || 'All')}>
+              {uniqueThemes.map((t) => <option key={t} value={t}>{t === 'All' ? 'All Themes' : t}</option>)}
+            </select>
+            <select className="res-bldg-dropdown" value={assetPackFilter} onChange={(e: any) => setAssetPackFilter(e.target.value || 'All')}>
+              {uniqueAssetPacks.map((p) => <option key={p} value={p}>{p === 'All' ? 'All Packs' : p}</option>)}
+            </select>
+            <select className="res-bldg-dropdown" value={levelFilter} onChange={(e: any) => setLevelFilter(e.target.value || 'All')}>              {uniqueLevels.map((l) => <option key={l} value={l}>{l === 'All' ? 'All Levels' : `Level ${l}`}</option>)}
+            </select>
+            <label className="res-signature-checkbox">
+              <input type="checkbox" checked={showSignatureOnly} onChange={(e: any) => setShowSignatureOnly(e.target.checked || false)} />
+              <span>Signature Only</span>
+            </label>
             <input
               className="res-bldg-search"
               placeholder="Search address..."
@@ -280,6 +324,8 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
               <div className="res-bcol-address res-sortable" onClick={() => handleSort('address')}>Name/Address{sortIndicator('address')}</div>
               <div className="res-bcol-density res-sortable" onClick={() => handleSort('density')}>Zone Density{sortIndicator('density')}</div>
               <div className="res-bcol-level res-sortable" onClick={() => handleSort('level')}>Lv{sortIndicator('level')}</div>
+              <div className="res-bcol-theme res-sortable" onClick={() => handleSort('theme')}>Theme{sortIndicator('theme')}</div>
+              <div className="res-bcol-assetpack res-sortable" onClick={() => handleSort('assetPack')}>Asset Pack{sortIndicator('assetPack')}</div>
               <div className="res-bcol-occupied res-sortable" onClick={() => handleSort('occupied')}>Active Households{sortIndicator('occupied')}</div>
               <div className="res-bcol-capacity res-sortable" onClick={() => handleSort('capacity')}>Property Size{sortIndicator('capacity')}</div>
               <div className="res-bcol-occupancy res-sortable" onClick={() => handleSort('occupancy')}>Occ%{sortIndicator('occupancy')}</div>
@@ -296,11 +342,16 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                   const occColor = occPct >= 80 ? '#8bdb46' : occPct >= 40 ? '#50b8e9' : '#e88c3a';
                   return (
                     <div key={b.entityKey} className={`res-bldg-row${i % 2 === 0 ? '' : ' res-bldg-row-alt'}`}>
-                      <div className="res-bcol-address">{b.address}</div>
+                      <div className="res-bcol-address">
+                        {b.isSignature && <span className="res-signature-badge" title="Signature Building">?</span>}
+                        {b.address}
+                      </div>
                       <div className="res-bcol-density" style={{ color: DENSITY_COLORS[b.density] || 'rgba(255,255,255,0.7)' }}>{b.density}</div>
                       <div className="res-bcol-level">
                         <span className="res-level-badge">Lv {b.level}</span>
                       </div>
+                      <div className="res-bcol-theme">{b.theme}</div>
+                      <div className="res-bcol-assetpack">{b.assetPack}</div>
                       <div className="res-bcol-occupied">{b.occupied}</div>
                       <div className="res-bcol-capacity">{b.capacity > 0 ? b.capacity : '\u2014'}</div>
                       <div className="res-bcol-occupancy" style={{ color: occColor }}>{occPct}%</div>

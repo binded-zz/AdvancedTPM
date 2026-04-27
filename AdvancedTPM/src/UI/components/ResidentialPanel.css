@@ -26,6 +26,11 @@
 .res-bldg-density-tabs > * { margin-right:4rem; }
 .res-density-tab { padding:4rem 10rem; font-size:11rem; font-weight:600; color:rgba(255,255,255,0.6); background:transparent; border:1rem solid rgba(255,255,255,0.15); border-radius:3rem; cursor:pointer; }
 .res-density-active { background:rgba(80,184,233,0.15); color:#ffffff; }
+.res-bldg-dropdown { padding:4rem 8rem; font-size:11rem; background:rgba(15,24,37,0.95); border:1rem solid rgba(124,152,189,0.4); border-radius:3rem; color:#e7edf2; cursor:pointer; min-width:120rem; }
+.res-bldg-dropdown option { background:rgba(15,24,37,1); color:#e7edf2; }
+.res-signature-checkbox { display:flex; align-items:center; padding:4rem 8rem; font-size:11rem; color:rgba(255,255,255,0.7); cursor:pointer; user-select:none; }
+.res-signature-checkbox input[type="checkbox"] { margin-right:4rem; cursor:pointer; }
+.res-signature-checkbox:hover { color:#ffffff; }
 .res-bldg-search { width:160rem; padding:4rem 8rem; font-size:11rem; background:rgba(15,24,37,0.95); border:1rem solid rgba(124,152,189,0.4); border-radius:3rem; color:#e7edf2; }
 .res-bldg-count { font-size:11rem; color:rgba(255,255,255,0.5); margin-left:auto; }
 
@@ -47,8 +52,11 @@
 .res-bcol-address { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .res-bcol-density { width:80rem; font-size:11rem; font-weight:700; }
 .res-bcol-level { width:50rem; text-align:center; }
+.res-bcol-theme { width:110rem; font-size:11rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.res-bcol-assetpack { width:100rem; font-size:11rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .res-bcol-occupied, .res-bcol-capacity, .res-bcol-occupancy { width:70rem; text-align:right; }
 .res-level-badge { display:inline-block; padding:2rem 5rem; font-size:10rem; background:rgba(80,184,233,0.15); border:1rem solid rgba(80,184,233,0.3); border-radius:3rem; color:#50b8e9; }
+.res-signature-badge { display:inline-block; margin-right:5rem; color:#ffd700; font-size:14rem; vertical-align:middle; }
 
 /* Happiness and locate button */
 .res-bcol-happy { width:100rem; }
