@@ -99,6 +99,8 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
   const [assetPackFilter, setAssetPackFilter] = React.useState('All');
   const [levelFilter, setLevelFilter] = React.useState('All');
   const [showSignatureOnly, setShowSignatureOnly] = React.useState(false);
+  const [minOccupancy, setMinOccupancy] = React.useState(0);
+  const [minHappiness, setMinHappiness] = React.useState(0);
   const [sortField, setSortField] = React.useState<ResBldgSortField>('occupied');
   const [sortDir, setSortDir] = React.useState<SortDir>('desc');
   const [searchText, setSearchText] = React.useState('');
@@ -134,7 +136,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     setThumbTop(top);
   }, []);
 
-  React.useLayoutEffect(() => { updateScrollbar(); }, [buildings.length, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, searchText, sortField, sortDir, updateScrollbar]);
+  React.useLayoutEffect(() => { updateScrollbar(); }, [buildings.length, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, minOccupancy, minHappiness, searchText, sortField, sortDir, updateScrollbar]);
 
   React.useEffect(() => {
     const body = bodyRef.current;
@@ -182,6 +184,44 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
   };
   const sortIndicator = (field: ResBldgSortField) => sortField === field ? (sortDir === 'asc' ? ' ?' : ' ?') : '';
 
+  // CSV Export function
+  const exportToCSV = React.useCallback(() => {
+    if (!filteredBuildings || filteredBuildings.length === 0) return;
+
+    const headers = ['Address', 'Density', 'Level', 'Theme', 'Asset Pack', 'Occupied', 'Capacity', 'Occupancy %', 'Est. Happiness %', 'Signature'];
+    const rows = filteredBuildings.map((b) => {
+      const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
+      const base = data?.avgHappiness || 50;
+      const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
+      const levelAdj = (b.level - 3) * 2;
+      const happinessEst = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
+
+      return [
+        `\"${(b.address || '').replace(/\"/g, '\"\"')}\"`,
+        b.density || 'Unknown',
+        b.level || 1,
+        (b.theme || 'Unknown').replace(/\"/g, '\"\"'),
+        (b.assetPack || 'Base Game').replace(/\"/g, '\"\"'),
+        b.occupied || 0,
+        b.capacity || 0,
+        occPct,
+        happinessEst,
+        b.isSignature ? 'Yes' : 'No',
+      ].join(',');
+    });
+
+    const csv = [headers.join(','), ...rows].join('\\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `residential_buildings_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [filteredBuildings, data]);
+
   // Extract unique values for filter dropdowns
   const uniqueThemes = React.useMemo(() => {
     if (!buildings || buildings.length === 0) return ['All'];
@@ -202,13 +242,34 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
   }, [buildings]);
 
   const filteredBuildings = React.useMemo(() => {
-    if (!buildings) return [];
+    if (!buildings || !data) return [];
     let list = buildings;
     if (densityFilter !== 'All') list = list.filter((b) => b.density === densityFilter);
     if (themeFilter !== 'All') list = list.filter((b) => (b.theme || 'Unknown') === themeFilter);
     if (assetPackFilter !== 'All') list = list.filter((b) => (b.assetPack || 'Base Game') === assetPackFilter);
     if (levelFilter !== 'All') list = list.filter((b) => b.level === Number(levelFilter));
     if (showSignatureOnly) list = list.filter((b) => b.isSignature === true);
+
+    // Occupancy filter
+    if (minOccupancy > 0) {
+      list = list.filter((b) => {
+        const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
+        return occPct >= minOccupancy;
+      });
+    }
+
+    // Happiness filter (using estimation algorithm)
+    if (minHappiness > 0) {
+      list = list.filter((b) => {
+        const base = data.avgHappiness || 50;
+        const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
+        const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
+        const levelAdj = (b.level - 3) * 2;
+        const estimate = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
+        return estimate >= minHappiness;
+      });
+    }
+
     if (searchText) { const lower = searchText.toLowerCase(); list = list.filter((b) => (b.address || '').toLowerCase().includes(lower)); }
     return [...list].sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1;
@@ -228,7 +289,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
         default: return 0;
       }
     });
-  }, [buildings, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, searchText, sortField, sortDir]);
+  }, [buildings, data, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, minOccupancy, minHappiness, searchText, sortField, sortDir]);
 
   if (!data) {
     return <div className="res-panel-empty">Residential data will appear when the simulation is running.</div>;
@@ -313,12 +374,43 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
               <input type="checkbox" checked={showSignatureOnly} onChange={(e: any) => setShowSignatureOnly(e.target.checked || false)} />
               <span>Signature Only</span>
             </label>
+            <label className="res-range-filter">
+              <span>Min Occupancy: {minOccupancy}%</span>
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                step="5" 
+                value={minOccupancy} 
+                onChange={(e: any) => setMinOccupancy(Number(e.target.value) || 0)}
+                className="res-range-slider"
+              />
+            </label>
+            <label className="res-range-filter">
+              <span>Min Happiness: {minHappiness}%</span>
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                step="5" 
+                value={minHappiness} 
+                onChange={(e: any) => setMinHappiness(Number(e.target.value) || 0)}
+                className="res-range-slider"
+              />
+            </label>
             <input
               className="res-bldg-search"
               placeholder="Search address..."
               value={searchText}
               onInput={(e: any) => setSearchText(e.target.value || '')}
             />
+            <button 
+              className="res-export-btn" 
+              onClick={exportToCSV}
+              title="Export filtered buildings to CSV"
+            >
+              Export CSV
+            </button>
             <span className="res-bldg-count">{filteredBuildings.length} buildings</span>
           </div>
 
