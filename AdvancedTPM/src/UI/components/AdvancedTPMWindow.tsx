@@ -664,6 +664,99 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   // Unified signature count includes both commercial and residential
   const totalSignatureCount = signatureCount + residentialSignatureBuildings.length;
 
+  // Unified signature buildings (moved to top level to avoid hook issues)
+  interface UnifiedSignature {
+    key: string;
+    name: string;
+    type: 'commercial' | 'residential';
+    theme: string;
+    assetPack: string;
+    level: number;
+    entityIndex: number;
+    entityVersion: number;
+    extraInfo?: string;
+  }
+
+  const unifiedSignatures: UnifiedSignature[] = useMemo(() => {
+    const result: UnifiedSignature[] = [];
+
+    // Add commercial signature buildings
+    signatureCompanies.forEach((c: any) => {
+      result.push({
+        key: `${c.entityIndex},${c.entityVersion}`,
+        name: c.name || 'Unknown Company',
+        type: 'commercial',
+        theme: c.theme || 'Unknown',
+        assetPack: c.assetPack || 'Base Game',
+        level: c.level || 1,
+        entityIndex: c.entityIndex,
+        entityVersion: c.entityVersion,
+        extraInfo: c.resource ? `(${c.resource})` : '',
+      });
+    });
+
+    // Add residential signature buildings
+    residentialSignatureBuildings.forEach((r: ResidentialSignature) => {
+      const parts = r.entityKey.split(',');
+      result.push({
+        key: r.entityKey,
+        name: r.address,
+        type: 'residential',
+        theme: r.theme,
+        assetPack: r.assetPack,
+        level: r.level,
+        entityIndex: Number(parts[0]) || 0,
+        entityVersion: Number(parts[1]) || 0,
+        extraInfo: `${r.occupied}/${r.capacity} households`,
+      });
+    });
+
+    return result;
+  }, [signatureCompanies, residentialSignatureBuildings]);
+
+  // Extract unique themes and asset packs for signature view
+  const sigUniqueThemes = useMemo(() => {
+    if (!unifiedSignatures || unifiedSignatures.length === 0) return ['All'];
+    const themes = new Set(unifiedSignatures.map(s => s.theme).filter(t => t));
+    return ['All', ...Array.from(themes).sort()];
+  }, [unifiedSignatures]);
+
+  const sigUniqueAssetPacks = useMemo(() => {
+    if (!unifiedSignatures || unifiedSignatures.length === 0) return ['All'];
+    const packs = new Set(unifiedSignatures.map(s => s.assetPack).filter(p => p));
+    return ['All', ...Array.from(packs).sort()];
+  }, [unifiedSignatures]);
+
+  // Apply signature filters
+  const filteredSignatures = useMemo(() => {
+    if (!unifiedSignatures) return [];
+    let list = unifiedSignatures;
+    if (sigTypeFilter !== 'all') list = list.filter(s => s.type === sigTypeFilter);
+    if (sigThemeFilter !== 'All') list = list.filter(s => s.theme === sigThemeFilter);
+    if (sigAssetPackFilter !== 'All') list = list.filter(s => s.assetPack === sigAssetPackFilter);
+
+    // Sort
+    return [...list].sort((a, b) => {
+      const dir = sigSortDir === 'asc' ? 1 : -1;
+      switch (sigSortField) {
+        case 'name': return dir * a.name.localeCompare(b.name);
+        case 'type': return dir * a.type.localeCompare(b.type);
+        case 'theme': return dir * a.theme.localeCompare(b.theme);
+        case 'assetPack': return dir * a.assetPack.localeCompare(b.assetPack);
+        case 'level': return dir * (a.level - b.level);
+        default: return 0;
+      }
+    });
+  }, [unifiedSignatures, sigTypeFilter, sigThemeFilter, sigAssetPackFilter, sigSortField, sigSortDir]);
+
+  const handleSigSort = useCallback((field: typeof sigSortField) => {
+    if (sigSortField === field) setSigSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSigSortField(field); setSigSortDir('asc'); }
+  }, [sigSortField]);
+
+  const sigSortIndicator = useCallback((field: typeof sigSortField) => 
+    sigSortField === field ? (sigSortDir === 'asc' ? ' ▲' : ' ▼') : '', [sigSortField, sigSortDir]);
+
   // Parse panel opacity from autoTaxSettings (slot 8: ...||profitWeight|opacity)
   const panelOpacity = useMemo(() => {
     if (!autoTaxSettings) return 1;
@@ -1023,207 +1116,113 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
       )}
 
       {/* Signature Buildings view (unified commercial + residential with filters) */}
-      {viewMode === 'signature' && (() => {
-        // Combine commercial and residential signature buildings
-        interface UnifiedSignature {
-          key: string;
-          name: string;
-          type: 'commercial' | 'residential';
-          theme: string;
-          assetPack: string;
-          level: number;
-          entityIndex: number;
-          entityVersion: number;
-          extraInfo?: string;
-        }
-
-        const unifiedSignatures: UnifiedSignature[] = useMemo(() => {
-          const result: UnifiedSignature[] = [];
-
-          // Add commercial signature buildings
-          signatureCompanies.forEach((c: any) => {
-            result.push({
-              key: `${c.entityIndex},${c.entityVersion}`,
-              name: c.name || 'Unknown Company',
-              type: 'commercial',
-              theme: c.theme || 'Unknown',
-              assetPack: c.assetPack || 'Base Game',
-              level: c.level || 1,
-              entityIndex: c.entityIndex,
-              entityVersion: c.entityVersion,
-              extraInfo: c.resource ? `(${c.resource})` : '',
-            });
-          });
-
-          // Add residential signature buildings
-          residentialSignatureBuildings.forEach((r: ResidentialSignature) => {
-            const parts = r.entityKey.split(',');
-            result.push({
-              key: r.entityKey,
-              name: r.address,
-              type: 'residential',
-              theme: r.theme,
-              assetPack: r.assetPack,
-              level: r.level,
-              entityIndex: Number(parts[0]) || 0,
-              entityVersion: Number(parts[1]) || 0,
-              extraInfo: `${r.occupied}/${r.capacity} households`,
-            });
-          });
-
-          return result;
-        }, [signatureCompanies, residentialSignatureBuildings]);
-
-        // Extract unique themes and asset packs
-        const uniqueThemes = useMemo(() => {
-          const themes = new Set(unifiedSignatures.map(s => s.theme));
-          return ['All', ...Array.from(themes).sort()];
-        }, [unifiedSignatures]);
-
-        const uniqueAssetPacks = useMemo(() => {
-          const packs = new Set(unifiedSignatures.map(s => s.assetPack));
-          return ['All', ...Array.from(packs).sort()];
-        }, [unifiedSignatures]);
-
-        // Apply filters
-        const filteredSignatures = useMemo(() => {
-          let list = unifiedSignatures;
-          if (sigTypeFilter !== 'all') list = list.filter(s => s.type === sigTypeFilter);
-          if (sigThemeFilter !== 'All') list = list.filter(s => s.theme === sigThemeFilter);
-          if (sigAssetPackFilter !== 'All') list = list.filter(s => s.assetPack === sigAssetPackFilter);
-
-          // Sort
-          return [...list].sort((a, b) => {
-            const dir = sigSortDir === 'asc' ? 1 : -1;
-            switch (sigSortField) {
-              case 'name': return dir * a.name.localeCompare(b.name);
-              case 'type': return dir * a.type.localeCompare(b.type);
-              case 'theme': return dir * a.theme.localeCompare(b.theme);
-              case 'assetPack': return dir * a.assetPack.localeCompare(b.assetPack);
-              case 'level': return dir * (a.level - b.level);
-              default: return 0;
-            }
-          });
-        }, [unifiedSignatures, sigTypeFilter, sigThemeFilter, sigAssetPackFilter, sigSortField, sigSortDir]);
-
-        const handleSigSort = (field: typeof sigSortField) => {
-          if (sigSortField === field) setSigSortDir(d => d === 'asc' ? 'desc' : 'asc');
-          else { setSigSortField(field); setSigSortDir('asc'); }
-        };
-
-        const sortIndicator = (field: typeof sigSortField) => 
-          sigSortField === field ? (sigSortDir === 'asc' ? ' ▲' : ' ▼') : '';
-
-        if (unifiedSignatures.length === 0) {
-          return (
-            <div className="adv-table-section">
-              <div className="adv-empty" style={{ padding: '20rem', textAlign: 'center' }}>
-                No signature buildings unlocked.
-              </div>
+      {viewMode === 'signature' && (
+        <div className="adv-table-section">
+          {unifiedSignatures.length === 0 ? (
+            <div className="adv-empty" style={{ padding: '20rem', textAlign: 'center' }}>
+              No signature buildings unlocked.
             </div>
-          );
-        }
-
-        return (
-          <div className="adv-table-section">
-            {/* Filters */}
-            <div className="sig-filters" style={{ padding: '12rem', display: 'flex', flexWrap: 'wrap', gap: '8rem', borderBottom: '1rem solid rgba(255,255,255,0.1)' }}>
-              <div style={{ display: 'flex', gap: '4rem' }}>
-                <button 
-                  onClick={() => setSigTypeFilter('all')} 
-                  style={{ 
-                    padding: '4rem 10rem', fontSize: '11rem', background: sigTypeFilter === 'all' ? 'rgba(80,184,233,0.2)' : 'transparent', 
-                    border: '1rem solid rgba(255,255,255,0.15)', borderRadius: '3rem', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' 
-                  }}
-                >All Types</button>
-                <button 
-                  onClick={() => setSigTypeFilter('commercial')} 
-                  style={{ 
-                    padding: '4rem 10rem', fontSize: '11rem', background: sigTypeFilter === 'commercial' ? 'rgba(80,184,233,0.2)' : 'transparent', 
-                    border: '1rem solid rgba(255,255,255,0.15)', borderRadius: '3rem', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' 
-                  }}
-                >Commercial</button>
-                <button 
-                  onClick={() => setSigTypeFilter('residential')} 
-                  style={{ 
-                    padding: '4rem 10rem', fontSize: '11rem', background: sigTypeFilter === 'residential' ? 'rgba(80,184,233,0.2)' : 'transparent', 
-                    border: '1rem solid rgba(255,255,255,0.15)', borderRadius: '3rem', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' 
-                  }}
-                >Residential</button>
-              </div>
-              <select 
-                value={sigThemeFilter} 
-                onChange={(e: any) => setSigThemeFilter(e.target.value)}
-                style={{ padding: '4rem 8rem', fontSize: '11rem', background: 'rgba(15,24,37,0.95)', border: '1rem solid rgba(124,152,189,0.4)', borderRadius: '3rem', color: '#e7edf2' }}
-              >
-                {uniqueThemes.map(t => <option key={t} value={t}>{t === 'All' ? 'All Themes' : t}</option>)}
-              </select>
-              <select 
-                value={sigAssetPackFilter} 
-                onChange={(e: any) => setSigAssetPackFilter(e.target.value)}
-                style={{ padding: '4rem 8rem', fontSize: '11rem', background: 'rgba(15,24,37,0.95)', border: '1rem solid rgba(124,152,189,0.4)', borderRadius: '3rem', color: '#e7edf2' }}
-              >
-                {uniqueAssetPacks.map(p => <option key={p} value={p}>{p === 'All' ? 'All Packs' : p}</option>)}
-              </select>
-              <span style={{ marginLeft: 'auto', fontSize: '11rem', color: 'rgba(255,255,255,0.5)', alignSelf: 'center' }}>
-                {filteredSignatures.length} signature building{filteredSignatures.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            {/* Signature buildings table */}
-            <div style={{ padding: '12rem' }}>
-              <div style={{ display: 'flex', padding: '8rem 12rem', background: 'rgba(35,46,64,0.9)', fontSize: '11rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', fontWeight: 700, borderRadius: '6rem 6rem 0 0' }}>
-                <div style={{ flex: 1, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSigSort('name')}>Name{sortIndicator('name')}</div>
-                <div style={{ width: '100rem', cursor: 'pointer', userSelect: 'none', textAlign: 'center' }} onClick={() => handleSigSort('type')}>Type{sortIndicator('type')}</div>
-                <div style={{ width: '120rem', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSigSort('theme')}>Theme{sortIndicator('theme')}</div>
-                <div style={{ width: '110rem', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSigSort('assetPack')}>Asset Pack{sortIndicator('assetPack')}</div>
-                <div style={{ width: '60rem', cursor: 'pointer', userSelect: 'none', textAlign: 'center' }} onClick={() => handleSigSort('level')}>Level{sortIndicator('level')}</div>
-                <div style={{ width: '80rem', textAlign: 'right' }}>Actions</div>
-              </div>
-              <div style={{ background: 'rgba(18,26,38,0.9)', borderRadius: '0 0 6rem 6rem', overflow: 'hidden' }}>
-                {filteredSignatures.map((sig, idx) => (
-                  <div 
-                    key={sig.key} 
+          ) : (
+            <>
+              {/* Filters */}
+              <div className="sig-filters" style={{ padding: '12rem', display: 'flex', flexWrap: 'wrap', gap: '8rem', borderBottom: '1rem solid rgba(255,255,255,0.1)' }}>
+                <div style={{ display: 'flex', gap: '4rem' }}>
+                  <button 
+                    onClick={() => setSigTypeFilter('all')} 
                     style={{ 
-                      display: 'flex', padding: '10rem 12rem', fontSize: '12rem', color: 'rgba(255,255,255,0.85)', 
-                      borderTop: idx > 0 ? '1rem solid rgba(255,255,255,0.04)' : 'none',
-                      background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)'
+                      padding: '4rem 10rem', fontSize: '11rem', background: sigTypeFilter === 'all' ? 'rgba(80,184,233,0.2)' : 'transparent', 
+                      border: '1rem solid rgba(255,255,255,0.15)', borderRadius: '3rem', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' 
                     }}
-                  >
-                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span style={{ color: '#ffd700', marginRight: '5rem', fontSize: '14rem' }}>★</span>
-                      {sig.name}
-                      {sig.extraInfo && <span style={{ marginLeft: '8rem', fontSize: '11rem', color: 'rgba(255,255,255,0.5)' }}>{sig.extraInfo}</span>}
-                    </div>
-                    <div style={{ width: '100rem', textAlign: 'center', fontSize: '11rem', color: sig.type === 'commercial' ? '#50b8e9' : '#8bdb46' }}>
-                      {sig.type === 'commercial' ? 'Commercial' : 'Residential'}
-                    </div>
-                    <div style={{ width: '120rem', fontSize: '11rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sig.theme}</div>
-                    <div style={{ width: '110rem', fontSize: '11rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sig.assetPack}</div>
-                    <div style={{ width: '60rem', textAlign: 'center' }}>
-                      <span style={{ padding: '2rem 5rem', fontSize: '10rem', background: 'rgba(80,184,233,0.15)', border: '1rem solid rgba(80,184,233,0.3)', borderRadius: '3rem', color: '#50b8e9' }}>
-                        Lv {sig.level}
-                      </span>
-                    </div>
-                    <div style={{ width: '80rem', textAlign: 'right' }}>
-                      <button
-                        onClick={() => {
-                          try {
-                            trigger('camera', 'focusEntity', { index: sig.entityIndex, version: sig.entityVersion });
-                          } catch {}
-                        }}
-                        style={{ padding: '4rem 8rem', fontSize: '10rem', borderRadius: '3rem', background: 'rgba(80,184,233,0.12)', border: '1rem solid rgba(80,184,233,0.25)', color: '#50b8e9', cursor: 'pointer' }}
-                      >
-                        GO
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  >All Types</button>
+                  <button 
+                    onClick={() => setSigTypeFilter('commercial')} 
+                    style={{ 
+                      padding: '4rem 10rem', fontSize: '11rem', background: sigTypeFilter === 'commercial' ? 'rgba(80,184,233,0.2)' : 'transparent', 
+                      border: '1rem solid rgba(255,255,255,0.15)', borderRadius: '3rem', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' 
+                    }}
+                  >Commercial</button>
+                  <button 
+                    onClick={() => setSigTypeFilter('residential')} 
+                    style={{ 
+                      padding: '4rem 10rem', fontSize: '11rem', background: sigTypeFilter === 'residential' ? 'rgba(80,184,233,0.2)' : 'transparent', 
+                      border: '1rem solid rgba(255,255,255,0.15)', borderRadius: '3rem', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' 
+                    }}
+                  >Residential</button>
+                </div>
+                <select 
+                  value={sigThemeFilter} 
+                  onChange={(e: any) => setSigThemeFilter(e.target.value)}
+                  style={{ padding: '4rem 8rem', fontSize: '11rem', background: 'rgba(15,24,37,0.95)', border: '1rem solid rgba(124,152,189,0.4)', borderRadius: '3rem', color: '#e7edf2' }}
+                >
+                  {sigUniqueThemes.map(t => <option key={t} value={t}>{t === 'All' ? 'All Themes' : t}</option>)}
+                </select>
+                <select 
+                  value={sigAssetPackFilter} 
+                  onChange={(e: any) => setSigAssetPackFilter(e.target.value)}
+                  style={{ padding: '4rem 8rem', fontSize: '11rem', background: 'rgba(15,24,37,0.95)', border: '1rem solid rgba(124,152,189,0.4)', borderRadius: '3rem', color: '#e7edf2' }}
+                >
+                  {sigUniqueAssetPacks.map(p => <option key={p} value={p}>{p === 'All' ? 'All Packs' : p}</option>)}
+                </select>
+                <span style={{ marginLeft: 'auto', fontSize: '11rem', color: 'rgba(255,255,255,0.5)', alignSelf: 'center' }}>
+                  {filteredSignatures.length} signature building{filteredSignatures.length !== 1 ? 's' : ''}
+                </span>
               </div>
-            </div>
-          </div>
-        );
-      })()}
+
+              {/* Signature buildings table */}
+              <div style={{ padding: '12rem' }}>
+                <div style={{ display: 'flex', padding: '8rem 12rem', background: 'rgba(35,46,64,0.9)', fontSize: '11rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', fontWeight: 700, borderRadius: '6rem 6rem 0 0' }}>
+                  <div style={{ flex: 1, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSigSort('name')}>Name{sigSortIndicator('name')}</div>
+                  <div style={{ width: '100rem', cursor: 'pointer', userSelect: 'none', textAlign: 'center' }} onClick={() => handleSigSort('type')}>Type{sigSortIndicator('type')}</div>
+                  <div style={{ width: '120rem', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSigSort('theme')}>Theme{sigSortIndicator('theme')}</div>
+                  <div style={{ width: '110rem', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSigSort('assetPack')}>Asset Pack{sigSortIndicator('assetPack')}</div>
+                  <div style={{ width: '60rem', cursor: 'pointer', userSelect: 'none', textAlign: 'center' }} onClick={() => handleSigSort('level')}>Level{sigSortIndicator('level')}</div>
+                  <div style={{ width: '80rem', textAlign: 'right' }}>Actions</div>
+                </div>
+                <div style={{ background: 'rgba(18,26,38,0.9)', borderRadius: '0 0 6rem 6rem', overflow: 'hidden' }}>
+                  {filteredSignatures.map((sig, idx) => (
+                    <div 
+                      key={sig.key} 
+                      style={{ 
+                        display: 'flex', padding: '10rem 12rem', fontSize: '12rem', color: 'rgba(255,255,255,0.85)', 
+                        borderTop: idx > 0 ? '1rem solid rgba(255,255,255,0.04)' : 'none',
+                        background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)'
+                      }}
+                    >
+                      <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ color: '#ffd700', marginRight: '5rem', fontSize: '14rem' }}>★</span>
+                        {sig.name}
+                        {sig.extraInfo && <span style={{ marginLeft: '8rem', fontSize: '11rem', color: 'rgba(255,255,255,0.5)' }}>{sig.extraInfo}</span>}
+                      </div>
+                      <div style={{ width: '100rem', textAlign: 'center', fontSize: '11rem', color: sig.type === 'commercial' ? '#50b8e9' : '#8bdb46' }}>
+                        {sig.type === 'commercial' ? 'Commercial' : 'Residential'}
+                      </div>
+                      <div style={{ width: '120rem', fontSize: '11rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sig.theme}</div>
+                      <div style={{ width: '110rem', fontSize: '11rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sig.assetPack}</div>
+                      <div style={{ width: '60rem', textAlign: 'center' }}>
+                        <span style={{ padding: '2rem 5rem', fontSize: '10rem', background: 'rgba(80,184,233,0.15)', border: '1rem solid rgba(80,184,233,0.3)', borderRadius: '3rem', color: '#50b8e9' }}>
+                          Lv {sig.level}
+                        </span>
+                      </div>
+                      <div style={{ width: '80rem', textAlign: 'right' }}>
+                        <button
+                          onClick={() => {
+                            try {
+                              trigger('camera', 'focusEntity', { index: sig.entityIndex, version: sig.entityVersion });
+                            } catch {}
+                          }}
+                          style={{ padding: '4rem 8rem', fontSize: '10rem', borderRadius: '3rem', background: 'rgba(80,184,233,0.12)', border: '1rem solid rgba(80,184,233,0.25)', color: '#50b8e9', cursor: 'pointer' }}
+                        >
+                          GO
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Advisor view */}
       {viewMode === 'advisor' && (
