@@ -184,44 +184,6 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
   };
   const sortIndicator = (field: ResBldgSortField) => sortField === field ? (sortDir === 'asc' ? ' ?' : ' ?') : '';
 
-  // CSV Export function
-  const exportToCSV = React.useCallback(() => {
-    if (!filteredBuildings || filteredBuildings.length === 0) return;
-
-    const headers = ['Address', 'Density', 'Level', 'Theme', 'Asset Pack', 'Occupied', 'Capacity', 'Occupancy %', 'Est. Happiness %', 'Signature'];
-    const rows = filteredBuildings.map((b) => {
-      const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
-      const base = data?.avgHappiness || 50;
-      const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
-      const levelAdj = (b.level - 3) * 2;
-      const happinessEst = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
-
-      return [
-        `\"${(b.address || '').replace(/\"/g, '\"\"')}\"`,
-        b.density || 'Unknown',
-        b.level || 1,
-        (b.theme || 'Unknown').replace(/\"/g, '\"\"'),
-        (b.assetPack || 'Base Game').replace(/\"/g, '\"\"'),
-        b.occupied || 0,
-        b.capacity || 0,
-        occPct,
-        happinessEst,
-        b.isSignature ? 'Yes' : 'No',
-      ].join(',');
-    });
-
-    const csv = [headers.join(','), ...rows].join('\\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `residential_buildings_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [filteredBuildings, data]);
-
   // Extract unique values for filter dropdowns
   const uniqueThemes = React.useMemo(() => {
     if (!buildings || buildings.length === 0) return ['All'];
@@ -290,6 +252,44 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
       }
     });
   }, [buildings, data, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, minOccupancy, minHappiness, searchText, sortField, sortDir]);
+
+  // CSV Export function (must be after filteredBuildings)
+  const exportToCSV = React.useCallback(() => {
+    if (!filteredBuildings || filteredBuildings.length === 0) return;
+
+    const headers = ['Address', 'Density', 'Level', 'Theme', 'Asset Pack', 'Occupied', 'Capacity', 'Occupancy %', 'Est. Happiness %', 'Signature'];
+    const rows = filteredBuildings.map((b) => {
+      const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
+      const base = data?.avgHappiness || 50;
+      const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
+      const levelAdj = (b.level - 3) * 2;
+      const happinessEst = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
+
+      return [
+        `\"${(b.address || '').replace(/\"/g, '\"\"')}\"`,
+        b.density || 'Unknown',
+        b.level || 1,
+        (b.theme || 'Unknown').replace(/\"/g, '\"\"'),
+        (b.assetPack || 'Base Game').replace(/\"/g, '\"\"'),
+        b.occupied || 0,
+        b.capacity || 0,
+        occPct,
+        happinessEst,
+        b.isSignature ? 'Yes' : 'No',
+      ].join(',');
+    });
+
+    const csv = [headers.join(','), ...rows].join('\\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `residential_buildings_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [filteredBuildings, data]);
 
   if (!data) {
     return <div className="res-panel-empty">Residential data will appear when the simulation is running.</div>;
