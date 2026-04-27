@@ -719,13 +719,13 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
     if (!unifiedSignatures || unifiedSignatures.length === 0) return ['All'];
     const themes = new Set(unifiedSignatures.map(s => s.theme).filter(t => t));
     return ['All', ...Array.from(themes).sort()];
-  }, [unifiedSignatures]);
+  }, [unifiedSignatures]) || ['All'];
 
   const sigUniqueAssetPacks = useMemo(() => {
     if (!unifiedSignatures || unifiedSignatures.length === 0) return ['All'];
     const packs = new Set(unifiedSignatures.map(s => s.assetPack).filter(p => p));
     return ['All', ...Array.from(packs).sort()];
-  }, [unifiedSignatures]);
+  }, [unifiedSignatures]) || ['All'];
 
   // Apply signature filters
   const filteredSignatures = useMemo(() => {
