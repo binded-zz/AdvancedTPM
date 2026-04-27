@@ -589,6 +589,14 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
     return () => window.removeEventListener('atpm.useGameIconsChanged', handler as EventListener);
   }, []);
   const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor' | 'residential' | 'services'>('resources');
+
+  // Signature view filter state (must be at top level, not inside render)
+  const [sigTypeFilter, setSigTypeFilter] = useState<'all' | 'commercial' | 'residential'>('all');
+  const [sigThemeFilter, setSigThemeFilter] = useState('All');
+  const [sigAssetPackFilter, setSigAssetPackFilter] = useState('All');
+  const [sigSortField, setSigSortField] = useState<'name' | 'type' | 'theme' | 'assetPack' | 'level'>('name');
+  const [sigSortDir, setSigSortDir] = useState<'asc' | 'desc'>('asc');
+
   const safeCategory = (selectedCategory || 'all').toLowerCase();
   const iconMap = new Map(resourceCategories.flatMap((c) => c.resources.map((r) => [r.key, r.icon] as const)));
   const autoTaxParsed = useMemo(() => parseAutoTaxStatus(autoTaxStatus), [autoTaxStatus]);
@@ -1016,13 +1024,6 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
 
       {/* Signature Buildings view (unified commercial + residential with filters) */}
       {viewMode === 'signature' && (() => {
-        // State for filters
-        const [sigTypeFilter, setSigTypeFilter] = React.useState<'all' | 'commercial' | 'residential'>('all');
-        const [sigThemeFilter, setSigThemeFilter] = React.useState('All');
-        const [sigAssetPackFilter, setSigAssetPackFilter] = React.useState('All');
-        const [sigSortField, setSigSortField] = React.useState<'name' | 'type' | 'theme' | 'assetPack' | 'level'>('name');
-        const [sigSortDir, setSigSortDir] = React.useState<'asc' | 'desc'>('asc');
-
         // Combine commercial and residential signature buildings
         interface UnifiedSignature {
           key: string;
