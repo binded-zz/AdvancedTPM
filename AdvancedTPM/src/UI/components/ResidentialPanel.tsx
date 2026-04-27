@@ -184,28 +184,32 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
 
   // Extract unique values for filter dropdowns
   const uniqueThemes = React.useMemo(() => {
-    const themes = new Set(buildings.map(b => b.theme));
+    if (!buildings || buildings.length === 0) return ['All'];
+    const themes = new Set(buildings.map(b => b.theme || 'Unknown').filter(t => t));
     return ['All', ...Array.from(themes).sort()];
   }, [buildings]);
 
   const uniqueAssetPacks = React.useMemo(() => {
-    const packs = new Set(buildings.map(b => b.assetPack));
+    if (!buildings || buildings.length === 0) return ['All'];
+    const packs = new Set(buildings.map(b => b.assetPack || 'Base Game').filter(p => p));
     return ['All', ...Array.from(packs).sort()];
   }, [buildings]);
 
   const uniqueLevels = React.useMemo(() => {
-    const levels = new Set(buildings.map(b => b.level));
+    if (!buildings || buildings.length === 0) return ['All'];
+    const levels = new Set(buildings.map(b => b.level).filter(l => typeof l === 'number'));
     return ['All', ...Array.from(levels).sort((a, b) => a - b)];
   }, [buildings]);
 
   const filteredBuildings = React.useMemo(() => {
+    if (!buildings) return [];
     let list = buildings;
     if (densityFilter !== 'All') list = list.filter((b) => b.density === densityFilter);
-    if (themeFilter !== 'All') list = list.filter((b) => b.theme === themeFilter);
-    if (assetPackFilter !== 'All') list = list.filter((b) => b.assetPack === assetPackFilter);
+    if (themeFilter !== 'All') list = list.filter((b) => (b.theme || 'Unknown') === themeFilter);
+    if (assetPackFilter !== 'All') list = list.filter((b) => (b.assetPack || 'Base Game') === assetPackFilter);
     if (levelFilter !== 'All') list = list.filter((b) => b.level === Number(levelFilter));
-    if (showSignatureOnly) list = list.filter((b) => b.isSignature);
-    if (searchText) { const lower = searchText.toLowerCase(); list = list.filter((b) => b.address.toLowerCase().includes(lower)); }
+    if (showSignatureOnly) list = list.filter((b) => b.isSignature === true);
+    if (searchText) { const lower = searchText.toLowerCase(); list = list.filter((b) => (b.address || '').toLowerCase().includes(lower)); }
     return [...list].sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortField) {
@@ -214,8 +218,8 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
         case 'level': return dir * (a.level - b.level);
         case 'occupied': return dir * (a.occupied - b.occupied);
         case 'capacity': return dir * (a.capacity - b.capacity);
-        case 'theme': return dir * a.theme.localeCompare(b.theme);
-        case 'assetPack': return dir * a.assetPack.localeCompare(b.assetPack);
+        case 'theme': return dir * (a.theme || 'Unknown').localeCompare(b.theme || 'Unknown');
+        case 'assetPack': return dir * (a.assetPack || 'Base Game').localeCompare(b.assetPack || 'Base Game');
         case 'occupancy': {
           const oA = a.capacity > 0 ? a.occupied / a.capacity : 0;
           const oB = b.capacity > 0 ? b.occupied / b.capacity : 0;
@@ -350,8 +354,8 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                       <div className="res-bcol-level">
                         <span className="res-level-badge">Lv {b.level}</span>
                       </div>
-                      <div className="res-bcol-theme">{b.theme}</div>
-                      <div className="res-bcol-assetpack">{b.assetPack}</div>
+                      <div className="res-bcol-theme">{b.theme || 'Unknown'}</div>
+                      <div className="res-bcol-assetpack">{b.assetPack || 'Base Game'}</div>
                       <div className="res-bcol-occupied">{b.occupied}</div>
                       <div className="res-bcol-capacity">{b.capacity > 0 ? b.capacity : '\u2014'}</div>
                       <div className="res-bcol-occupancy" style={{ color: occColor }}>{occPct}%</div>
