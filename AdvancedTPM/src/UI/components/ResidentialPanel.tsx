@@ -189,19 +189,19 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     if (!buildings || buildings.length === 0) return ['All'];
     const themes = new Set(buildings.map(b => b.theme || 'Unknown').filter(t => t));
     return ['All', ...Array.from(themes).sort()];
-  }, [buildings]);
+  }, [buildings]) || ['All'];
 
   const uniqueAssetPacks = React.useMemo(() => {
     if (!buildings || buildings.length === 0) return ['All'];
     const packs = new Set(buildings.map(b => b.assetPack || 'Base Game').filter(p => p));
     return ['All', ...Array.from(packs).sort()];
-  }, [buildings]);
+  }, [buildings]) || ['All'];
 
   const uniqueLevels = React.useMemo(() => {
     if (!buildings || buildings.length === 0) return ['All'];
     const levels = new Set(buildings.map(b => b.level).filter(l => typeof l === 'number'));
     return ['All', ...Array.from(levels).sort((a, b) => a - b)];
-  }, [buildings]);
+  }, [buildings]) || ['All'];
 
   const filteredBuildings = React.useMemo(() => {
     if (!buildings || !data) return [];
