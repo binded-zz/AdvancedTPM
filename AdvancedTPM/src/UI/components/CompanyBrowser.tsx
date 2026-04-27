@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffe
 // React hooks are provided by the environment. Do not import to avoid duplicate type declarations.
 import { trigger } from 'cs2/api';
 import { Entity } from 'cs2/utils';
+import { resourceCategories } from '../data/resourceTaxonomy';
 import './CompanyBrowser.css';
 
 export interface CompanyVm {
@@ -120,7 +121,15 @@ export const parseCompanyHappinessPayload = (payload: string): [string, Record<s
 type SortField = 'name' | 'zoneType' | 'resourceKey' | 'profit' | 'profitabilityTier' | 'workers' | 'tax' | 'happiness' | 'lv';
 type SortDir = 'asc' | 'desc';
 
-const ZONE_FILTERS = ['All', 'Industrial', 'Commercial', 'Office'];
+const ZONE_FILTERS = ['All', 'RawIndustrial', 'Industrial', 'Storage', 'Commercial', 'Office'];
+const ZONE_LABELS: Record<string, string> = {
+  All: 'All',
+  RawIndustrial: 'Raw Industrial',
+  Industrial: 'Industrial',
+  Storage: 'Storage',
+  Commercial: 'Commercial',
+  Office: 'Office',
+};
 const TIER_FILTERS = ['All', 'Profitable', 'GettingBy', 'BreakingEven', 'LosingMoney', 'Bankrupt'];
 
 const TIER_ORDER: Record<string, number> = {
@@ -151,6 +160,10 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 const RESOURCE_ICON_BASE = 'Media/Game/Resources/';
+const RESOURCE_STAGE_MAP: Record<string, string> = resourceCategories.reduce((acc, cat) => {
+  cat.resources.forEach((r: { key: string; stage: string }) => { acc[r.key] = r.stage; });
+  return acc;
+}, {} as Record<string, string>);
 
 // Mapping from our lowercase key to CS2's exact SVG filename (without .svg)
 const RESOURCE_ICON_MAP: Record<string, string> = {
@@ -166,7 +179,32 @@ const RESOURCE_ICON_MAP: Record<string, string> = {
   entertainment: 'Entertainment', recreation: 'Recreation',
 };
 
-const resourceIconName = (key: string): string => RESOURCE_ICON_MAP[key] || key;
+const resourceIconName = (key: string): string => {
+  if (RESOURCE_ICON_MAP[key]) return RESOURCE_ICON_MAP[key];
+  // Commercial goods use c_ prefix but same icon as base resource
+  if (key && key.startsWith('c_') && RESOURCE_ICON_MAP[key.slice(2)]) return RESOURCE_ICON_MAP[key.slice(2)];
+  return key;
+};
+const resourceIconSrc = (key: string): string =>
+  key === 'All' ? 'Media/Game/Icons/Economy.svg' : `${RESOURCE_ICON_BASE}${resourceIconName(key)}.svg`;
+
+const ZONE_BADGE_LABELS: Record<string, string> = {
+  RawIndustrial: 'RAW IND',
+  Industrial: 'INDUST',
+  Storage: 'STORAGE',
+  Commercial: 'COMMERC',
+  Office: 'OFFICE',
+};
+
+const resourceStageForZone = (zone: string): string | null => {
+  switch (zone) {
+    case 'RawIndustrial': return 'RawResource';
+    case 'Industrial': return 'Industrial';
+    case 'Commercial': return 'Commercial';
+    case 'Office': return 'Immaterial';
+    default: return null;
+  }
+};
 
 const resourceLabel = (key: string): string => {
   if (!key) return '\u2014';
@@ -277,9 +315,11 @@ interface CompanyBrowserProps {
   showFilters?: boolean;
 }
 
-const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessData, isSignatureView }) => {
+const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happinessData = '', isSignatureView }) => {
+  const safeCompanies = Array.isArray(companies) ? companies : [];
   const [zoneFilter, setZoneFilter] = useState('All');
   const [tierFilter, setTierFilter] = useState('All');
+  const [resourceFilter, setResourceFilter] = useState('All');
   const [sortField, setSortField] = useState<SortField>('profit');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchText, setSearchText] = useState('');
@@ -288,30 +328,15 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
   // Building level is displayed per-row; level search removed for now
   const LEVEL_MIN_BOUND = 1;
   const LEVEL_MAX_BOUND = 5;
-  const [expandedEntity, setExpandedEntity] = useState<number | null>(null);
+  const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
   const [happinessMap, setHappinessMap] = useState<CompanyHappinessMap>({});
   const [happinessLoading, setHappinessLoading] = useState<Record<string, boolean>>({});
 
-  // Proactively request lightweight environmental/service metrics for visible companies
-  // to avoid blank/placeholder UI when the user expands rows. Request only a limited
-  // number to avoid spamming the game (first 20 visible companies).
+  // Scroll to top and clear expansion when filters or sort changes so users see results
   useEffect(() => {
-    if (!companies || companies.length === 0) return;
-    const toRequest = [] as string[];
-    for (let i = 0; i < Math.min(20, companies.length); i++) {
-      const c = companies[i];
-      const key = `${c.entityIndex},${c.entityVersion}`;
-      if (!happinessMap[key] && !happinessLoading[key]) {
-        toRequest.push(key);
-      }
-    }
-    if (toRequest.length === 0) return;
-    toRequest.forEach((k) => {
-      setHappinessLoading((prev) => ({ ...prev, [k]: true }));
-      try { trigger('taxProduction', 'requestCompanyHappiness', k); } catch { }
-    });
-  // companies intentionally used rather than filtered/sorted so requests target authoritative entities
-  }, [companies]);
+    try { if (bodyRef.current) bodyRef.current.scrollTop = 0; } catch {}
+    setExpandedEntity(null);
+  }, [zoneFilter, tierFilter, resourceFilter, searchText]);
 
   // Merge incoming single-company happiness payloads into local map
   useEffect(() => {
@@ -332,10 +357,38 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
     }
   };
 
+  const uniqueResources = useMemo(
+    () => ['All', ...Array.from(new Set(safeCompanies.map((c) => c.resourceKey).filter((k): k is string => !!k))).sort()],
+    [safeCompanies]
+  );
+
+  const visibleResourceFilters = useMemo(() => {
+    // Always derive resource tabs from the companies actually in the selected zone,
+    // so Commercial shows food/beverages etc. from real companies, not taxonomy stage.
+    if (zoneFilter === 'All') return uniqueResources;
+    const zoneKeys = new Set(
+      companies.filter((c: CompanyVm) => c.zoneType === zoneFilter).map((c: CompanyVm) => c.resourceKey).filter(Boolean)
+    );
+    return ['All', ...Array.from(zoneKeys).sort()];
+  }, [zoneFilter, uniqueResources, companies]);
+
+  useEffect(() => {
+    if (visibleResourceFilters.length === 0) {
+      if (resourceFilter !== 'All') setResourceFilter('All');
+      return;
+    }
+    if (!visibleResourceFilters.includes(resourceFilter)) {
+      setResourceFilter('All');
+    }
+  }, [visibleResourceFilters, resourceFilter]);
+
   const filtered = useMemo(() => {
-    let list = companies;
+    let list = safeCompanies;
     if (zoneFilter !== 'All') {
       list = list.filter((c) => c.zoneType === zoneFilter);
+    }
+    if (resourceFilter !== 'All') {
+      list = list.filter((c) => c.resourceKey === resourceFilter);
     }
     if (tierFilter !== 'All') {
       list = list.filter((c) => c.profitabilityTier === tierFilter);
@@ -343,7 +396,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
     if (profitMin > -100 || profitMax < 100) {
       list = list.filter((c) => c.profit >= profitMin && c.profit <= profitMax);
     }
-    // (no building level filter active)
     if (searchText) {
       const lower = searchText.toLowerCase();
       list = list.filter(
@@ -354,7 +406,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
       );
     }
     return list;
-  }, [companies, zoneFilter, tierFilter, profitMin, profitMax, searchText]);
+  }, [companies, zoneFilter, resourceFilter, tierFilter, profitMin, profitMax, searchText]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -591,7 +643,8 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
     <div className="cb-container">
       {/* Filters */}
       <div className="cb-filters">
-        <div className="cb-filter-rows">
+        {/* Row 1: zone tabs + profit slider + search */}
+        <div className="cb-filter-top">
           <div className="cb-zone-tabs">
             {ZONE_FILTERS.map((z) => (
               <button
@@ -599,47 +652,71 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
                 className={`cb-zone-tab${zoneFilter === z ? ' cb-zone-tab-active' : ''}`}
                 onClick={() => setZoneFilter(z)}
               >
-                {z}
+                {ZONE_LABELS[z] ?? z}
               </button>
             ))}
           </div>
-          <div className="cb-tier-tabs">
-            {TIER_FILTERS.map((t) => (
-              <button
-                key={t}
-                className={`cb-tier-tab${tierFilter === t ? ' cb-tier-tab-active' : ''}`}
-                onClick={() => setTierFilter(t)}
-              >
-                {t === 'All' ? 'All Status' : (TIER_LABELS[t] || t)}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        <div className="cb-profit-filter">
-          <span className="cb-profit-label">Profit %</span>
-          <div className="cb-profit-slider-wrap">
-            <span className="cb-profit-value">{profitMin}%</span>
-            <div ref={profitTrackRef} className="cb-profit-track-area" onMouseDown={handleProfitTrackClick}>
-              <div className="cb-profit-track" />
-              <div className="cb-profit-range-fill" style={{ left: `${profitPctOf(profitMin)}%`, width: `${profitPctOf(profitMax) - profitPctOf(profitMin)}%` }} />
-              <div className="cb-profit-thumb" style={{ left: `${profitPctOf(profitMin)}%` }} onMouseDown={handleProfitMouseDown('min')} />
-              <div className="cb-profit-thumb" style={{ left: `${profitPctOf(profitMax)}%` }} onMouseDown={handleProfitMouseDown('max')} />
+          <div className="cb-filter-right">
+            <div className="cb-profit-filter">
+              <span className="cb-profit-label">Profit %</span>
+              <div className="cb-profit-slider-wrap">
+                <span className="cb-profit-value">{profitMin}%</span>
+                <div ref={profitTrackRef} className="cb-profit-track-area" onMouseDown={handleProfitTrackClick}>
+                  <div className="cb-profit-track" />
+                  <div className="cb-profit-range-fill" style={{ left: `${profitPctOf(profitMin)}%`, width: `${profitPctOf(profitMax) - profitPctOf(profitMin)}%` }} />
+                  <div className="cb-profit-thumb" style={{ left: `${profitPctOf(profitMin)}%` }} onMouseDown={handleProfitMouseDown('min')} />
+                  <div className="cb-profit-thumb" style={{ left: `${profitPctOf(profitMax)}%` }} onMouseDown={handleProfitMouseDown('max')} />
+                </div>
+                <span className="cb-profit-value">{profitMax}%</span>
+              </div>
+              <button className="cb-profit-reset" onClick={() => { setProfitMin(-100); setProfitMax(100); }}>Reset</button>
             </div>
-            <span className="cb-profit-value">{profitMax}%</span>
+
+            <div className="cb-search-box">
+              <input
+                className="cb-search-input"
+                type="text"
+                value={searchText}
+                onInput={(e: any) => setSearchText(e.target.value || '')}
+                placeholder="Search..."
+              />
+            </div>
           </div>
-          <button className="cb-profit-reset" onClick={() => { setProfitMin(-100); setProfitMax(100); }}>Reset</button>
         </div>
 
-        <div className="cb-search-box">
-          <input
-            className="cb-search-input"
-            type="text"
-            value={searchText}
-            onInput={(e: any) => setSearchText(e.target.value || '')}
-            placeholder="Search..."
-          />
+        {/* Row 2: tier tabs */}
+        <div className="cb-tier-tabs">
+          {TIER_FILTERS.map((t) => (
+            <button
+              key={t}
+              className={`cb-tier-tab${tierFilter === t ? ' cb-tier-tab-active' : ''}`}
+              onClick={() => setTierFilter(t)}
+            >
+              {t === 'All' ? 'All Status' : (TIER_LABELS[t] || t)}
+            </button>
+          ))}
         </div>
+
+        {visibleResourceFilters.length > 0 && (
+        <div className="cb-resource-filter">
+          <div className="cb-resource-tabs">
+            {visibleResourceFilters.map((r) => (
+              <button
+                key={r}
+                className={`cb-resource-tab${resourceFilter === r ? ' cb-resource-tab-active' : ''}`}
+                onClick={() => setResourceFilter(r)}
+                title={r === 'All' ? 'Show all resources' : resourceLabel(r)}
+              >
+                {r === 'All' ? <span className="cb-resource-tab-text">All</span> : <img className="cb-resource-tab-icon" src={resourceIconSrc(r)} alt="" />}
+              </button>
+            ))}
+          </div>
+          {resourceFilter !== 'All' && (
+            <button className="cb-profit-reset" onClick={() => setResourceFilter('All')}>X</button>
+          )}
+        </div>
+        )}
       </div>
 
       {/* Summary */}
@@ -693,15 +770,15 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
             <div className="cb-empty">No companies found. Companies will appear once the game simulation is running.</div>
           )}
           {sorted.map((c, i) => {
-            const isExpanded = expandedEntity === c.entityIndex;
+            const compKey = `${c.entityIndex},${c.entityVersion}`;
+            const isExpanded = expandedEntity === compKey;
             const rowClickHandler = (e: React.MouseEvent) => {
               // Toggle expansion only
-              setExpandedEntity(isExpanded ? null : c.entityIndex);
+              setExpandedEntity(isExpanded ? null : compKey);
               // Request detailed happiness factors from server when expanding
               if (!isExpanded) {
-                const key = `${c.entityIndex},${c.entityVersion}`;
-                setHappinessLoading((prev) => ({ ...prev, [key]: true }));
-                trigger('taxProduction', 'requestCompanyHappiness', `${c.entityIndex},${c.entityVersion}`);
+                setHappinessLoading((prev) => ({ ...prev, [compKey]: true }));
+                trigger('taxProduction', 'requestCompanyHappiness', compKey);
               }
             };
             const profitColor = c.profit < 0 ? '#e05050' : c.profit > 0 ? '#8bdb46' : 'rgba(255,255,255,0.5)';
@@ -713,10 +790,16 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
               : c.profit > -20 ? 'Struggling — consider lowering taxes'
               : 'Critical — near bankruptcy, needs tax relief';
             return (
-              <div key={c.entityIndex}>
+              <div key={`${c.entityIndex}-${c.entityVersion}`}>
                 <div
                   className={`cb-row${i % 2 === 0 ? '' : ' cb-row-alt'}${isExpanded ? ' cb-row-expanded' : ''}`}
-                  onClick={rowClickHandler}
+                  onMouseDown={(e: React.MouseEvent) => {
+                    if (e.button !== 0) return;
+                    // Don't intercept the locate button
+                    const tgt = e.target as HTMLElement;
+                    if (tgt && tgt.closest && tgt.closest('.cb-locate-btn')) return;
+                    rowClickHandler(e);
+                  }}
                   title={isExpanded ? 'Click to collapse' : 'Click to expand details'}
                 >
                   <div className="cb-col-name">
@@ -746,7 +829,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies, happinessDat
                     </span>
                   </div>
                   <div className="cb-col-zone">
-                    <span className={`cb-zone-badge cb-zone-${c.zoneType.toLowerCase()}`}>{c.zoneType}</span>
+                    <span className={`cb-zone-badge cb-zone-${c.zoneType.toLowerCase()}`} title={c.zoneType}>{ZONE_BADGE_LABELS[c.zoneType] || c.zoneType}</span>
                   </div>
                   <div className="cb-col-resource">
                     {c.resourceKey && (

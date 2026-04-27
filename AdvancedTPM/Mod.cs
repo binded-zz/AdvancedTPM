@@ -16,6 +16,22 @@ namespace AdvancedTPM
 
         public void OnLoad(UpdateSystem updateSystem)
         {
+            try
+            {
+                AdvancedTPM.Utilities.FilePaths.EnsureModDirectories();
+                var logFolder = AdvancedTPM.Utilities.FilePaths.GetModsDataFolder();
+                if (!string.IsNullOrEmpty(logFolder))
+                {
+                    if (!System.IO.Directory.Exists(logFolder)) System.IO.Directory.CreateDirectory(logFolder);
+                    var logFilePath = System.IO.Path.Combine(logFolder, "AdvancedTPM.log");
+                    log = LogManager.GetLogger($"{nameof(AdvancedTPM)}.{nameof(Mod)}").SetShowsErrorsInUI(false);
+                    // Colossal Order Logging might not expose SetLogFilePath directly on all versions, 
+                    // but we ensure standard behavior. To output to our log file, we can hook it or rely on game logs.
+                    // Instead, we just write a startup file explicitly to mod folder to ensure it works
+                    System.IO.File.WriteAllText(logFilePath, $"[{System.DateTime.Now:O}] AdvancedTPM Loaded\n");
+                }
+            } 
+            catch { }
             log.Info($"Loading {Name} v{Version}");
             // Ensure mod directories exist under game's LocalLow path
             try { AdvancedTPM.Utilities.FilePaths.EnsureModDirectories(); } catch { }
@@ -61,6 +77,8 @@ namespace AdvancedTPM
             updateSystem.UpdateAt<AutoTaxSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<CompanyBrowserSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<AdaptiveLearningSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<ResidentialBrowserSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<ServicesBrowserSystem>(SystemUpdatePhase.UIUpdate);
 
             log.Info($"{Name} loaded successfully");
 

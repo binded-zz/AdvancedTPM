@@ -6,7 +6,7 @@
   color: #ffffff;
 }
 .adv-window-collapsed { min-height:0; height:auto; }
-.adv-window-header { position:relative; display:flex; align-items:center; justify-content:center; padding:8rem 12rem; background:linear-gradient(180deg, rgba(25,41,63,1) 0%, rgba(18,30,47,1) 100%); border-bottom:2rem solid rgba(74,107,146,0.45); }
+.adv-window-header { position:relative; display:flex; align-items:center; justify-content:center; padding:8rem 12rem; background:linear-gradient(180deg, rgba(25,41,63,1) 0%, rgba(18,30,47,1) 100%); border-bottom:2rem solid rgba(74,107,146,0.45); cursor:move; user-select:none; }
 .adv-window-title { font-size:15rem; font-weight:700; text-transform:uppercase; letter-spacing:0.6rem; color:#59bfff; text-align:center; }
 .adv-filter-bar { display:flex; padding:8rem 12rem; background:rgba(34,52,76,1); flex-wrap:wrap; }
 .adv-filter-tab { border:none; background:rgba(255,255,255,0.10); color:rgba(255,255,255,0.85); font-size:14rem; padding:6rem 14rem; border-radius:4rem; cursor:pointer; transition:background-color 0.15s; font-weight:600; margin-right:3rem; margin-bottom:3rem; }
@@ -159,7 +159,7 @@
 .adv-learn-active { background:rgba(46,160,67,0.65); border-color:rgba(86,220,110,0.85); color:#fff; }
 .adv-learn-active:hover { background:rgba(46,160,67,0.85); }
 
-.adv-settings-btn { position:absolute; right:80rem; top:50%; transform:translateY(-50%); border:1rem solid rgba(124,152,189,0.55); background:rgba(15,24,37,0.98); color:rgba(233,243,255,0.6); width:26rem; height:26rem; border-radius:3rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s, border-color 0.15s, color 0.15s; padding:0; }
+.adv-settings-btn { position:absolute; right:80rem; top:50%; transform:translateY(-50%); border:1rem solid rgba(124,152,189,0.55); background:rgba(15,24,37,0.98); color:rgba(233,243,255,0.6); width:32rem; height:32rem; border-radius:3rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s, border-color 0.15s, color 0.15s; padding:0; }
 .adv-settings-icon { width:18rem; height:18rem; opacity:0.65; transition:opacity 0.15s; fill:rgba(233,243,255,0.9); }
 .adv-settings-btn:hover .adv-settings-icon { opacity:1; fill:#fff; }
 .adv-settings-btn:hover { background:rgba(62,98,145,0.88); border-color:rgba(140,186,235,0.95); }

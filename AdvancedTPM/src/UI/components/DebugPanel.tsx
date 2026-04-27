@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { trigger } from 'cs2/api';
 
 interface DebugPanelProps {
@@ -20,55 +20,101 @@ interface DebugPanelProps {
   debugH?: number;
 }
 
-const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAction, onToggleDebug, onToggleTips, onTogglePanel, signaturePrefabs, signatureCompanies, signatureCacheStatus }) => {
-  const containerStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 110,
-    right: 30,
-    width: 320,
-    background: 'rgba(6,10,18,0.88)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    color: '#ffffff',
-    padding: 12,
-    borderRadius: 6,
-    boxShadow: '0 6px 18px rgba(0,0,0,0.6)',
-    fontFamily: 'inherit',
-    zIndex: 9999,
+const DebugPanel: React.FC<DebugPanelProps> = ({
+  debugEnabled, showTips, lastAction,
+  onToggleDebug, onToggleTips, onTogglePanel,
+  signaturePrefabs, signatureCompanies, signatureCacheStatus,
+  residentialData, servicesData,
+}) => {
+  const [pos, setPos] = useState({ x: 30, y: 110 });
+  const dragRef = useRef<{ active: boolean; startX: number; startY: number; ox: number; oy: number }>({ active: false, startX: 0, startY: 0, ox: 30, oy: 110 });
+
+  const onHeaderMouseDown = (e: React.MouseEvent) => {
+    dragRef.current = { active: true, startX: e.clientX, startY: e.clientY, ox: pos.x, oy: pos.y };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current.active) return;
+      setPos({ x: Math.max(4, dragRef.current.ox + (ev.clientX - dragRef.current.startX)), y: Math.max(4, dragRef.current.oy + (ev.clientY - dragRef.current.startY)) });
+    };
+    const onUp = () => { dragRef.current.active = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    e.preventDefault();
   };
 
-  const headerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 };
-  const buttonPrimary: React.CSSProperties = { marginRight: 8, background: '#2563eb', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 4, cursor: 'pointer' };
-  const buttonClose: React.CSSProperties = { background: '#374151', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 4, cursor: 'pointer' };
-  const labelStyle: React.CSSProperties = { display: 'block', marginBottom: 8, color: '#e6eef8', fontSize: 13 };
-  const lastActionStyle: React.CSSProperties = { fontSize: 12, color: '#cfe3ff', opacity: 0.95 };
-  const boxStyle: React.CSSProperties = { maxHeight: 80, overflow: 'auto', fontSize: 12, background: 'rgba(255,255,255,0.03)', padding: 8, borderRadius: 4, marginBottom: 6, border: '1px solid rgba(255,255,255,0.03)' };
+  const panel: React.CSSProperties = {
+    position: 'fixed', left: pos.x, top: pos.y, width: 340,
+    background: '#060a12', border: '1px solid rgba(255,255,255,0.12)',
+    color: '#ffffff', borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,0.7)',
+    fontFamily: 'inherit', zIndex: 9999, userSelect: 'none',
+  };
+  const header: React.CSSProperties = {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    padding: '8px 12px', background: 'rgba(255,255,255,0.05)',
+    borderBottom: '1px solid rgba(255,255,255,0.08)', cursor: 'move', borderRadius: '6px 6px 0 0',
+  };
+  const content: React.CSSProperties = { padding: 12 };
+  const btnRow: React.CSSProperties = { display: 'flex', marginBottom: 8, flexWrap: 'wrap' };
+  const btnRowItem: React.CSSProperties = { marginRight: 8, marginBottom: 6 };
+  const btn = (active?: boolean): React.CSSProperties => ({
+    flex: 1, padding: '6px 10px', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12,
+    background: active ? '#2563eb' : 'rgba(255,255,255,0.1)', color: '#fff',
+  });
+  const btnDanger: React.CSSProperties = { padding: '6px 10px', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, background: '#374151', color: '#fff' };
+  const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, marginTop: 8 };
+  const box: React.CSSProperties = { height: 70, overflowY: 'auto', fontSize: 11, background: 'rgba(255,255,255,0.04)', padding: 6, borderRadius: 4, marginBottom: 6, border: '1px solid rgba(255,255,255,0.06)', wordBreak: 'break-all' };
+  const lastActionStyle: React.CSSProperties = { fontSize: 11, color: '#cfe3ff', marginBottom: 8, opacity: 0.9 };
 
   return (
-    <div style={containerStyle}>
-      <div style={headerStyle}>
-        <strong style={{ fontSize: 14 }}>TPM Debug</strong>
-        <div>
-          <button onClick={() => { try { trigger('taxProduction', 'refreshSignatureCache', '1'); } catch {} }} style={buttonPrimary}>Refresh Sig Cache</button>
-          <button onClick={onTogglePanel} style={buttonClose}>✕</button>
-        </div>
+    <div style={panel}>
+      {/* Header — drag handle + close */}
+      <div style={header} onMouseDown={onHeaderMouseDown}>
+        <strong style={{ fontSize: 13 }}>TPM Debug Panel</strong>
+        <button
+          style={btnDanger}
+          title="Close debug panel (reopen via main window \u2192 Debug button)"
+          onClick={(e) => { e.stopPropagation(); onTogglePanel(); }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >✕ Close</button>
       </div>
-      <label style={labelStyle}>
-        <input type="checkbox" checked={debugEnabled} onChange={(e) => onToggleDebug(e.target.checked)} /> <span style={{ marginLeft: 8 }}>Enable debug logs</span>
-      </label>
-      <label style={labelStyle}>
-        <input type="checkbox" checked={showTips} onChange={(e) => onToggleTips(e.target.checked)} /> <span style={{ marginLeft: 8 }}>Show in-window tips</span>
-      </label>
-      <div style={lastActionStyle}>Last action: {lastAction}</div>
-      {debugEnabled && (
-        <div style={{ marginTop: 8, fontSize: 12 }}>
-          <div style={{ fontWeight: 700, marginBottom: 4, color: '#e8f1ff' }}>Signature Prefabs</div>
-          <div style={boxStyle}>{signaturePrefabs || '—'}</div>
-          <div style={{ fontWeight: 700, marginBottom: 4, color: '#e8f1ff' }}>Signature Companies (keys)</div>
-          <div style={boxStyle}>{signatureCompanies || '—'}</div>
-          <div style={{ fontWeight: 700, marginBottom: 4, color: '#e8f1ff' }}>Signature Cache Status</div>
-          <div style={{ ...boxStyle, maxHeight: 40 }}>{signatureCacheStatus || '—'}</div>
+
+      <div style={content}>
+        {/* Status */}
+        <div style={lastActionStyle}>Last action: {lastAction || '—'}</div>
+
+        {/* Toggle buttons */}
+        <div style={btnRow}>
+          <button style={btn(debugEnabled)} onClick={() => onToggleDebug(!debugEnabled)} title="Toggle verbose logging to Player.log">
+            {debugEnabled ? '🔵 Debug Logs ON' : '⚪ Debug Logs OFF'}
+          </button>
+          <button style={btn(showTips)} onClick={() => onToggleTips(!showTips)} title="Show/hide inline tips in the main window">
+            {showTips ? '💡 Tips ON' : '💡 Tips OFF'}
+          </button>
         </div>
-      )}
+
+        {/* Action buttons */}
+        <div style={btnRow}>
+          <button style={btn()} onClick={() => { try { trigger('taxProduction', 'refreshSignatureCache', '1'); } catch {} }}>
+            🔄 Refresh Sig Cache
+          </button>
+          <button style={btn()} onClick={() => { try { trigger('taxProduction', 'refreshCompanyBrowserData', '1'); } catch {} }}>
+            🔄 Refresh Companies
+          </button>
+        </div>
+
+        {/* Signature data — only shown when debug logs enabled */}
+        {debugEnabled && (
+          <>
+            <div style={sectionTitle}>Signature Prefabs</div>
+            <div style={box}>{signaturePrefabs || '—'}</div>
+
+            <div style={sectionTitle}>Signature Companies (keys)</div>
+            <div style={box}>{signatureCompanies || '—'}</div>
+
+            <div style={sectionTitle}>Cache Status</div>
+            <div style={{ ...box, height: 36 }}>{signatureCacheStatus || '—'}</div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

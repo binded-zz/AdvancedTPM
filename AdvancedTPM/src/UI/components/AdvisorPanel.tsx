@@ -41,10 +41,35 @@ interface LearningStats {
   aggressiveness: number;
 }
 
+interface AutoTaxResourceInfo {
+  key: string;
+  direction: number;
+  score: number;
+  balance: number;
+  demand: number;
+  income: number;
+  profit: number;
+  happiness: number;
+  rateDrag: number;
+  companies: number;
+  avgProfit: number;
+  learned: number;
+}
+
+interface AutoTaxMetrics {
+  happiness: number;
+  adjustCount: number;
+  raiseCount: number;
+  lowerCount: number;
+  holdCount: number;
+  resources: AutoTaxResourceInfo[];
+}
+
 interface AdvisorPanelProps {
   advisorData: string;
   decisionLogData: string;
   learningStatsData: string;
+  autoTaxStatus: string;
   learningEnabled: boolean;
   useGameIcons?: boolean;
   onToggleLearning: (enabled: boolean) => void;
@@ -130,6 +155,43 @@ const parseLearningStats = (data: string): LearningStats => {
     avgConfidence: Number(parts[3]) || 0,
     aggressiveness: Number(parts[4]) || 3,
   };
+};
+
+const parseAutoTaxStatus = (status: string): AutoTaxMetrics => {
+  const base: AutoTaxMetrics = { happiness: 0, adjustCount: 0, raiseCount: 0, lowerCount: 0, holdCount: 0, resources: [] };
+  if (!status) return base;
+  const parts = status.split('|');
+  if (parts.length < 6) return base;
+  base.happiness = Number(parts[0]) || 0;
+  base.adjustCount = Number(parts[1]) || 0;
+  base.raiseCount = Number(parts[2]) || 0;
+  base.lowerCount = Number(parts[3]) || 0;
+  base.holdCount = Number(parts[4]) || 0;
+  const map = new Map<string, AutoTaxResourceInfo>();
+  if (parts[5]) {
+    parts[5].split(',').forEach((entry) => {
+      const [key, rest] = entry.split('=');
+      if (!key || !rest) return;
+      const f = rest.split(':');
+      const info: AutoTaxResourceInfo = {
+        key,
+        direction: Number(f[0]) || 0,
+        score: Number(f[1]) || 0,
+        balance: Number(f[2]) || 0,
+        demand: Number(f[3]) || 0,
+        income: Number(f[4]) || 0,
+        profit: Number(f[5]) || 0,
+        happiness: Number(f[6]) || 0,
+        rateDrag: Number(f[7]) || 0,
+        companies: Number(f[8]) || 0,
+        avgProfit: Number(f[9]) || 0,
+        learned: Number(f[10]) || 0,
+      };
+      map.set(key, info);
+    });
+  }
+  base.resources = Array.from(map.values());
+  return base;
 };
 
 const getResourceLabel = (key: string): string => {
@@ -326,6 +388,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   advisorData,
   decisionLogData,
   learningStatsData,
+  autoTaxStatus,
   learningEnabled,
   useGameIcons = true,
   onToggleLearning,
@@ -437,7 +500,14 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   const updateProfilesScrollbar = React.useCallback(makeUpdater(profilesBodyRef, profilesTrackRef, setProfilesThumbHeight, setProfilesThumbTop), []);
   const updateLogScrollbar = React.useCallback(makeUpdater(logBodyRef, logTrackRef, setLogThumbHeight, setLogThumbTop), []);
 
-  React.useEffect(() => { const onResize = () => { updateProfilesScrollbar(); updateLogScrollbar(); }; window.addEventListener('resize', onResize); return () => window.removeEventListener('resize', onResize); }, [updateProfilesScrollbar, updateLogScrollbar]);
+  const metricsBodyRef = React.useRef<HTMLDivElement | null>(null);
+  const metricsTrackRef = React.useRef<HTMLDivElement | null>(null);
+  const metricsThumbRef = React.useRef<HTMLDivElement | null>(null);
+  const [metricsThumbTop, setMetricsThumbTop] = React.useState(0);
+  const [metricsThumbHeight, setMetricsThumbHeight] = React.useState(48);
+  const updateMetricsScrollbar = React.useCallback(makeUpdater(metricsBodyRef, metricsTrackRef, setMetricsThumbHeight, setMetricsThumbTop), []);
+
+  React.useEffect(() => { const onResize = () => { updateProfilesScrollbar(); updateLogScrollbar(); updateMetricsScrollbar(); }; window.addEventListener('resize', onResize); return () => window.removeEventListener('resize', onResize); }, [updateProfilesScrollbar, updateLogScrollbar, updateMetricsScrollbar]);
 
   // Hook up drag handlers for profiles and log (invoked after makeDrag is defined)
 
@@ -457,6 +527,15 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
       return () => mo.disconnect();
     }
   }, [logBodyRef.current, updateLogScrollbar]);
+
+  React.useEffect(() => {
+    const body = metricsBodyRef.current;
+    if (body) {
+      const mo = new MutationObserver(() => updateMetricsScrollbar());
+      mo.observe(body, { childList: true, subtree: true, attributes: true });
+      return () => mo.disconnect();
+    }
+  }, [metricsBodyRef.current, updateMetricsScrollbar]);
 
   React.useEffect(() => { const onResize = () => { updateLeftScrollbar(); updateRightScrollbar(); }; window.addEventListener('resize', onResize); return () => window.removeEventListener('resize', onResize); }, [updateLeftScrollbar, updateRightScrollbar]);
 
@@ -485,6 +564,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   // Now hook up drag handlers for profiles and log
   makeDrag(profilesThumbRef, profilesTrackRef, profilesBodyRef, profilesThumbTop, profilesThumbHeight, setProfilesThumbTop);
   makeDrag(logThumbRef, logTrackRef, logBodyRef, logThumbTop, logThumbHeight, setLogThumbTop);
+  makeDrag(metricsThumbRef, metricsTrackRef, metricsBodyRef, metricsThumbTop, metricsThumbHeight, setMetricsThumbTop);
 
   React.useEffect(() => {
     const body = leftBodyRef.current;
@@ -503,7 +583,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
     }
   }, [rightBodyRef.current, updateRightScrollbar]);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'profiles' | 'log'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'profiles' | 'log' | 'metrics'>('overview');
   const [confirmReset, setConfirmReset] = useState(false);
   const [showAllProfiles, setShowAllProfiles] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
@@ -527,9 +607,12 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
 
 
 
-  const { profiles, recommendations } = useMemo(() => parseAdvisorData(advisorData), [advisorData]);
+  const advisorParsed = useMemo(() => parseAdvisorData(advisorData), [advisorData]);
+  const profiles = advisorParsed.profiles;
+  const recommendations = advisorParsed.recommendations;
   const decisions = useMemo(() => parseDecisionLog(decisionLogData), [decisionLogData]);
   const stats = useMemo(() => parseLearningStats(learningStatsData), [learningStatsData]);
+  const autoTaxMetrics = useMemo(() => parseAutoTaxStatus(autoTaxStatus), [autoTaxStatus]);
 
   // Recompute left/right scrollbars when profiles/decisions/activeTab change
   useEffect(() => {
@@ -545,7 +628,10 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
     if (activeTab === 'log') {
       requestAnimationFrame(() => requestAnimationFrame(() => updateLogScrollbar()));
     }
-  }, [activeTab, profiles.length, decisions.length, updateProfilesScrollbar, updateLogScrollbar]);
+    if (activeTab === 'metrics') {
+      requestAnimationFrame(() => requestAnimationFrame(() => updateMetricsScrollbar()));
+    }
+  }, [activeTab, profiles.length, decisions.length, updateProfilesScrollbar, updateLogScrollbar, updateMetricsScrollbar]);
 
   const sortedProfiles = useMemo(
     () => [...profiles].sort((a, b) => b.sampleCount - a.sampleCount),
@@ -664,6 +750,12 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
           onClick={() => setActiveTab('log')}
         >
           Log ({decisions.length})
+        </button>
+        <button
+          className={`advisor-tab${activeTab === 'metrics' ? ' advisor-tab-active' : ''}`}
+          onClick={() => setActiveTab('metrics')}
+        >
+          Metrics
         </button>
       </div>
 
@@ -859,6 +951,104 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
               <div ref={logThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${logThumbTop}px`, height: `${logThumbHeight}px` }} />
             </div>
           </div>
+
+        <div className="advisor-metrics" style={{ display: activeTab === 'metrics' ? undefined : 'none' }}>
+          <div className="advisor-scroll-box advisor-metrics-scroll" ref={metricsBodyRef} onScroll={updateMetricsScrollbar}>
+            {(() => {
+              const list = autoTaxMetrics.resources;
+              if (!list || list.length === 0) {
+                return <div className="advisor-empty">No auto-tax metrics yet.</div>;
+              }
+              const avgScore = list.reduce((a: number, b: AutoTaxResourceInfo) => a + b.score, 0) / Math.max(1, list.length);
+              const avgProfit = list.reduce((a: number, b: AutoTaxResourceInfo) => a + b.avgProfit, 0) / Math.max(1, list.length);
+              const avgHappiness = list.reduce((a: number, b: AutoTaxResourceInfo) => a + b.happiness, 0) / Math.max(1, list.length);
+              const topPositive = [...list].sort((a: AutoTaxResourceInfo, b: AutoTaxResourceInfo) => b.score - a.score).slice(0, 4);
+              const topNegative = [...list].sort((a: AutoTaxResourceInfo, b: AutoTaxResourceInfo) => a.score - b.score).slice(0, 4);
+
+              return (
+                <div>
+                  <div className="advisor-metrics-summary">
+                    <div className="advisor-metric-card">
+                      <div className="advisor-metric-label">City Happiness</div>
+                      <div className="advisor-metric-value">{autoTaxMetrics.happiness}%</div>
+                    </div>
+                    <div className="advisor-metric-card">
+                      <div className="advisor-metric-label">Adjustments</div>
+                      <div className="advisor-metric-value">{autoTaxMetrics.adjustCount}</div>
+                      <div className="advisor-metric-sub">Raise {autoTaxMetrics.raiseCount} · Lower {autoTaxMetrics.lowerCount} · Hold {autoTaxMetrics.holdCount}</div>
+                    </div>
+                    <div className="advisor-metric-card">
+                      <div className="advisor-metric-label">Avg Score</div>
+                      <div className="advisor-metric-value">{avgScore.toFixed(2)}</div>
+                      <div className="advisor-metric-sub">Avg Profit {avgProfit > 0 ? '+' : ''}{avgProfit.toFixed(0)}%</div>
+                    </div>
+                    <div className="advisor-metric-card">
+                      <div className="advisor-metric-label">Avg Resource Happiness</div>
+                      <div className="advisor-metric-value">{avgHappiness.toFixed(0)}%</div>
+                    </div>
+                  </div>
+
+                  <div className="advisor-metrics-highlights">
+                    <div className="advisor-metrics-block">
+                      <div className="advisor-section-title">Top Positive</div>
+                      {topPositive.map((r: AutoTaxResourceInfo) => (
+                        <div key={`pos-${r.key}`} className="advisor-metrics-row">
+                          <span>{getResourceLabel(r.key)}</span>
+                          <span style={{ color: '#8bdb46' }}>{r.score.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="advisor-metrics-block">
+                      <div className="advisor-section-title">Top Negative</div>
+                      {topNegative.map((r: AutoTaxResourceInfo) => (
+                        <div key={`neg-${r.key}`} className="advisor-metrics-row">
+                          <span>{getResourceLabel(r.key)}</span>
+                          <span style={{ color: '#e05050' }}>{r.score.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="advisor-metrics-table">
+                    <div className="advisor-metrics-header">
+                      <span className="advisor-metrics-col">Resource</span>
+                      <span className="advisor-metrics-col">Dir</span>
+                      <span className="advisor-metrics-col">Score</span>
+                      <span className="advisor-metrics-col">Balance</span>
+                      <span className="advisor-metrics-col">Demand</span>
+                      <span className="advisor-metrics-col">Income</span>
+                      <span className="advisor-metrics-col">Profit</span>
+                      <span className="advisor-metrics-col">Happy</span>
+                      <span className="advisor-metrics-col">Rate Drag</span>
+                      <span className="advisor-metrics-col">Companies</span>
+                      <span className="advisor-metrics-col">Avg Profit</span>
+                      <span className="advisor-metrics-col">Learned</span>
+                    </div>
+                    {list.map((r: AutoTaxResourceInfo) => (
+                      <div key={`row-${r.key}`} className="advisor-metrics-data">
+                        <span className="advisor-metrics-col">{getResourceLabel(r.key)}</span>
+                        <span className="advisor-metrics-col" style={{ color: getDirectionColor(r.direction) }}>{getDirectionSymbol(r.direction)}</span>
+                        <span className="advisor-metrics-col" style={{ color: getOutcomeColor(r.score) }}>{r.score.toFixed(2)}</span>
+                        <span className="advisor-metrics-col">{r.balance.toFixed(2)}</span>
+                        <span className="advisor-metrics-col">{r.demand.toFixed(2)}</span>
+                        <span className="advisor-metrics-col">{r.income.toFixed(2)}</span>
+                        <span className="advisor-metrics-col">{r.profit.toFixed(2)}</span>
+                        <span className="advisor-metrics-col">{r.happiness.toFixed(0)}%</span>
+                        <span className="advisor-metrics-col">{r.rateDrag.toFixed(2)}</span>
+                        <span className="advisor-metrics-col">{r.companies}</span>
+                        <span className="advisor-metrics-col">{r.avgProfit > 0 ? '+' : ''}{r.avgProfit.toFixed(0)}%</span>
+                        <span className="advisor-metrics-col">{r.learned.toFixed(0)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+          <div ref={metricsTrackRef} className="advisor-scrollbar-track" aria-hidden>
+            <div ref={metricsThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${metricsThumbTop}px`, height: `${metricsThumbHeight}px` }} />
+          </div>
+        </div>
       </div>
     </div>
   );

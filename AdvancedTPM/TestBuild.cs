@@ -1,0 +1,1 @@
+using Game.Simulation; public class Test { public void X() { CountResidentialPropertySystem s = null; } }

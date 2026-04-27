@@ -1,0 +1,60 @@
+.res-panel { display:flex; flex-direction:column; padding:12rem; color:rgba(255,255,255,0.85); }
+.res-panel { display:flex; flex-direction:column; height:100%; }
+.res-panel > * { margin-bottom:12rem; }
+.res-panel > *:last-child { margin-bottom:0; }
+.res-panel-empty { padding:20rem; text-align:center; color:rgba(255,255,255,0.5); font-style:italic; }
+.res-panel-summary { display:flex; flex-wrap:wrap; flex-shrink:0; }
+.res-panel-summary > * { margin-right:12rem; margin-bottom:12rem; }
+.res-panel-summary > *:last-child { margin-right:0; }
+.res-summary-card { background:rgba(22,30,44,0.8); border:1rem solid rgba(255,255,255,0.06); border-radius:6rem; padding:12rem; min-width:180rem; }
+.res-summary-label { font-size:11rem; text-transform:uppercase; color:rgba(255,255,255,0.5); margin-bottom:4rem; }
+.res-summary-value { font-size:22rem; font-weight:800; color:#50b8e9; margin-bottom:4rem; white-space:nowrap; }
+.res-summary-sub { font-size:11rem; color:rgba(255,255,255,0.7); margin-bottom:2rem; }
+.res-panel-table { background:rgba(18,26,38,0.9); border:1rem solid rgba(255,255,255,0.05); border-radius:6rem; overflow:hidden; flex-shrink:0; }
+.res-table-header, .res-table-row { display:flex; align-items:center; padding:8rem 12rem; }
+.res-table-header { background:rgba(35,46,64,0.9); font-size:11rem; text-transform:uppercase; color:rgba(255,255,255,0.6); font-weight:700; }
+.res-table-row { border-top:1rem solid rgba(255,255,255,0.05); }
+.res-col-density { width:90rem; font-weight:700; }
+.res-col-total, .res-col-occupied, .res-col-free, .res-col-occupancy { width:120rem; text-align:right; }
+
+/* Per-building section */
+.res-bldg-section { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+.res-bldg-filters { display:flex; align-items:center; flex-wrap:wrap; margin-bottom:8rem; flex-shrink:0; }
+.res-bldg-filters > * { margin-right:8rem; margin-bottom:4rem; }
+.res-bldg-filters > *:last-child { margin-right:0; }
+.res-bldg-density-tabs { display:flex; }
+.res-bldg-density-tabs > * { margin-right:4rem; }
+.res-density-tab { padding:4rem 10rem; font-size:11rem; font-weight:600; color:rgba(255,255,255,0.6); background:transparent; border:1rem solid rgba(255,255,255,0.15); border-radius:3rem; cursor:pointer; }
+.res-density-active { background:rgba(80,184,233,0.15); color:#ffffff; }
+.res-bldg-search { width:160rem; padding:4rem 8rem; font-size:11rem; background:rgba(15,24,37,0.95); border:1rem solid rgba(124,152,189,0.4); border-radius:3rem; color:#e7edf2; }
+.res-bldg-count { font-size:11rem; color:rgba(255,255,255,0.5); margin-left:auto; }
+
+/* Building table */
+.res-bldg-table { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; background:rgba(18,26,38,0.9); border:1rem solid rgba(255,255,255,0.05); border-radius:6rem; overflow:hidden; }
+.res-bldg-header { display:flex; align-items:center; padding:8rem 12rem; background:rgba(35,46,64,0.9); font-size:11rem; text-transform:uppercase; color:rgba(255,255,255,0.6); font-weight:700; flex-shrink:0; }
+.res-bldg-header > * { margin-right:8rem; }
+.res-bldg-header > *:last-child { margin-right:0; }
+.res-sortable { cursor:pointer; user-select:none; }
+.res-sortable:hover { color:#ffffff; }
+
+/* Scroll wrapper and body */
+.res-bldg-scroll-wrap { position:relative; flex:1 1 auto; min-height:0; overflow:hidden; }
+.res-bldg-body { height:100%; overflow-y:auto; padding-right:18rem; box-sizing:border-box; }
+.res-bldg-row, .res-bldg-row-alt { display:flex; align-items:center; padding:7rem 12rem; font-size:12rem; color:rgba(255,255,255,0.85); border-top:1rem solid rgba(255,255,255,0.04); }
+.res-bldg-row-alt { background:rgba(255,255,255,0.015); }
+
+/* Columns */
+.res-bcol-address { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.res-bcol-density { width:80rem; font-size:11rem; font-weight:700; }
+.res-bcol-level { width:50rem; text-align:center; }
+.res-bcol-occupied, .res-bcol-capacity, .res-bcol-occupancy { width:70rem; text-align:right; }
+.res-level-badge { display:inline-block; padding:2rem 5rem; font-size:10rem; background:rgba(80,184,233,0.15); border:1rem solid rgba(80,184,233,0.3); border-radius:3rem; color:#50b8e9; }
+
+/* Happiness and locate button */
+.res-bcol-happy { width:100rem; }
+.res-locate-btn { padding:4rem 8rem; font-size:10rem; border-radius:3rem; background:rgba(80,184,233,0.12); border:1rem solid rgba(80,184,233,0.25); color:#50b8e9; cursor:pointer; }
+.res-locate-btn:hover { background:rgba(80,184,233,0.25); }
+
+/* Overlay scrollbar */
+.res-scrollbar-track { position:absolute; right:4rem; top:0; width:10rem; height:100%; display:none; pointer-events:auto; z-index:20; }
+.res-scrollbar-thumb { position:absolute; right:0.5rem; width:7rem; background:rgba(80,120,160,0.85); border-radius:5rem; pointer-events:auto; cursor:grab; z-index:21; }

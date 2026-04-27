@@ -29,6 +29,19 @@ namespace AdvancedTPM
         private ValueBinding<int> _advancedWindowHeight;
         private ValueBinding<string> _resourceRowsData;
 
+        // Stub bindings — UI subscribes to these; C# updates them when the features are implemented
+        private ValueBinding<string> _companySummaries;
+        private ValueBinding<string> _companyDetail;
+        private ValueBinding<string> _companyPerf;
+        private ValueBinding<bool>   _overviewTwoColumn;
+        private ValueBinding<string> _signatureInfo;
+        private ValueBinding<string> _administrationBrowserData;
+        private ValueBinding<string> _debugFileContents;
+        private ValueBinding<int>    _debugWindowX;
+        private ValueBinding<int>    _debugWindowY;
+        private ValueBinding<int>    _debugWindowWidth;
+        private ValueBinding<int>    _debugWindowHeight;
+
         private CountCompanyDataSystem _countCompanyDataSystem;
         private IndustrialDemandSystem _industrialDemandSystem;
         private CommercialDemandSystem _commercialDemandSystem;
@@ -316,7 +329,21 @@ namespace AdvancedTPM
             AddBinding(_advancedWindowHeight = new ValueBinding<int>("taxProduction", "advancedWindowHeight", settings?.AdvancedWindowHeight ?? 420));
             AddBinding(_resourceRowsData = new ValueBinding<string>("taxProduction", "resourceRowsData", SerializeRows()));
 
+            // Stub bindings — keeps UI from crashing on subscribe when features are not yet driven from C#
+            AddBinding(_companySummaries           = new ValueBinding<string>("taxProduction", "companySummaries", ""));
+            AddBinding(_companyDetail              = new ValueBinding<string>("taxProduction", "companyDetail", ""));
+            AddBinding(_companyPerf                = new ValueBinding<string>("taxProduction", "companyPerf", ""));
+            AddBinding(_overviewTwoColumn          = new ValueBinding<bool>("taxProduction", "overviewTwoColumn", false));
+            AddBinding(_signatureInfo              = new ValueBinding<string>("taxProduction", "signatureInfo", ""));
+            AddBinding(_administrationBrowserData  = new ValueBinding<string>("taxProduction", "administrationBrowserData", ""));
+            AddBinding(_debugFileContents          = new ValueBinding<string>("taxProduction", "debugFileContents", ""));
+            AddBinding(_debugWindowX               = new ValueBinding<int>("taxProduction", "debugWindowX", 0));
+            AddBinding(_debugWindowY               = new ValueBinding<int>("taxProduction", "debugWindowY", 0));
+            AddBinding(_debugWindowWidth           = new ValueBinding<int>("taxProduction", "debugWindowWidth", 320));
+            AddBinding(_debugWindowHeight          = new ValueBinding<int>("taxProduction", "debugWindowHeight", 380));
+
             AddBinding(new TriggerBinding("taxProduction", "toggleAdvancedWindow", ToggleAdvancedWindow));
+            AddBinding(new TriggerBinding<string>("taxProduction", "uiError", (msg) => Mod.log.Warn("[UI ERROR] " + (msg ?? ""))));
             AddBinding(new TriggerBinding<int>("taxProduction", "setGlobalTaxRate", SetGlobalTaxRate));
             AddBinding(new TriggerBinding<string>("taxProduction", "setResourceTaxRate", SetResourceTaxRate));
             AddBinding(new TriggerBinding<string>("taxProduction", "setResourceCategory", SetResourceCategory));
@@ -337,6 +364,16 @@ namespace AdvancedTPM
             if (settings == null)
             {
                 return;
+            }
+
+            if (_debugEnabled.value != settings.DebugEnabled)
+            {
+                _debugEnabled.Update(settings.DebugEnabled);
+            }
+
+            if (_debugPanelVisible.value != settings.ShowDebugPanel)
+            {
+                _debugPanelVisible.Update(settings.ShowDebugPanel);
             }
 
             if (_showTips.value != settings.ShowTips)

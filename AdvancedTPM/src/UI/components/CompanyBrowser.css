@@ -2,9 +2,10 @@
 .cb-container { display:flex; flex-direction:column; height:100%; overflow:hidden; min-height:0; }
 
 /* Filters */
-.cb-filters { display:flex; align-items:center; padding:6rem 10rem; border-bottom:1rem solid rgba(255,255,255,0.08); }
-.cb-filter-rows { display:flex; flex-direction:column; flex:1 1 420rem; min-width:220rem; }
-.cb-zone-tabs { display:flex; flex-wrap:wrap; margin-bottom:6rem; }
+.cb-filters { display:flex; flex-direction:column; gap:4rem; padding:6rem 10rem; border-bottom:1rem solid rgba(255,255,255,0.08); }
+.cb-filter-top { display:flex; align-items:center; justify-content:space-between; gap:10rem; width:100%; }
+.cb-filter-right { display:flex; align-items:center; gap:8rem; flex:0 1 auto; margin-left:auto; flex-wrap:wrap; justify-content:flex-end; min-width:0; }
+.cb-zone-tabs { display:flex; flex-wrap:wrap; margin-bottom:0; }
 .cb-zone-tab { padding:4rem 12rem; font-size:11rem; font-weight:600; color:rgba(255,255,255,0.55); background:transparent; border:1rem solid rgba(255,255,255,0.15); border-radius:3rem; margin-right:6rem; margin-bottom:4rem; cursor:pointer; transition:background-color 0.15s, color 0.15s; }
 .cb-zone-tab:hover { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.8); }
 .cb-zone-tab-active { background:rgba(80,184,233,0.2); border-color:rgba(80,184,233,0.5); color:#50b8e9; }
@@ -15,8 +16,18 @@
 .cb-search-box { margin-left:8rem; flex-shrink:0; }
 .cb-search-input { width:140rem; padding:4rem 8rem; font-size:11rem; background:rgba(15,24,37,0.95); border:1rem solid rgba(124,152,189,0.4); border-radius:3rem; color:#e7edf2; }
 
+/* Resource filter */
+.cb-resource-filter { display:flex; align-items:flex-start; padding:0 0 4rem 0; width:100%; }
+.cb-resource-tabs { display:flex; flex-wrap:wrap; flex:1; min-width:0; }
+.cb-resource-tab { display:flex; align-items:center; justify-content:center; width:26rem; height:26rem; padding:0; color:rgba(255,255,255,0.45); background:transparent; border:1rem solid rgba(255,255,255,0.1); border-radius:3rem; cursor:pointer; transition:background-color 0.15s, color 0.15s, transform 0.15s; margin-right:4rem; margin-bottom:4rem; }
+.cb-resource-tab:hover { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.7); }
+.cb-resource-tab-active { background:rgba(80,184,233,0.18); border-color:rgba(80,184,233,0.5); color:#50b8e9; }
+.cb-resource-tab-text { font-size:10rem; font-weight:700; }
+.cb-resource-tab-icon { width:20rem; height:20rem; flex-shrink:0; }
+.cb-resource-tab:hover .cb-resource-tab-icon { transform:scale(1.08); }
+
 /* Profit range slider */
-.cb-profit-filter { display:flex; align-items:center; padding:0; margin-left:0; flex:0 1 360rem; min-width:160rem; }
+.cb-profit-filter { display:flex; align-items:center; padding:0; margin-left:0; flex:0 1 300rem; min-width:0; }
 /* removed cb-profit-stack */
 .cb-profit-label { font-size:10rem; font-weight:600; color:rgba(255,255,255,0.75); margin-right:8rem; white-space:nowrap; }
 .cb-profit-slider-wrap { flex:1; display:flex; align-items:center; }
@@ -44,7 +55,9 @@
 
 /* Column widths */
 .cb-col-name { flex:2; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 4rem; }
-.cb-col-zone { width:80rem; padding:0 4rem; flex-shrink:0; }
+.cb-col-address { flex:1.4; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 4rem; font-size:11rem; }
+.cb-col-zone { width:100rem; padding:0 4rem; flex-shrink:0; overflow:hidden; }
+.cb-zone-badge { max-width:96rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cb-col-resource { width:110rem; padding:0 4rem; flex-shrink:0; display:flex; align-items:center; }
 .cb-col-profit { width:75rem; padding:0 4rem; flex-shrink:0; display:flex; align-items:center; justify-content:flex-end; white-space:nowrap; }
 .cb-col-tax { width:50rem; padding:0 4rem; flex-shrink:0; display:flex; align-items:center; justify-content:flex-end; white-space:nowrap; font-size:11rem; }
@@ -103,6 +116,8 @@
 /* Zone badges */
 .cb-zone-badge { font-size:10rem; font-weight:600; padding:2rem 6rem; border-radius:2rem; text-transform:uppercase; letter-spacing:0.3rem; }
 .cb-zone-industrial { background:rgba(232,140,58,0.2); color:#e88c3a; }
+.cb-zone-rawindustrial { background:rgba(139,219,70,0.18); color:#8bdb46; }
+.cb-zone-storage { background:rgba(100,160,220,0.18); color:#64a0dc; }
 .cb-zone-commercial { background:rgba(80,184,233,0.2); color:#50b8e9; }
 .cb-zone-office { background:rgba(160,100,220,0.2); color:#a064dc; }
 

@@ -1,0 +1,27 @@
+.svc-panel { padding:12rem; }
+.svc-panel { display:flex; flex-direction:column; height:100%; }
+.svc-filters { display:flex; flex-direction:column; margin-bottom:12rem; flex-shrink:0; }
+.svc-category-tabs { display:flex; flex-wrap:wrap; }
+.svc-category-tabs > * { margin-right:6rem; margin-bottom:6rem; }
+.svc-category-tabs > *:last-child { margin-right:0; }
+.svc-category-tab { padding:4rem 10rem; font-size:11rem; font-weight:600; color:rgba(255,255,255,0.6); background:transparent; border:1rem solid rgba(255,255,255,0.15); border-radius:3rem; cursor:pointer; }
+.svc-category-active { background:rgba(80,184,233,0.2); border-color:rgba(80,184,233,0.5); color:#50b8e9; }
+.svc-controls { display:flex; margin-top:6rem; }
+.svc-search { width:180rem; padding:4rem 8rem; font-size:11rem; background:rgba(15,24,37,0.95); border:1rem solid rgba(124,152,189,0.4); border-radius:3rem; color:#e7edf2; }
+.svc-panel-empty { padding:20rem; text-align:center; color:rgba(255,255,255,0.5); font-style:italic; }
+
+/* Table layout: sticky header + scrollable body */
+.svc-table { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; background:rgba(18,26,38,0.9); border:1rem solid rgba(255,255,255,0.05); border-radius:6rem; overflow:hidden; }
+.svc-table-header { display:flex; align-items:center; padding:8rem 12rem; background:rgba(35,46,64,0.9); font-size:11rem; text-transform:uppercase; color:rgba(255,255,255,0.6); font-weight:700; flex-shrink:0; white-space:nowrap; }
+.svc-scroll-wrap { position:relative; flex:1 1 auto; min-height:0; overflow:hidden; }
+.svc-table-body { height:100%; overflow-y:auto; padding-right:18rem; box-sizing:border-box; }
+.svc-table-row { display:flex; align-items:center; padding:8rem 12rem; border-top:1rem solid rgba(255,255,255,0.05); color:rgba(255,255,255,0.85); font-size:12rem; }
+.svc-col-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.svc-col-category { width:110rem; text-align:left; font-size:11rem; color:rgba(255,255,255,0.7); }
+.svc-col-budget, .svc-col-fee, .svc-col-eff, .svc-col-coverage, .svc-col-cap, .svc-col-usage, .svc-col-upkeep { width:70rem; text-align:right; font-size:11rem; white-space:nowrap; }
+
+/* Overlay scrollbar */
+.svc-scrollbar-track { position:absolute; right:4rem; top:0; width:10rem; height:100%; display:none; pointer-events:auto; z-index:20; }
+.svc-scrollbar-thumb { position:absolute; right:0.5rem; width:7rem; background:rgba(80,120,160,0.85); border-radius:5rem; pointer-events:auto; cursor:grab; z-index:21; }
+
+.svc-debug-payload { margin:12rem; padding:12rem; background:rgba(0,0,0,0.35); border-radius:6rem; color:#e7edf2; font-size:10rem; white-space:pre-wrap; overflow:auto; max-height:200rem; }

@@ -50,6 +50,7 @@ namespace AdvancedTPM
         // Queries
         private EntityQuery _industrialQuery;
         private EntityQuery _commercialQuery;
+        private EntityQuery _storageQuery;
 
         // Aggregate per-resource profitability for auto-tax integration
         private readonly Dictionary<Resource, float> _avgProfitByResource = new Dictionary<Resource, float>();
@@ -90,7 +91,8 @@ namespace AdvancedTPM
                     ComponentType.ReadOnly<IndustrialCompany>(),
                     ComponentType.ReadOnly<PrefabRef>(),
                     ComponentType.ReadOnly<PropertyRenter>(),
-                }
+                },
+                None = new ComponentType[] { ComponentType.ReadOnly<Game.Companies.StorageCompany>() }
             });
 
             _commercialQuery = GetEntityQuery(new EntityQueryDesc
@@ -98,6 +100,17 @@ namespace AdvancedTPM
                 All = new ComponentType[]
                 {
                     ComponentType.ReadOnly<CommercialCompany>(),
+                    ComponentType.ReadOnly<PrefabRef>(),
+                    ComponentType.ReadOnly<PropertyRenter>(),
+                },
+                None = new ComponentType[] { ComponentType.ReadOnly<Game.Companies.StorageCompany>() }
+            });
+
+            _storageQuery = GetEntityQuery(new EntityQueryDesc
+            {
+                All = new ComponentType[]
+                {
+                    ComponentType.ReadOnly<Game.Companies.StorageCompany>(),
                     ComponentType.ReadOnly<PrefabRef>(),
                     ComponentType.ReadOnly<PropertyRenter>(),
                 }
@@ -273,9 +286,11 @@ namespace AdvancedTPM
 
             int indCount = _industrialQuery.IsEmptyIgnoreFilter ? 0 : _industrialQuery.CalculateEntityCount();
             int comCount = _commercialQuery.IsEmptyIgnoreFilter ? 0 : _commercialQuery.CalculateEntityCount();
+            int stoCount = _storageQuery.IsEmptyIgnoreFilter ? 0 : _storageQuery.CalculateEntityCount();
 
             CollectFromQuery(_industrialQuery, "Industrial", result, resourceProfitSums);
             CollectFromQuery(_commercialQuery, "Commercial", result, resourceProfitSums);
+            CollectFromQuery(_storageQuery, "Storage", result, resourceProfitSums);
 
             // Compute average profit per resource for auto-tax integration
             _avgProfitByResource.Clear();
@@ -392,20 +407,65 @@ namespace AdvancedTPM
                         if (processData.m_Input2.m_Resource != Resource.NoResource)
                             info.InputResource2 = GetResourceKey(processData.m_Input2.m_Resource);
 
-                            // Determine zone: Office resources override default
-                                if (outputRes == Resource.Software || outputRes == Resource.Telecom ||
-                                    outputRes == Resource.Financial || outputRes == Resource.Media)
-                                {
-                                    info.ZoneType = "Office";
-                                }
+                        // For commercial companies, physical goods get "c_" prefix to
+                        // distinguish them from industrial goods in the UI taxonomy
+                        if (em.HasComponent<CommercialCompany>(entity) && !string.IsNullOrEmpty(info.ResourceKey))
+                        {
+                            switch (outputRes)
+                            {
+                                case Resource.Food: case Resource.Beverages: case Resource.ConvenienceFood:
+                                case Resource.Textiles: case Resource.Timber: case Resource.Paper:
+                                case Resource.Furniture: case Resource.Metals: case Resource.Steel:
+                                case Resource.Minerals: case Resource.Concrete: case Resource.Machinery:
+                                case Resource.Electronics: case Resource.Vehicles:
+                                case Resource.Petrochemicals: case Resource.Plastics:
+                                case Resource.Chemicals: case Resource.Pharmaceuticals:
+                                    info.ResourceKey = "c_" + info.ResourceKey;
+                                    break;
                             }
                         }
-                        else
+
+                        // Determine zone: Office resources override default
+                        if (defaultZone == "Industrial" || defaultZone == "RawIndustrial")
                         {
-                            info.Name = "Company #" + entity.Index;
+                            if (outputRes == Resource.Software || outputRes == Resource.Telecom ||
+                                outputRes == Resource.Financial || outputRes == Resource.Media)
+                            {
+                                info.ZoneType = "Office";
+                            }
+                            else if (IsRawResource(outputRes))
+                            {
+                                info.ZoneType = "RawIndustrial";
+                            }
+                        }
+                    }
+                    else if (em.HasComponent<Game.Prefabs.StorageCompanyData>(prefab))
+                    {
+                        var storageCompany = em.GetComponentData<Game.Prefabs.StorageCompanyData>(prefab);
+                        // Convert bitmask to a single Resource enum by taking the lowest set bit.
+                        // Game.Economy.Resource is an enum with flags, usually companies focus on one.
+                        Game.Economy.Resource storedFlags = storageCompany.m_StoredResources;
+                        Resource storedRes = Resource.NoResource;
+
+                        foreach (Resource flag in Enum.GetValues(typeof(Resource)))
+                        {
+                            if (flag != Resource.NoResource && (storedFlags & flag) != 0)
+                            {
+                                storedRes = flag;
+                                break;
+                            }
                         }
 
-                        // --- Tax rate for this company's resource ---
+                        info.ResourceKey = GetResourceKey(storedRes);
+                        info.ResourceEnum = storedRes;
+                    }
+                    else
+                    {
+                        info.Name = "Company #" + entity.Index;
+                    }
+                } // End of PrefabRef block
+
+                // --- Tax rate for this company's resource ---
                         if (_taxSystem != null && info.ResourceEnum != Resource.NoResource)
                         {
                             try
@@ -953,18 +1013,19 @@ namespace AdvancedTPM
                 int tax = 0;
                 try
                 {
-                    if (em.HasComponent<PropertyRenter>(companyEntity))
+                    var infoOpt = ReadCompanyInfo(em, companyEntity, "Unknown");
+                    if (infoOpt.HasValue)
                     {
-                        // try to read tax via company resource if available
-                        // fallback to 0
+                        tax = infoOpt.Value.TaxRate;
                     }
                 }
                 catch { }
+
                 factorMap["taxEffects"] = -(float)Math.Max(0, tax - 10) * 0.5f;
 
                 // electricityFee / waterFee: small cost effect proportional to tax
-                factorMap["electricityFee"] = needsElec ? (float)(Math.Max(0, tax) * 0.05) : 0f;
-                factorMap["waterFee"] = needsWater ? (float)(Math.Max(0, tax) * 0.03) : 0f;
+                factorMap["electricityFee"] = needsElec ? -(float)(Math.Max(0, tax) * 0.05) : 0f;
+                factorMap["waterFee"] = needsWater ? -(float)(Math.Max(0, tax) * 0.03) : 0f;
 
                 // Build payload
                 string key = companyEntity.Index + "," + companyEntity.Version;
@@ -992,7 +1053,7 @@ namespace AdvancedTPM
             foreach (var c in companies)
             {
                 parts.Add(string.Format(CultureInfo.InvariantCulture,
-                    "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9:F0}|{10:F0}|{11:F0}|{12}|{13}|{14}|{15}|{16}|{17}|{18}|{19}|{20}|{21}|{22}|{23}|{24}|{25}|{26}",
+                    "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9:F0}|{10:F0}|{11:F0}|{12}|{13}|{14}|{15}|{16}|{17}|{18}|{19}|{20}|{21}|{22}|{23}|{24}|{25}|{26}|{27}|{28}|{29}|{30}|{31}",
                     c.Entity.Index, c.Entity.Version,
                     EscapePipe(c.Name ?? "Unknown"),
                     c.ZoneType,
@@ -1134,6 +1195,26 @@ namespace AdvancedTPM
                 case Resource.Entertainment: return "entertainment";
                 case Resource.Recreation: return "recreation";
                 default: return "";
+            }
+        }
+
+        private static bool IsRawResource(Resource resource)
+        {
+            switch (resource)
+            {
+                case Resource.Grain:
+                case Resource.Vegetables:
+                case Resource.Cotton:
+                case Resource.Livestock:
+                case Resource.Fish:
+                case Resource.Wood:
+                case Resource.Ore:
+                case Resource.Stone:
+                case Resource.Coal:
+                case Resource.Oil:
+                    return true;
+                default:
+                    return false;
             }
         }
     }

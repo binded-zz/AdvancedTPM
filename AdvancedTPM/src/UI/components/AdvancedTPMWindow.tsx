@@ -5,6 +5,8 @@ import { resourceCategories, ResourceCategory } from '../data/resourceTaxonomy';
 import AutoTaxSettingsPanel from './AutoTaxSettingsPanel';
 import CompanyBrowser, { parseCompanies } from './CompanyBrowser';
 import AdvisorPanel from './AdvisorPanel';
+import ResidentialPanel from './ResidentialPanel';
+import ServicesPanel from './ServicesPanel';
 import './AdvancedTPMWindow.css';
 
 interface TaxResourceKey {
@@ -48,11 +50,14 @@ interface AdvancedTPMWindowProps {
   signatureCompaniesJson?: string;
   signatureCacheStatus?: string;
   signatureInfo?: string;
+  onRefreshSignatureCache?: () => void;
+  onRefreshCompanyBrowserData?: () => void;
   advisorData: string;
   decisionLogData: string;
   learningStatsData: string;
   learningEnabled: boolean;
   residentialBrowserData?: string;
+  residentialBuildingsData?: string;
   administrationBrowserData?: string;
   servicesBrowserData?: string;
   onAutoTaxToggle: (enabled: boolean) => void;
@@ -60,6 +65,7 @@ interface AdvancedTPMWindowProps {
   onResourceTaxRateChange: (key: string, rate: number) => void;
   onCategoryChange: (category: string) => void;
   onCollapseChange?: (collapsed: boolean) => void;
+  onToggleDebugPanel?: () => void;
   onClose: () => void;
 }
 
@@ -543,14 +549,20 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   decisionLogData,
   learningStatsData,
   learningEnabled,
+  residentialBrowserData,
+  residentialBuildingsData,
+  servicesBrowserData,
   signaturePrefabs,
   signatureCompaniesJson,
   signatureCacheStatus,
+  onRefreshSignatureCache,
+  onRefreshCompanyBrowserData,
   onToggleLearning,
   onAutoTaxToggle,
   onResourceTaxRateChange,
   onCategoryChange,
   onCollapseChange,
+  onToggleDebugPanel,
   onClose,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -574,18 +586,19 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
     window.addEventListener('atpm.useGameIconsChanged', handler as EventListener);
     return () => window.removeEventListener('atpm.useGameIconsChanged', handler as EventListener);
   }, []);
-  const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor'>('resources');
+  const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor' | 'residential' | 'services'>('resources');
   const safeCategory = (selectedCategory || 'all').toLowerCase();
   const iconMap = new Map(resourceCategories.flatMap((c) => c.resources.map((r) => [r.key, r.icon] as const)));
   const autoTaxParsed = useMemo(() => parseAutoTaxStatus(autoTaxStatus), [autoTaxStatus]);
   const autoTaxDirections = autoTaxParsed?.directions ?? new Map();
+  const businessCompanies = useMemo(() => parseCompanies(companyBrowserData || ''), [companyBrowserData]);
 
   // Compute signature companies using authoritative flags from the server (isSignature)
   // and an explicit list of signature company entity keys published by the C# system.
   let signatureCompanies: any[] = [];
   let signatureCount = 0;
   const _signatureCompanies = useMemo(() => {
-    const all = parseCompanies(companyBrowserData || '');
+    const all = businessCompanies;
     // Parse signature company keys published by the system (JSON array of "idx,ver" strings)
     const keySet = new Set<string>();
     if (signatureCompaniesJson) {
@@ -603,7 +616,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
       try { const parsed = JSON.parse(signaturePrefabs); if (Array.isArray(parsed)) names = parsed.map((s: any) => String(s)); } catch { names = []; }
     }
     return all.filter((c) => c.isSignature || keySet.has(`${c.entityIndex},${c.entityVersion}`) || (names.length > 0 && names.includes(c.name)));
-  }, [companyBrowserData, signatureCompaniesJson, signaturePrefabs]);
+  }, [businessCompanies, signatureCompaniesJson, signaturePrefabs]);
   signatureCompanies = _signatureCompanies;
   signatureCount = signatureCompanies.length;
 
@@ -835,6 +848,12 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         >
           <svg className="adv-settings-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
         </button>
+        <button
+          className="adv-collapse-btn"
+          onClick={() => onToggleDebugPanel?.()}
+          title="Open / close debug panel"
+          style={{ fontSize: 11, opacity: 0.6 }}
+        >DBG</button>
         <button className="adv-collapse-btn" onClick={() => setCollapsed((v) => !v)}>{collapsed ? '+' : '−'}</button>
         <button className="adv-close-btn" onClick={onClose}>X</button>
       </div>
@@ -869,6 +888,18 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
           onClick={() => setViewMode('advisor')}
         >
           Advisor
+        </button>
+        <button
+          className={`adv-view-tab${viewMode === 'residential' ? ' adv-view-tab-active' : ''}`}
+          onClick={() => setViewMode('residential')}
+        >
+          Residential
+        </button>
+        <button
+          className={`adv-view-tab${viewMode === 'services' ? ' adv-view-tab-active' : ''}`}
+          onClick={() => setViewMode('services')}
+        >
+          Services
         </button>
       </div>
 
@@ -943,7 +974,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
       {/* Businesses view */}
       {viewMode === 'businesses' && (
         <div className="adv-table-section">
-          <CompanyBrowser companies={parseCompanies(companyBrowserData)} happinessData={companyHappinessData} isSignatureView={false} />
+          <CompanyBrowser companies={businessCompanies} happinessData={companyHappinessData} isSignatureView={false} />
         </div>
       )}
 
@@ -973,10 +1004,23 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
             learningStatsData={learningStatsData}
             learningEnabled={learningEnabled}
             useGameIcons={useGameIcons}
+            autoTaxStatus={autoTaxStatus}
             onToggleLearning={(enabled) => trigger('taxProduction', 'setLearningEnabled', enabled)}
             onResetLearning={() => trigger('taxProduction', 'resetLearning')}
             onSetAggressiveness={(level) => trigger('taxProduction', 'setLearningAggressiveness', level)}
           />
+        </div>
+      )}
+
+      {viewMode === 'residential' && (
+        <div className="adv-table-section">
+          <ResidentialPanel residentialBrowserData={residentialBrowserData} residentialBuildingsData={residentialBuildingsData} />
+        </div>
+      )}
+
+      {viewMode === 'services' && (
+        <div className="adv-table-section">
+          <ServicesPanel servicesBrowserData={servicesBrowserData} />
         </div>
       )}
 

@@ -13,11 +13,15 @@ class ErrorBoundary extends React.Component<Props, State> {
   componentDidCatch(error: Error, info: any) {
     this.setState({ hasError: true, error, info });
     try {
-      // Send error to host so it appears in player log. Include stack and component info when possible.
-      const payload = `${this.props.name || 'UI'}: ${error.message}\nSTACK:\n${error.stack || ''}\nCOMPONENT_STACK:\n${info && info.componentStack ? info.componentStack : JSON.stringify(info || {})}`;
+      const stack = error.stack || '';
+      const compStack = (info && info.componentStack) ? info.componentStack : '';
+      const payload = `${this.props.name || 'UI'}: ${error.message}\nSTACK:\n${stack}\nCOMPONENT:\n${compStack}`;
       apiSafe.trigger('taxProduction', 'uiError', payload);
+      // Log each piece separately so CoHTML doesn't truncate
+      console.error('[ATPM] UI crash in ' + (this.props.name || 'unknown') + ': ' + error.message);
+      if (stack) console.error('[ATPM] JS stack: ' + stack);
+      if (compStack) console.error('[ATPM] Component stack: ' + compStack);
     } catch {}
-    try { console.error('ErrorBoundary caught', error, info); } catch {}
   }
 
   render() {

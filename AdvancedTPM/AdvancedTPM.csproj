@@ -88,6 +88,6 @@
 	</ItemGroup>
 
 	<Target Name="BuildUI" AfterTargets="AfterBuild">
-		<Exec Command="npm run build" WorkingDirectory="$(ProjectDir)src" />
+		<Exec Command="npm run build" WorkingDirectory="$(ProjectDir)" />
 	</Target>
 </Project>
