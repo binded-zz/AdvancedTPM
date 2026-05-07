@@ -3,10 +3,14 @@ import { trigger } from 'cs2/api';
 // Removed invalid imports from 'cs2/bindings'.
 import { resourceCategories, ResourceCategory } from '../data/resourceTaxonomy';
 import AutoTaxSettingsPanel from './AutoTaxSettingsPanel';
-import CompanyBrowser, { parseCompanies } from './CompanyBrowser';
+import CompanyBrowser, { parseCompanies, resourceIconSrc, resourceIconName, resourceLabel } from './CompanyBrowser';
 import AdvisorPanel from './AdvisorPanel';
 import ResidentialPanel from './ResidentialPanel';
 import ServicesPanel from './ServicesPanel';
+import DistrictsPanel from './DistrictsPanel';
+import ServiceIcon from '../assets/ServiceIcon';
+import ThemeIcon from '../assets/ThemeIcon';
+import PackIcon from '../assets/PackIcon';
 import './AdvancedTPMWindow.css';
 
 interface TaxResourceKey {
@@ -61,6 +65,9 @@ interface AdvancedTPMWindowProps {
   residentialSignatureBuildingsData?: string;
   administrationBrowserData?: string;
   servicesBrowserData?: string;
+  servicesBuildingsData?: string;
+districtBrowserData?: string;
+districtPoliciesData?: string;
   onAutoTaxToggle: (enabled: boolean) => void;
   onToggleLearning: (enabled: boolean) => void;
   onResourceTaxRateChange: (key: string, rate: number) => void;
@@ -135,7 +142,7 @@ const formatCurrency = (value: number): string => {
   return `${rounded < 0 ? '-' : ''}${Math.abs(rounded).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
-/** Format weight in game-style units: kg / t / kt — unit glued to number (no space) */
+/** Format weight in game-style units: kg / t / kt â€” unit glued to number (no space) */
 const formatWeight = (tonnes: number): string => {
   const abs = Math.abs(tonnes);
   if (abs < 0.001) return '0t';
@@ -167,7 +174,7 @@ const getStageIcon = (stage: string): string => {
   }
 };
 
-/* ── Custom Slider ── */
+/* ———— Custom Slider ———— */
 interface CustomSliderProps {
   value: number;
   min: number;
@@ -221,8 +228,8 @@ const CustomSlider: React.FC<CustomSliderProps> = ({ value, min, max, onChange }
   );
 };
 
-/* ── Resource Sub-Row ── */
-const ResourceSubRow: React.FC<{
+/* ———— Resource Sub-Row ———— */
+const ResourceSubRow = React.memo<{
   resource: ResourceRowVm;
   icon: string;
   localRate: number;
@@ -232,7 +239,7 @@ const ResourceSubRow: React.FC<{
   onSelect: (key: string) => void;
   onTooltipShow: (lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
   onTooltipHide: () => void;
-}> = ({ resource, icon, localRate, selected, autoTaxDir, onRateChange, onSelect, onTooltipShow, onTooltipHide }) => {
+}>(({ resource, icon, localRate, selected, autoTaxDir, onRateChange, onSelect, onTooltipShow, onTooltipHide }) => {
   const [hover, setHover] = useState(false);
   const prodRef = useRef<HTMLDivElement>(null);
   const isIncomeNegative = resource.taxIncome < 0;
@@ -365,10 +372,10 @@ const ResourceSubRow: React.FC<{
       </div>
     </div>
   );
-};
+});
 
-/* ── Category Group Row ── */
-const CategoryGroupRow: React.FC<{
+/* â”€â”€ Category Group Row â”€â”€ */
+const CategoryGroupRow = React.memo<{
   category: ResourceCategory;
   categoryRows: ResourceRowVm[];
   isFirst: boolean;
@@ -383,14 +390,18 @@ const CategoryGroupRow: React.FC<{
   // when true (viewing 'All' resources) this group should start collapsed on mount
   isAllView?: boolean;
   onToggle?: (expanded: boolean) => void;
-}> = ({ category, categoryRows, isFirst, iconMap, localRates, selectedRowKey, autoTaxDirections, onRateChange, onSelect, onTooltipShow, onTooltipHide, isAllView, onToggle }) => {
+}>(({ category, categoryRows, isFirst, iconMap, localRates, selectedRowKey, autoTaxDirections, onRateChange, onSelect, onTooltipShow, onTooltipHide, isAllView, onToggle }) => {
   const [expanded, setExpanded] = useState<boolean>(isAllView ? false : true);
-  // Keep expanded state in sync when view mode changes between 'all' and a single category
+  const isAllViewMounted = useRef(false);
   useEffect(() => {
+    if (!isAllViewMounted.current) {
+      isAllViewMounted.current = true;
+      return; // skip reset on initial mount - initial state already set correctly
+    }
+    // Only reset when the view mode actually switches (all <-> single category)
     const next = isAllView ? false : true;
     setExpanded(next);
     if (onToggle) {
-      // allow layout to settle
       requestAnimationFrame(() => requestAnimationFrame(() => onToggle!(next)));
     }
   }, [isAllView]);
@@ -442,6 +453,11 @@ const CategoryGroupRow: React.FC<{
     <div className={isFirst ? 'adv-category-group' : 'adv-category-group adv-category-group-border'}>
       <div
         className={`adv-category-header${headerHover ? ' adv-category-header-hover' : ''}`}
+        onClick={() => {
+          const next = !expanded;
+          setExpanded(next);
+          if (onToggle) requestAnimationFrame(() => requestAnimationFrame(() => onToggle(next)));
+        }}
         onMouseOver={(e) => {
           setHeaderHover(true);
           // show floating tooltip at mouse coords so it doesn't snap to production/consumption element
@@ -460,12 +476,6 @@ const CategoryGroupRow: React.FC<{
         <div className="adv-category-title">{category.label}</div>
         <div
           className={`adv-expand-button${buttonHover ? ' adv-expand-button-hover' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            const next = !expanded;
-            setExpanded(next);
-            if (onToggle) requestAnimationFrame(() => requestAnimationFrame(() => onToggle(next)));
-          }}
           onMouseOver={() => setButtonHover(true)}
           onMouseOut={() => setButtonHover(false)}
         >
@@ -514,8 +524,7 @@ const CategoryGroupRow: React.FC<{
           </div>
         </div>
       </div>
-      {expanded && (
-        <div className="adv-prefab-list">
+      <div className="adv-prefab-list" style={{ display: expanded ? 'flex' : 'none' }}>
           {categoryRows.map((r) => (
             <ResourceSubRow
               key={r.key}
@@ -531,12 +540,11 @@ const CategoryGroupRow: React.FC<{
             />
           ))}
         </div>
-      )}
     </div>
   );
-};
+});
 
-/* ── Main Advanced Window ── */
+/* ———— Main Advanced Window ———— */
 const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   selectedCategory,
   rows,
@@ -554,6 +562,9 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   residentialBuildingsData,
   residentialSignatureBuildingsData,
   servicesBrowserData,
+  servicesBuildingsData,
+districtBrowserData,
+districtPoliciesData,
   signaturePrefabs,
   signatureCompaniesJson,
   signatureCacheStatus,
@@ -581,22 +592,14 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   useEffect(() => {
     const handler = (e: any) => {
       try {
-        const val = e && typeof e.detail !== 'undefined' ? !!e.detail : (localStorage.getItem('atpm.useGameZoneIcons') === '1');
+        const val = e && typeof e.detail !== 'undefined' ? !!e.detail : (localStorage.getItem('atpm.useGameIcons') === '1');
         setUseGameIcons(val);
       } catch { }
     };
     window.addEventListener('atpm.useGameIconsChanged', handler as EventListener);
     return () => window.removeEventListener('atpm.useGameIconsChanged', handler as EventListener);
   }, []);
-  const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor' | 'residential' | 'services'>('resources');
-
-  // Signature view filter state (must be at top level, not inside render)
-  const [sigTypeFilter, setSigTypeFilter] = useState<'all' | 'commercial' | 'residential'>('all');
-  const [sigThemeFilter, setSigThemeFilter] = useState('All');
-  const [sigAssetPackFilter, setSigAssetPackFilter] = useState('All');
-  const [sigSortField, setSigSortField] = useState<'name' | 'type' | 'theme' | 'assetPack' | 'level'>('name');
-  const [sigSortDir, setSigSortDir] = useState<'asc' | 'desc'>('asc');
-
+  const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor' | 'residential' | 'services' | 'districts'>('resources');
   const safeCategory = (selectedCategory || 'all').toLowerCase();
   const iconMap = new Map(resourceCategories.flatMap((c) => c.resources.map((r) => [r.key, r.icon] as const)));
   const autoTaxParsed = useMemo(() => parseAutoTaxStatus(autoTaxStatus), [autoTaxStatus]);
@@ -628,142 +631,35 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
     return all.filter((c) => c.isSignature || keySet.has(`${c.entityIndex},${c.entityVersion}`) || (names.length > 0 && names.includes(c.name)));
   }, [businessCompanies, signatureCompaniesJson, signaturePrefabs]);
   signatureCompanies = _signatureCompanies;
-  signatureCount = signatureCompanies.length;
 
-  // Parse residential signature buildings
-  // Format: "entityKey|address|level|occupied|capacity|theme|assetPack"
-  interface ResidentialSignature {
-    entityKey: string;
-    address: string;
-    level: number;
-    occupied: number;
-    capacity: number;
-    theme: string;
-    assetPack: string;
-    type: 'residential';
-  }
-
+  // Parse residential signature buildings: entityKey|address|level|occupied|capacity|theme|assetPack
   const residentialSignatureBuildings = useMemo(() => {
     if (!residentialSignatureBuildingsData) return [];
-    return residentialSignatureBuildingsData.split(';').map((chunk): ResidentialSignature | null => {
-      const parts = chunk.split('|');
-      if (parts.length < 7) return null;
+    return residentialSignatureBuildingsData.split(';').map((chunk) => {
+      const p = chunk.split('|');
+      if (p.length < 7) return null;
       return {
-        entityKey: parts[0] || '',
-        address: parts[1] || '',
-        level: Number(parts[2]) || 1,
-        occupied: Number(parts[3]) || 0,
-        capacity: Number(parts[4]) || 0,
-        theme: parts[5] || 'Unknown',
-        assetPack: parts[6] || 'Base Game',
-        type: 'residential',
+        entityKey: p[0] || '',
+        address: p[1] || '',
+        level: Number(p[2]) || 1,
+        occupied: Number(p[3]) || 0,
+        capacity: Number(p[4]) || 0,
+        theme: p[5] || 'Unknown',
+        assetPack: p[6] || 'Base Game',
       };
-    }).filter((x): x is ResidentialSignature => x !== null);
+    }).filter(Boolean) as Array<{ entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; }>;
   }, [residentialSignatureBuildingsData]);
 
-  // Unified signature count includes both commercial and residential
-  const totalSignatureCount = signatureCount + residentialSignatureBuildings.length;
-
-  // Unified signature buildings (moved to top level to avoid hook issues)
-  interface UnifiedSignature {
-    key: string;
-    name: string;
-    type: 'commercial' | 'residential';
-    theme: string;
-    assetPack: string;
-    level: number;
-    entityIndex: number;
-    entityVersion: number;
-    extraInfo?: string;
-  }
-
-  const unifiedSignatures: UnifiedSignature[] = useMemo(() => {
-    const result: UnifiedSignature[] = [];
-
-    // Add commercial signature buildings
-    signatureCompanies.forEach((c: any) => {
-      result.push({
-        key: `${c.entityIndex},${c.entityVersion}`,
-        name: c.name || 'Unknown Company',
-        type: 'commercial',
-        theme: c.theme || 'Unknown',
-        assetPack: c.assetPack || 'Base Game',
-        level: c.level || 1,
-        entityIndex: c.entityIndex,
-        entityVersion: c.entityVersion,
-        extraInfo: c.resource ? `(${c.resource})` : '',
-      });
-    });
-
-    // Add residential signature buildings
-    residentialSignatureBuildings.forEach((r: ResidentialSignature) => {
-      const parts = r.entityKey.split(',');
-      result.push({
-        key: r.entityKey,
-        name: r.address,
-        type: 'residential',
-        theme: r.theme,
-        assetPack: r.assetPack,
-        level: r.level,
-        entityIndex: Number(parts[0]) || 0,
-        entityVersion: Number(parts[1]) || 0,
-        extraInfo: `${r.occupied}/${r.capacity} households`,
-      });
-    });
-
-    return result;
-  }, [signatureCompanies, residentialSignatureBuildings]);
-
-  // Extract unique themes and asset packs for signature view
-  const sigUniqueThemes = useMemo(() => {
-    if (!unifiedSignatures || unifiedSignatures.length === 0) return ['All'];
-    const themes = new Set(unifiedSignatures.map(s => s.theme).filter(t => t));
-    return ['All', ...Array.from(themes).sort()];
-  }, [unifiedSignatures]) || ['All'];
-
-  const sigUniqueAssetPacks = useMemo(() => {
-    if (!unifiedSignatures || unifiedSignatures.length === 0) return ['All'];
-    const packs = new Set(unifiedSignatures.map(s => s.assetPack).filter(p => p));
-    return ['All', ...Array.from(packs).sort()];
-  }, [unifiedSignatures]) || ['All'];
-
-  // Apply signature filters
-  const filteredSignatures = useMemo(() => {
-    if (!unifiedSignatures) return [];
-    let list = unifiedSignatures;
-    if (sigTypeFilter !== 'all') list = list.filter(s => s.type === sigTypeFilter);
-    if (sigThemeFilter !== 'All') list = list.filter(s => s.theme === sigThemeFilter);
-    if (sigAssetPackFilter !== 'All') list = list.filter(s => s.assetPack === sigAssetPackFilter);
-
-    // Sort
-    return [...list].sort((a, b) => {
-      const dir = sigSortDir === 'asc' ? 1 : -1;
-      switch (sigSortField) {
-        case 'name': return dir * a.name.localeCompare(b.name);
-        case 'type': return dir * a.type.localeCompare(b.type);
-        case 'theme': return dir * a.theme.localeCompare(b.theme);
-        case 'assetPack': return dir * a.assetPack.localeCompare(b.assetPack);
-        case 'level': return dir * (a.level - b.level);
-        default: return 0;
-      }
-    });
-  }, [unifiedSignatures, sigTypeFilter, sigThemeFilter, sigAssetPackFilter, sigSortField, sigSortDir]);
-
-  const handleSigSort = useCallback((field: typeof sigSortField) => {
-    if (sigSortField === field) setSigSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSigSortField(field); setSigSortDir('asc'); }
-  }, [sigSortField]);
-
-  const sigSortIndicator = useCallback((field: typeof sigSortField) => 
-    sigSortField === field ? (sigSortDir === 'asc' ? ' ▲' : ' ▼') : '', [sigSortField, sigSortDir]);
+  signatureCount = signatureCompanies.length + residentialSignatureBuildings.length;
 
   // Parse panel opacity from autoTaxSettings (slot 8: ...||profitWeight|opacity)
   const panelOpacity = useMemo(() => {
     if (!autoTaxSettings) return 1;
     const parts = autoTaxSettings.split('|');
+    // Index 8 is the 9th slot
     if (parts.length > 8) {
       const val = Number(parts[8]);
-      if (!isNaN(val) && val >= 40 && val <= 100) return val / 100;
+      if (!isNaN(val)) return val / 100;
     }
     return 1;
   }, [autoTaxSettings]);
@@ -821,114 +717,10 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
     setSelectedRowKey((prev) => prev === key ? null : key);
   };
 
-  // Overlay scrollbar for resources list
+  // Refs for resources list
   const tableBodyRef = useRef<HTMLDivElement | null>(null);
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
-  const tableTrackRef = useRef<HTMLDivElement | null>(null);
-  const tableThumbRef = useRef<HTMLDivElement | null>(null);
-  const [tableThumbTop, setTableThumbTop] = useState(0);
-  const [tableThumbHeight, setTableThumbHeight] = useState(48);
 
-  const updateTableScrollbar = useCallback(() => {
-    const body = tableBodyRef.current;
-    const track = tableTrackRef.current;
-    const thumb = tableThumbRef.current;
-    const wrapper = tableWrapperRef.current;
-    if (!body || !track || !thumb || !wrapper) return;
-    // position track relative to wrapper using bounding rects
-    try {
-      const bodyRect = body.getBoundingClientRect();
-      const wrapperRect = wrapper.getBoundingClientRect();
-      let relTop = bodyRect.top - wrapperRect.top;
-      relTop = Math.max(0, Math.min(relTop, Math.max(0, wrapperRect.height - body.clientHeight)));
-      track.style.top = `${relTop}px`;
-      track.style.height = `${body.clientHeight}px`;
-    } catch {}
-    const visible = body.clientHeight;
-    const total = body.scrollHeight || 1;
-    if (visible >= total || !Number.isFinite(visible) || !Number.isFinite(total)) {
-      try { track.style.display = 'none'; } catch {}
-      return;
-    }
-    try { track.style.display = 'block'; } catch {}
-    const ratio = Math.max(0.03, Math.min(1, visible / total));
-    const trackHeight = track.clientHeight;
-    const thumbH = Math.max(16, Math.round(trackHeight * ratio));
-    const scrollTop = body.scrollTop;
-    const maxScroll = total - visible;
-    const top = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * (trackHeight - thumbH)) : 0;
-    setTableThumbHeight(thumbH);
-    setTableThumbTop(top);
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => updateTableScrollbar();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [updateTableScrollbar]);
-
-  useEffect(() => {
-    updateTableScrollbar();
-  }, [displayCategories.length, rows, selectedRowKey, updateTableScrollbar]);
-
-  const handleTableBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    updateTableScrollbar();
-  };
-
-  // Thumb drag
-  useEffect(() => {
-    let dragging = false;
-    let startY = 0;
-    let startTop = 0;
-    const thumb = tableThumbRef.current;
-    const track = tableTrackRef.current;
-    const body = tableBodyRef.current;
-    if (!thumb || !track || !body) return;
-    const onDown = (ev: any) => {
-      try { if (ev.stopPropagation) ev.stopPropagation(); } catch {}
-      dragging = true;
-      startY = ev.clientY || (ev.touches && ev.touches[0] && ev.touches[0].clientY) || 0;
-      startTop = tableThumbTop;
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-      document.addEventListener('touchmove', onMove as any, { passive: false });
-      document.addEventListener('touchend', onUp as any);
-      ev.preventDefault();
-    };
-    const onMove = (ev: MouseEvent) => {
-      if (!dragging) return;
-      const dy = ev.clientY - startY;
-      const trackH = track.clientHeight;
-      const maxTop = trackH - tableThumbHeight;
-      const newTop = Math.max(0, Math.min(maxTop, startTop + dy));
-      const total = body.scrollHeight - body.clientHeight;
-      const scrollPos = total > 0 ? Math.round((newTop / (trackH - tableThumbHeight)) * total) : 0;
-      body.scrollTop = scrollPos;
-      setTableThumbTop(newTop);
-    };
-    const onUp = () => {
-      dragging = false;
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      document.removeEventListener('touchmove', onMove as any);
-      document.removeEventListener('touchend', onUp as any);
-      updateTableScrollbar();
-    };
-    try { thumb.addEventListener('pointerdown', onDown as any); } catch {}
-    try { thumb.addEventListener('mousedown', onDown as any); } catch {}
-    try { thumb.addEventListener('touchstart', onDown as any); } catch {}
-    return () => {
-      try { thumb.removeEventListener('mousedown', onDown as any); } catch {}
-    };
-  }, [tableThumbTop, tableThumbHeight]);
-
-  useEffect(() => {
-    const body = tableBodyRef.current;
-    if (!body) return;
-    const mo = new MutationObserver(() => updateTableScrollbar());
-    mo.observe(body, { childList: true, subtree: true, attributes: true });
-    return () => mo.disconnect();
-  }, [tableBodyRef.current, updateTableScrollbar]);
 
 
   const handleRateChange = (key: string, rate: number) => {
@@ -936,7 +728,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
     onResourceTaxRateChange(key, rate);
   };
 
-  // Tooltip state — rendered OUTSIDE .adv-window to escape overflow:hidden clipping in CoHTML
+  // Tooltip state â€” rendered OUTSIDE .adv-window to escape overflow:hidden clipping in CoHTML
   // Tooltip may be anchored to an element (`rect`) or to explicit client coords (`x`,`y`) to float/follow cursor.
   const [tooltip, setTooltip] = useState<{ lines: string[]; rect?: DOMRect; alignRight?: boolean; x?: number; y?: number } | null>(null);
   const showTooltip = useCallback((lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => {
@@ -967,14 +759,14 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         <button
           className={`adv-learn-toggle${learningEnabled ? ' adv-learn-active' : ''}`}
           onClick={() => onToggleLearning(!learningEnabled)}
-          title={learningEnabled ? 'Learning: ON — Click to disable' : 'Learning: OFF — Click to enable'}
+          title={learningEnabled ? 'Learning: ON - Click to disable' : 'Learning: OFF - Click to enable'}
         >
           Learning
         </button>
         <button
           className={`adv-autotax-toggle${autoTaxEnabled ? ' adv-autotax-toggle-active' : ''}`}
           onClick={() => onAutoTaxToggle(!autoTaxEnabled)}
-          title={autoTaxEnabled ? 'Auto-Tax: ON — Click to disable' : 'Auto-Tax: OFF — Click to enable'}
+          title={autoTaxEnabled ? 'Auto-Tax: ON - Click to disable' : 'Auto-Tax: OFF - Click to enable'}
         >
           {autoTaxEnabled ? 'AUTO' : 'AUTO'}
         </button>
@@ -991,12 +783,13 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
           title="Open / close debug panel"
           style={{ fontSize: 11, opacity: 0.6 }}
         >DBG</button>
-        <button className="adv-collapse-btn" onClick={() => setCollapsed((v) => !v)}>{collapsed ? '+' : '−'}</button>
+        <button className="adv-collapse-btn" onClick={() => setCollapsed((v) => !v)}>{collapsed ? '+' : '-'}</button>
         <button className="adv-close-btn" onClick={onClose}>X</button>
       </div>
 
       {!collapsed && (
       <>
+
 
       {/* View mode tabs */}
       <div className="adv-view-tabs">
@@ -1016,8 +809,8 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
           className={`adv-view-tab${viewMode === 'signature' ? ' adv-view-tab-active' : ''}`}
           onClick={() => setViewMode('signature')}
         >
-          Signature Buildings{totalSignatureCount > 0 && (
-            <span className="adv-tab-badge">{totalSignatureCount}</span>
+          Signature Buildings{signatureCount > 0 && (
+            <span className="adv-tab-badge">{signatureCount}</span>
           )}
         </button>
         <button
@@ -1038,9 +831,15 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         >
           Services
         </button>
+        <button
+          className={`adv-view-tab${viewMode === 'districts' ? ' adv-view-tab-active' : ''}`}
+          onClick={() => setViewMode('districts')}
+        >
+          Districts
+        </button>
       </div>
 
-      {/* Category filter tabs — resources view only */}
+      {/* Category filter tabs â€” resources view only */}
       {viewMode === 'resources' && (
       <div className="adv-filter-bar">
         {resourceCategories.map((cat) => (
@@ -1095,14 +894,14 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
                 </span>
               )}
               {autoTaxParsed.raiseCount > 0
-                ? <span className="adv-autotax-status-raise" title={`${autoTaxParsed.raiseCount} resource(s) had their tax rate increased this cycle`}>{`\u25B2 ${autoTaxParsed.raiseCount}`}</span>
-                : <span className="adv-autotax-status-raise adv-autotax-status-zero" title="No resources raised this cycle">{`\u25B2 0`}</span>}
-              {autoTaxParsed.lowerCount > 0
-                ? <span className="adv-autotax-status-lower" title={`${autoTaxParsed.lowerCount} resource(s) had their tax rate decreased this cycle`}>{`\u25BC ${autoTaxParsed.lowerCount}`}</span>
-                : <span className="adv-autotax-status-lower adv-autotax-status-zero" title="No resources lowered this cycle">{`\u25BC 0`}</span>}
+                ? <span className="adv-autotax-status-raise" title={`${autoTaxParsed.raiseCount} resource(s) had their tax rate increased this cycle`}>{`▲ ${autoTaxParsed.raiseCount}`}</span>
+                : <span className="adv-autotax-status-raise adv-autotax-status-zero" title="No resources raised this cycle">{`▲ 0`}</span>}
+              {autoTaxParsed.lowerCount > 0 
+                ? <span className="adv-autotax-status-lower" title={`${autoTaxParsed.lowerCount} resource(s) had their tax rate decreased this cycle`}>{`▼ ${autoTaxParsed.lowerCount}`}</span>
+                : <span className="adv-autotax-status-lower adv-autotax-status-zero" title="No resources lowered this cycle">{`▼ 0`}</span>}
               {autoTaxParsed.holdCount > 0
-                ? <span className="adv-autotax-status-hold" title={`${autoTaxParsed.holdCount} resource(s) unchanged \u2014 tax rate is already optimal`}>{`\u2192 ${autoTaxParsed.holdCount}`}</span>
-                : <span className="adv-autotax-status-hold adv-autotax-status-zero" title="No resources at hold">{`\u2192 0`}</span>}
+                ? <span className="adv-autotax-status-hold" title={`${autoTaxParsed.holdCount} resource(s) unchanged \u2014 tax rate is already optimal`}>{`→ ${autoTaxParsed.holdCount}`}</span>
+                : <span className="adv-autotax-status-hold adv-autotax-status-zero" title="No resources at hold">{`→ 0`}</span>}
             </div>
           );
         }
@@ -1115,113 +914,13 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         </div>
       )}
 
-      {/* Signature Buildings view (unified commercial + residential with filters) */}
+      {/* Signature Buildings view â€” unified commercial + residential */}
       {viewMode === 'signature' && (
-        <div className="adv-table-section">
-          {unifiedSignatures.length === 0 ? (
-            <div className="adv-empty" style={{ padding: '20rem', textAlign: 'center' }}>
-              No signature buildings unlocked.
-            </div>
-          ) : (
-            <>
-              {/* Filters */}
-              <div className="sig-filters" style={{ padding: '12rem', display: 'flex', flexWrap: 'wrap', gap: '8rem', borderBottom: '1rem solid rgba(255,255,255,0.1)' }}>
-                <div style={{ display: 'flex', gap: '4rem' }}>
-                  <button 
-                    onClick={() => setSigTypeFilter('all')} 
-                    style={{ 
-                      padding: '4rem 10rem', fontSize: '11rem', background: sigTypeFilter === 'all' ? 'rgba(80,184,233,0.2)' : 'transparent', 
-                      border: '1rem solid rgba(255,255,255,0.15)', borderRadius: '3rem', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' 
-                    }}
-                  >All Types</button>
-                  <button 
-                    onClick={() => setSigTypeFilter('commercial')} 
-                    style={{ 
-                      padding: '4rem 10rem', fontSize: '11rem', background: sigTypeFilter === 'commercial' ? 'rgba(80,184,233,0.2)' : 'transparent', 
-                      border: '1rem solid rgba(255,255,255,0.15)', borderRadius: '3rem', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' 
-                    }}
-                  >Commercial</button>
-                  <button 
-                    onClick={() => setSigTypeFilter('residential')} 
-                    style={{ 
-                      padding: '4rem 10rem', fontSize: '11rem', background: sigTypeFilter === 'residential' ? 'rgba(80,184,233,0.2)' : 'transparent', 
-                      border: '1rem solid rgba(255,255,255,0.15)', borderRadius: '3rem', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' 
-                    }}
-                  >Residential</button>
-                </div>
-                <select 
-                  value={sigThemeFilter} 
-                  onChange={(e: any) => setSigThemeFilter(e.target.value)}
-                  style={{ padding: '4rem 8rem', fontSize: '11rem', background: 'rgba(15,24,37,0.95)', border: '1rem solid rgba(124,152,189,0.4)', borderRadius: '3rem', color: '#e7edf2' }}
-                >
-                  {sigUniqueThemes.map(t => <option key={t} value={t}>{t === 'All' ? 'All Themes' : t}</option>)}
-                </select>
-                <select 
-                  value={sigAssetPackFilter} 
-                  onChange={(e: any) => setSigAssetPackFilter(e.target.value)}
-                  style={{ padding: '4rem 8rem', fontSize: '11rem', background: 'rgba(15,24,37,0.95)', border: '1rem solid rgba(124,152,189,0.4)', borderRadius: '3rem', color: '#e7edf2' }}
-                >
-                  {sigUniqueAssetPacks.map(p => <option key={p} value={p}>{p === 'All' ? 'All Packs' : p}</option>)}
-                </select>
-                <span style={{ marginLeft: 'auto', fontSize: '11rem', color: 'rgba(255,255,255,0.5)', alignSelf: 'center' }}>
-                  {filteredSignatures.length} signature building{filteredSignatures.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-
-              {/* Signature buildings table */}
-              <div style={{ padding: '12rem' }}>
-                <div style={{ display: 'flex', padding: '8rem 12rem', background: 'rgba(35,46,64,0.9)', fontSize: '11rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', fontWeight: 700, borderRadius: '6rem 6rem 0 0' }}>
-                  <div style={{ flex: 1, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSigSort('name')}>Name{sigSortIndicator('name')}</div>
-                  <div style={{ width: '100rem', cursor: 'pointer', userSelect: 'none', textAlign: 'center' }} onClick={() => handleSigSort('type')}>Type{sigSortIndicator('type')}</div>
-                  <div style={{ width: '120rem', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSigSort('theme')}>Theme{sigSortIndicator('theme')}</div>
-                  <div style={{ width: '110rem', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSigSort('assetPack')}>Asset Pack{sigSortIndicator('assetPack')}</div>
-                  <div style={{ width: '60rem', cursor: 'pointer', userSelect: 'none', textAlign: 'center' }} onClick={() => handleSigSort('level')}>Level{sigSortIndicator('level')}</div>
-                  <div style={{ width: '80rem', textAlign: 'right' }}>Actions</div>
-                </div>
-                <div style={{ background: 'rgba(18,26,38,0.9)', borderRadius: '0 0 6rem 6rem', overflow: 'hidden' }}>
-                  {filteredSignatures.map((sig, idx) => (
-                    <div 
-                      key={sig.key} 
-                      style={{ 
-                        display: 'flex', padding: '10rem 12rem', fontSize: '12rem', color: 'rgba(255,255,255,0.85)', 
-                        borderTop: idx > 0 ? '1rem solid rgba(255,255,255,0.04)' : 'none',
-                        background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)'
-                      }}
-                    >
-                      <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <span style={{ color: '#ffd700', marginRight: '5rem', fontSize: '14rem' }}>★</span>
-                        {sig.name}
-                        {sig.extraInfo && <span style={{ marginLeft: '8rem', fontSize: '11rem', color: 'rgba(255,255,255,0.5)' }}>{sig.extraInfo}</span>}
-                      </div>
-                      <div style={{ width: '100rem', textAlign: 'center', fontSize: '11rem', color: sig.type === 'commercial' ? '#50b8e9' : '#8bdb46' }}>
-                        {sig.type === 'commercial' ? 'Commercial' : 'Residential'}
-                      </div>
-                      <div style={{ width: '120rem', fontSize: '11rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sig.theme}</div>
-                      <div style={{ width: '110rem', fontSize: '11rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sig.assetPack}</div>
-                      <div style={{ width: '60rem', textAlign: 'center' }}>
-                        <span style={{ padding: '2rem 5rem', fontSize: '10rem', background: 'rgba(80,184,233,0.15)', border: '1rem solid rgba(80,184,233,0.3)', borderRadius: '3rem', color: '#50b8e9' }}>
-                          Lv {sig.level}
-                        </span>
-                      </div>
-                      <div style={{ width: '80rem', textAlign: 'right' }}>
-                        <button
-                          onClick={() => {
-                            try {
-                              trigger('camera', 'focusEntity', { index: sig.entityIndex, version: sig.entityVersion });
-                            } catch {}
-                          }}
-                          style={{ padding: '4rem 8rem', fontSize: '10rem', borderRadius: '3rem', background: 'rgba(80,184,233,0.12)', border: '1rem solid rgba(80,184,233,0.25)', color: '#50b8e9', cursor: 'pointer' }}
-                        >
-                          GO
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <SignatureUnifiedView
+          signatureCompanies={signatureCompanies}
+          residentialSignatureBuildings={residentialSignatureBuildings}
+          servicesBuildingsData={servicesBuildingsData ?? ''}
+        />
       )}
 
       {/* Advisor view */}
@@ -1232,8 +931,6 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
             decisionLogData={decisionLogData}
             learningStatsData={learningStatsData}
             learningEnabled={learningEnabled}
-            useGameIcons={useGameIcons}
-            autoTaxStatus={autoTaxStatus}
             onToggleLearning={(enabled) => trigger('taxProduction', 'setLearningEnabled', enabled)}
             onResetLearning={() => trigger('taxProduction', 'resetLearning')}
             onSetAggressiveness={(level) => trigger('taxProduction', 'setLearningAggressiveness', level)}
@@ -1249,11 +946,21 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
 
       {viewMode === 'services' && (
         <div className="adv-table-section">
-          <ServicesPanel servicesBrowserData={servicesBrowserData} />
+          <ServicesPanel servicesBuildingsData={servicesBuildingsData} />
         </div>
       )}
 
-      {/* Resources view — Table structure */}
+      {viewMode === 'districts' && (
+        <DistrictsPanel
+          residentialBuildingsData={residentialBuildingsData}
+          servicesBuildingsData={servicesBuildingsData}
+          companyBrowserData={companyBrowserData}
+        districtBrowserData={districtBrowserData}
+        districtPoliciesData={districtPoliciesData}
+        />
+      )}
+
+      {/* Resources view â€” Table structure */}
       {viewMode === 'resources' && (
       <div className="adv-table-section">
         <div className="adv-table-header">
@@ -1267,7 +974,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         </div>
 
       <div className="adv-table-content-wrapper" ref={tableWrapperRef}>
-        <div className="adv-table-content" ref={tableBodyRef} onScroll={handleTableBodyScroll}>
+        <div className="adv-table-content" ref={tableBodyRef}>
             {displayCategories.map((cat, idx) => {
               const catRows = getCategoryRows(cat);
               if (catRows.length === 0) return null;
@@ -1286,16 +993,9 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
                   isAllView={safeCategory === 'all'}
                   onTooltipShow={showTooltip}
                   onTooltipHide={hideTooltip}
-                  onToggle={() => {
-                    // allow CSS transitions/layout to settle before recalculating
-                    requestAnimationFrame(() => requestAnimationFrame(() => updateTableScrollbar()));
-                  }}
                 />
               );
             })}
-          </div>
-          <div ref={tableTrackRef} className="adv-scrollbar-track" aria-hidden>
-            <div ref={tableThumbRef} className="adv-scrollbar-thumb" style={{ top: `${tableThumbTop}px`, height: `${tableThumbHeight}px` }} />
           </div>
 
           <div className="adv-table-lines">
@@ -1367,4 +1067,305 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   );
 };
 
+/* â”€â”€ Unified Signature View â”€â”€ */
+interface SigResBuilding { entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; }
+
+type SigSortField = 'name' | 'type' | 'theme' | 'assetPack' | 'level';
+
+const focusSignatureEntity = (entityKey: string) => {
+  try {
+    const parts = String(entityKey || '').split(',');
+    trigger('camera', 'focusEntity', { index: Number(parts[0]) || 0, version: Number(parts[1]) || 0 });
+  } catch {}
+};
+
+const SignatureUnifiedView: React.FC<{ 
+  signatureCompanies: any[]; 
+  residentialSignatureBuildings: SigResBuilding[];
+  servicesBuildingsData: string;
+}> = ({
+  signatureCompanies,
+  residentialSignatureBuildings,
+  servicesBuildingsData,
+}) => {
+  const [typeFilter, setTypeFilter] = useState('All');
+  const [themeFilter, setThemeFilter] = useState('All');
+  const [packFilter, setPackFilter] = useState('All');
+  const [sortField, setSortField] = useState<SigSortField>('name');
+  const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+
+  // Parse services
+  const serviceSignatures = useMemo(() => {
+    if (!servicesBuildingsData) return [];
+    try {
+      const arr = JSON.parse(servicesBuildingsData);
+      if (!Array.isArray(arr)) return [];
+      return arr.filter((s: any) => s.isSignature).map((s: any) => ({
+        entityKey: s.entityKey,
+        name: s.name,
+        address: s.address,
+        type: s.category || 'Service',
+        theme: s.theme || 'USA',
+        assetPack: s.assetPack || 'Base Game',
+        level: s.level || 0,
+        extraInfo: `Efficiency: ${Math.round(s.efficiency || 0)}%`,
+        district: s.district || 'City',
+        resourceKey: '',
+      }));
+    } catch { return []; }
+  }, [servicesBuildingsData]);
+
+  // Build combined list
+  const allItems = useMemo(() => {
+    const commercial = signatureCompanies.map((c) => {
+      const workers = c.workers || 0;
+      const maxWorkers = c.maxWorkers || 0;
+      const profit = c.profit || 0;
+      const happiness = c.happiness || 0;
+      
+      let extra = c.resourceName ? `Resource: ${c.resourceName}` : '';
+      if (maxWorkers > 0) extra += ` \u2022 Jobs: ${workers}/${maxWorkers}`;
+      if (profit !== 0) extra += ` \u2022 Profit: ${profit > 0 ? '+' : ''}${profit.toFixed(1)}`;
+      if (happiness > 0) extra += ` \u2022 Happy: ${Math.round(happiness)}%`;
+
+      return {
+        entityKey: `${c.entityIndex},${c.entityVersion}`,
+        name: c.name || c.companyName || '',
+        address: c.address || '',
+        type: (c.zoneType || c.companyKind || 'Commercial'),
+        theme: c.theme || 'USA',
+        assetPack: c.assetPack || 'Base Game',
+        level: c.level || 0,
+        extraInfo: extra,
+        district: c.district || 'City',
+        resourceKey: c.resourceKey || '',
+        // Carry over metrics for tooltip
+        workers, maxWorkers, profit, happiness
+      };
+    });
+    const residential = residentialSignatureBuildings.map((b) => {
+      const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : 0;
+      return {
+        entityKey: b.entityKey,
+        name: b.address,
+        address: b.address,
+        type: 'Residential',
+        theme: b.theme || 'Unknown',
+        assetPack: b.assetPack || 'Base Game',
+        level: b.level || 0,
+        extraInfo: b.capacity > 0 
+          ? `${b.occupied}/${b.capacity} Households (${occPct}%)` 
+          : (b.occupied > 0 ? `${b.occupied} Residents` : 'Empty'),
+        district: (b as any).district || 'City',
+        resourceKey: '',
+      };
+    });
+    return [...commercial, ...residential, ...serviceSignatures];
+  }, [signatureCompanies, residentialSignatureBuildings, serviceSignatures]);
+
+  const [distFilter, setDistFilter] = useState('All');
+  const [resFilter, setResFilter] = useState('All');
+
+  const typeOptions = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => String(i.type || '').trim()).filter(Boolean))).sort()], [allItems]);
+  const themes = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => i.theme).filter(Boolean)))], [allItems]);
+  const packs = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => i.assetPack).filter(Boolean)))], [allItems]);
+  const districts = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => (i as any).district).filter(Boolean))).sort()], [allItems]);
+  const resources = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => (i as any).resourceKey).filter(Boolean))).sort()], [allItems]);
+
+  const filtered = useMemo(() => {
+    let list = allItems;
+    if (typeFilter !== 'All') list = list.filter((i) => String(i.type || '').toLowerCase() === typeFilter.toLowerCase());
+    if (themeFilter !== 'All') list = list.filter((i) => String(i.theme || '').toLowerCase() === themeFilter.toLowerCase());
+    if (packFilter !== 'All') list = list.filter((i) => String(i.assetPack || 'Base Game').toLowerCase().includes(packFilter.toLowerCase()));
+    if (distFilter !== 'All') list = list.filter((i) => String((i as any).district || 'City').toLowerCase() === distFilter.toLowerCase());
+    if (resFilter !== 'All') list = list.filter((i) => resourceIconName((i as any).resourceKey || '') === resFilter);
+
+    return [...list].sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'name') cmp = a.name.localeCompare(b.name);
+      else if (sortField === 'type') cmp = a.type.localeCompare(b.type);
+      else if (sortField === 'theme') cmp = a.theme.localeCompare(b.theme);
+      else if (sortField === 'assetPack') cmp = a.assetPack.localeCompare(b.assetPack);
+      else if (sortField === 'level') cmp = a.level - b.level;
+      return sortDir * cmp;
+    });
+  }, [allItems, typeFilter, themeFilter, packFilter, distFilter, resFilter, sortField, sortDir]);
+
+
+  const handleSort = (f: SigSortField) => {
+    if (sortField === f) setSortDir((d) => (d === 1 ? -1 : 1) as 1 | -1);
+    else { setSortField(f); setSortDir(1); }
+  };
+
+  const getItemTooltip = (item: { name: string; type: string; theme: string; assetPack: string; level: number; address: string; entityKey: string; extraInfo: string }) => [
+    item.name,
+    `Type: ${item.type}`,
+    `Theme: ${item.theme} - Pack: ${item.assetPack}`,
+    `Level: ${item.level > 0 ? `Lv ${item.level}` : '-'}`,
+    ...(item.address && item.address !== item.name ? [`Address: ${item.address}`] : []),
+    ...(item.extraInfo ? [item.extraInfo] : []),
+    `Entity: ${item.entityKey}`,
+    'Click row or GO to focus camera',
+  ].join('\n');
+
+  const SortHdr: React.FC<{ field: SigSortField; label: string; style?: React.CSSProperties }> = ({ field, label, style }) => (
+    <div
+      className="sig-col-hdr"
+      style={{ cursor: 'pointer', userSelect: 'none', ...style }}
+      onClick={() => handleSort(field)}
+    >
+      {label}{sortField === field ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+    </div>
+  );
+
+  if (allItems.length === 0) {
+    return (
+      <div className="adv-table-section">
+        <div className="adv-empty" style={{ padding: '20rem', textAlign: 'center', color: 'rgba(255,255,255,0.55)', fontSize: '13rem', fontStyle: 'italic' }}>
+          No signature buildings unlocked yet. Build and complete signature building requirements to see them here.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="adv-table-section sig-view">
+      {/* Filter bar */}
+      <div className="sig-filters">
+        <div className="sig-type-btns">
+          {typeOptions.map((t) => (
+            <button
+              key={t}
+              className={`sig-type-btn${typeFilter === t ? ' sig-type-btn-active' : ''}`}
+              onClick={() => setTypeFilter(t)}
+            >
+              {t !== 'All' && <ServiceIcon category={t.toLowerCase() === 'residential' ? 'residential' : t} size={14} style={{ marginRight: '6rem' }} />}
+              {t}
+            </button>
+          ))}
+        </div>
+        <div className="sig-filter-selects">
+          <div className="sig-filter-pill-row">
+            <span className="sig-filter-pill-label">Theme</span>
+            {themes.map((t) => (
+              <button key={`theme-${t}`} className={`sig-filter-pill${themeFilter === t ? ' sig-filter-pill-active' : ''}`} onClick={() => setThemeFilter(t)}>
+                {t !== 'All' && <ThemeIcon theme={t} size={14} style={{ marginRight: '4rem' }} />}
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className="sig-filter-pill-row">
+            <span className="sig-filter-pill-label">Pack</span>
+            {packs.map((p) => (
+              <button key={`pack-${p}`} className={`sig-filter-pill${packFilter === p ? ' sig-filter-pill-active' : ''}`} onClick={() => setPackFilter(p)}>
+                {p !== 'All' && <PackIcon pack={p} size={14} style={{ marginRight: '4rem' }} />}
+                {p}
+              </button>
+            ))}
+          </div>
+          {districts.length > 2 && (
+            <div className="sig-filter-pill-row">
+              <span className="sig-filter-pill-label">District</span>
+              {districts.map((d) => (
+                <button key={`dist-${d}`} className={`sig-filter-pill${distFilter === d ? ' sig-filter-pill-active' : ''}`} onClick={() => setDistFilter(d)}>{d}</button>
+              ))}
+            </div>
+          )}
+          {resources.length > 2 && (
+            <div className="sig-filter-pill-row" style={{ flexWrap: 'wrap' }}>
+              <span className="sig-filter-pill-label">Resource</span>
+              <button 
+                className={`sig-filter-pill${resFilter === 'All' ? ' sig-filter-pill-active' : ''}`} 
+                onClick={() => setResFilter('All')}
+                title="All Resources"
+              >
+                All
+              </button>
+              {(() => {
+                // Group by icon to avoid duplicates like Paper/Commercial Paper in filters
+                const groups: Record<string, { icon: string, label: string }> = {};
+                resources.forEach(r => {
+                  if (r === 'All') return;
+                  const icon = resourceIconName(r);
+                  if (!groups[icon]) groups[icon] = { icon, label: resourceLabel(r) };
+                });
+                return Object.values(groups).sort((a,b) => a.label.localeCompare(b.label)).map(g => (
+                  <button 
+                    key={`res-${g.icon}`} 
+                    className={`sig-filter-pill${resFilter === g.icon ? ' sig-filter-pill-active' : ''}`} 
+                    onClick={() => setResFilter(resFilter === g.icon ? 'All' : g.icon)} 
+                    title={g.label} 
+                    style={{ padding: '2rem 4rem' }}
+                  >
+                    <img src={resourceIconSrc(g.icon)} alt="" style={{ width: '16rem', height: '16rem' }} />
+                  </button>
+                ));
+              })()}
+            </div>
+          )}
+          <div className="sig-summary-row" style={{ display: 'flex', alignItems: 'center', padding: '4rem 10rem', borderTop: '1rem solid rgba(255,255,255,0.05)', marginTop: '4rem' }}>
+            <span className="sig-count" style={{ fontSize: '11rem', opacity: 0.6 }}>{filtered.length} buildings shown</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Table header */}
+      <div className="sig-table-header">
+        <SortHdr field="name" label="Building Name" style={{ flex: 3 }} />
+        <SortHdr field="type" label="Type" style={{ width: '80rem' }} />
+        <SortHdr field="theme" label="Theme" style={{ width: '80rem', textAlign: 'center' }} />
+        <SortHdr field="assetPack" label="Pack" style={{ width: '80rem', textAlign: 'center' }} />
+        <SortHdr field="level" label="Lv" style={{ width: '36rem', textAlign: 'center' }} />
+        <div className="sig-col-hdr" style={{ width: '60rem', textAlign: 'center' }}>District</div>
+      </div>
+
+      {/* Scrollable rows */}
+      <div className="sig-rows-wrap" style={{ flex: 1, minHeight: 0 }}>
+        <div ref={bodyRef} className="sig-rows-scroll" style={{ overflowY: 'auto' }}>
+          {filtered.map((item) => (
+            <div key={item.entityKey} className="sig-row-container" style={{ borderBottom: '1rem solid rgba(255,255,255,0.05)' }}>
+              <div className={`sig-row${expandedEntity === item.entityKey ? ' sig-row-active' : ''}`} 
+                  onClick={() => {
+                    focusSignatureEntity(item.entityKey);
+                    setExpandedEntity(prev => prev === item.entityKey ? null : item.entityKey);
+                  }} 
+                  title={getItemTooltip(item)}
+                  style={{ display: 'flex', alignItems: 'center', padding: '6rem 10rem', cursor: 'pointer' }}
+              >
+                <div className="sig-col-name" style={{ flex: 3, display: 'flex', alignItems: 'center' }}>
+                  <ServiceIcon category={String(item.type).toLowerCase() === 'residential' ? 'residential' : item.type} size={14} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: '6rem' }}>{item.name}</span>
+                </div>
+                <div className="sig-col-type" style={{ width: '80rem' }}>
+                  <span className={`sig-type-badge sig-type-${String(item.type).toLowerCase()}`} style={{ fontSize: '9rem', padding: '1rem 4rem' }}>
+                    {item.type}
+                  </span>
+                </div>
+                <div className="sig-col-theme" style={{ width: '80rem', textAlign: 'center' }}>
+                  <ThemeIcon theme={item.theme} size={14} />
+                </div>
+                <div className="sig-col-pack" style={{ width: '80rem', textAlign: 'center' }}>
+                  <PackIcon pack={item.assetPack} size={14} />
+                </div>
+                <div className="sig-col-level" style={{ width: '36rem', textAlign: 'center', color: 'rgba(255,255,255,0.75)' }}>{item.level > 0 ? item.level : '-'}</div>
+                <div className="sig-col-dist" style={{ width: '60rem', textAlign: 'center', opacity: 0.8, fontSize: '10rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.district}</div>
+              </div>
+              {expandedEntity === item.entityKey && (
+                <div className="sig-row-details" style={{ padding: '4rem 10rem 8rem 34rem', background: 'rgba(0,0,0,0.15)', fontSize: '10rem', color: 'rgba(255,255,255,0.6)' }}>
+                  <div className="sig-detail-line" style={{ marginBottom: '2rem' }}>{item.address}</div>
+                  {item.extraInfo && <div className="sig-detail-line sig-detail-extra" style={{ color: '#50b8e9' }}>{item.extraInfo}</div>}
+                  <div className="sig-detail-line" style={{ marginTop: '4rem', fontStyle: 'italic' }}>Entity: {item.entityKey}</div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default AdvancedTPMWindow;
+

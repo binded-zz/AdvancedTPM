@@ -231,7 +231,7 @@ namespace AdvancedTPM
                         }
                         catch { }
 
-                        // Determine density from unit count (heuristic — zone component is on lot entity, not building)
+                        // Determine density from unit count (heuristic  zone component is on lot entity, not building)
                         if (capacity > 0)
                         {
                             if (capacity <= 4) density = "Low";
@@ -249,13 +249,27 @@ namespace AdvancedTPM
                         // Ensure we have something useful to display
                         if (string.IsNullOrEmpty(address)) address = "Building " + ent.Index;
 
+                        string districtName = "City";
+                        try
+                        {
+                            Entity districtEntity = Entity.Null;
+                            if (em.HasComponent<Game.Areas.CurrentDistrict>(ent)) 
+                                districtEntity = em.GetComponentData<Game.Areas.CurrentDistrict>(ent).m_District;
+
+                            if (districtEntity != Entity.Null && _nameSystem != null)
+                            {
+                                districtName = _nameSystem.GetRenderedLabelName(districtEntity) ?? "City";
+                            }
+                        }
+                        catch { }
+
                         // Clean pipe and semicolon from theme/assetPack to prevent parsing issues
                         theme = (theme ?? "Unknown").Replace("|", "-").Replace(";", "-");
                         assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
 
                         parts.Add(string.Format(CultureInfo.InvariantCulture,
-                            "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}",
-                            ent.Index, ent.Version, address, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0"));
+                            "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}",
+                            ent.Index, ent.Version, address, districtName, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0"));
                     }
                     catch { }
                 }
@@ -263,7 +277,7 @@ namespace AdvancedTPM
             finally { entities.Dispose(); }
 
             _residentialBuildingsData.Update(string.Join(";", parts));
-            try { Mod.log.Info($"ResidentialBrowserSystem: buildings payload count={parts.Count} payloadLen={(_residentialBuildingsData != null ? (string.Join(";", parts)).Length : 0)}"); } catch { }
+            try { if (Mod.log != null) Mod.log.Info($"ResidentialBrowserSystem: buildings payload count={parts.Count}"); } catch { }
             try
             {
                 var md = AdvancedTPM.Utilities.FilePaths.GetModsDataFolder();
@@ -293,6 +307,7 @@ namespace AdvancedTPM
                 {
                     foreach (var ent in entities)
                     {
+                        string districtName = "City";
                         try
                         {
                             if (EntityManager.HasComponent<PrefabRef>(ent))
@@ -412,7 +427,6 @@ namespace AdvancedTPM
                 finally { entities.Dispose(); }
 
                 _residentialSignatureBuildingsData.Update(string.Join(";", signatureBuildings));
-                try { Mod.log.Info($"ResidentialBrowserSystem: signature buildings count={signatureBuildings.Count}"); } catch { }
             }
             catch (Exception ex) { try { Mod.log.Warn($"ResidentialBrowserSystem UpdateSignatureResidentialBuildings Error: {ex.Message}"); } catch { } }
         }

@@ -168,7 +168,7 @@ const SliderRow: React.FC<{
   );
 };
 
-/* ── Per-resource dual-thumb range slider (same pattern as CompanyBrowser profit slider) ── */
+/* --- Per-resource dual-thumb range slider (same pattern as CompanyBrowser profit slider) --- */
 const RangeSliderRow: React.FC<{
   resourceKey: string;
   label: string;
@@ -256,13 +256,6 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
   const [perResourceRanges, setPerResourceRanges] = useState<Map<string, ResourceRange>>(() => new Map(parsed.perResourceRanges));
   const [profitWeight, setProfitWeight] = useState(parsed.profitWeight);
   const [opacity, setOpacity] = useState(parsed.opacity);
-  const [useGameIcons, setUseGameIcons] = useState<boolean>(() => {
-    try {
-      const v = localStorage.getItem('atpm.useGameZoneIcons');
-      if (v === null) return true;
-      return v === '1' || v === 'true';
-    } catch { return true; }
-  });
 
   // Drag state
   const panelRef = useRef<HTMLDivElement>(null);
@@ -279,19 +272,9 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
     const thumb = scrollThumbRef.current;
     const track = scrollTrackRef.current;
     if (!body || !thumb || !track) return;
-    // Position track relative to wrapper using bounding rects
-    try {
-      const bodyRect = body.getBoundingClientRect();
-      const wrapper = body.parentElement || body;
-      const wrapperRect = wrapper.getBoundingClientRect();
-      let relTop = bodyRect.top - wrapperRect.top;
-      relTop = Math.max(0, Math.min(relTop, Math.max(0, wrapperRect.height - body.clientHeight)));
-      track.style.top = `${relTop}px`;
-      track.style.height = `${body.clientHeight}px`;
-    } catch {}
     const ratio = body.clientHeight / body.scrollHeight;
-    if (ratio >= 1 || !Number.isFinite(ratio)) { try { track.style.display = 'none'; } catch {} ; return; }
-    try { track.style.display = 'block'; } catch {}
+    if (ratio >= 1 || !Number.isFinite(ratio)) { track.style.display = 'none'; return; }
+    track.style.display = 'block';
     const trackH = track.clientHeight;
     if (trackH <= 0) return;
     const thumbH = Math.max(20, trackH * ratio);
@@ -349,7 +332,7 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
     document.addEventListener('mouseup', onUp);
   }, []);
 
-  // Ref to hold current settings for push — avoids stale closures
+  // Ref to hold current settings for push Î“Ã‡Ã¶ avoids stale closures
   const settingsRef = useRef({ interval, minRate, maxRate, happinessWeight, updateSpeed, excluded, perResourceRanges, profitWeight, opacity });
   useEffect(() => {
     settingsRef.current = { interval, minRate, maxRate, happinessWeight, updateSpeed, excluded, perResourceRanges, profitWeight, opacity };
@@ -364,13 +347,6 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
     }
     pushSettings({ interval, minRate, maxRate, happinessWeight, updateSpeed, excluded, perResourceRanges, profitWeight, opacity });
   }, [interval, minRate, maxRate, happinessWeight, updateSpeed, excluded, perResourceRanges, profitWeight, opacity]);
-
-  // Notify host and persist icon mode when changed in this panel
-  useEffect(() => {
-    try { localStorage.setItem('atpm.useGameZoneIcons', useGameIcons ? '1' : '0'); } catch {}
-    try { trigger('taxProduction', 'setAdvisorUseGameIcons', useGameIcons ? '1' : '0'); } catch {}
-    try { window.dispatchEvent(new CustomEvent('atpm.useGameIconsChanged', { detail: useGameIcons })); } catch {}
-  }, [useGameIcons]);
 
   const setResourceRange = useCallback((key: string, lo: number, hi: number) => {
     setPerResourceRanges((prev) => {
@@ -455,29 +431,18 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
         <span className="ats-header-title">Auto-Tax Settings</span>
         <button className="ats-close-btn" onMouseDown={(e) => e.stopPropagation()} onClick={onClose}>X</button>
       </div>
-      <div className="ats-row" style={{ padding: '8rem 12rem', display: 'flex', alignItems: 'center', gap: '8rem' }}>
-        <div style={{ fontSize: '12rem', color: 'rgba(255,255,255,0.9)', flex: '1' }}>Use in-game zone icons in Advisor</div>
-        <div
-          role="checkbox"
-          aria-checked={useGameIcons}
-          className={`ats-checkbox${useGameIcons ? ' ats-checkbox-checked' : ''}`}
-          onClick={(e) => { e.stopPropagation(); setUseGameIcons((v) => !v); }}
-          style={{ cursor: 'pointer' }}
-          title={useGameIcons ? 'Using in-game icons' : 'Using simple badges'}
-        />
-      </div>
 
       <div className="ats-body-wrapper">
         <div ref={scrollBodyRef} className="ats-body">
         {/* Global sliders */}
         <div className="ats-section">
           <div className="ats-section-title">Tuning Parameters</div>
-          <SliderRow label="Adjustment Speed" value={interval} min={1} max={5} step={1} tooltip="How frequently auto-tax adjusts rates. Very Fast = ~5s, Fast = ~10s, Normal = ~20s, Slow = ~45s, Very Slow = ~90s" displayValue={SPEED_LABELS[interval] || `${interval}`} onChange={setInterval_} />
+          <SliderRow label="Adjustment Speed" value={interval} min={1} max={5} step={1} tooltip="How frequently auto-tax adjusts rates. Very Fast = ~5s, Fast = ~10s, Normal = ~20s, Slow = ~45s, Very Slow = ~90s" displayValue={SPEED_LABELS[interval] || `${interval}`} onChange={setInterval_} />
           <SliderRow label="Minimum Tax Rate" value={minRate} min={-10} max={30} step={1} unit="%" tooltip="The lowest tax rate auto-tax will set for any resource (global default)" onChange={setMinRate} />
           <SliderRow label="Maximum Tax Rate" value={maxRate} min={-10} max={30} step={1} unit="%" tooltip="The highest tax rate auto-tax will set for any resource (global default)" onChange={setMaxRate} />
-          <SliderRow label="Happiness Weight" value={happinessWeight} min={0} max={100} step={5} unit="%" tooltip="How much citizen happiness influences tax decisions" infoTooltip={"At 0%: Happiness has no effect on tax decisions.\nAt 50% (default): Moderate influence — low happiness (<50%) applies strong downward pressure to cut taxes; high happiness (>70%) gives mild permission to raise.\nAt 100%: Maximum influence — unhappy citizens force aggressive tax cuts; happy citizens allow raises but don't force them.\n\nHappiness acts as an asymmetric gate: it punishes high taxes when citizens are unhappy, but only mildly rewards when they're happy."} onChange={setHappinessWeight} />
-          <SliderRow label="Profit Weight" value={profitWeight} min={0} max={100} step={5} unit="%" tooltip="Balance between macro signals and real company profit data" infoTooltip={"Controls the balance between macro economic signals and real company profitability data.\n\nAt 0%: Tax decisions based entirely on macro signals (production/consumption balance, demand, taxable income).\nAt 50% (default): Equal mix of macro signals and real company profits from ECS data.\nAt 100%: Tax decisions driven entirely by actual company profitability — if companies are profitable, taxes can rise; if losing money, taxes drop.\n\nHigher values make the system more responsive to individual company health."} onChange={setProfitWeight} />
-          <SliderRow label="UI Update Speed" value={updateSpeed} min={1} max={3} step={1} tooltip="How often the UI refreshes data. 1 = Slow, 2 = Normal, 3 = Fast" displayValue={updateSpeed === 1 ? 'Slow' : updateSpeed === 2 ? 'Normal' : 'Fast'} onChange={setUpdateSpeed} />
+          <SliderRow label="Happiness Weight" value={happinessWeight} min={0} max={100} step={5} unit="%" tooltip="How much citizen happiness influences tax decisions" infoTooltip={"At 0%: Happiness has no effect on tax decisions.\nAt 50% (default): Moderate influence - low happiness (<50%) applies strong downward pressure to cut taxes; high happiness (>70%) gives mild permission to raise.\nAt 100%: Maximum influence - unhappy citizens force aggressive tax cuts; happy citizens allow raises but don't force them.\n\nHappiness acts as an asymmetric gate: it punishes high taxes when citizens are unhappy, but only mildly rewards when they're happy."} onChange={setHappinessWeight} />
+          <SliderRow label="Profit Weight" value={profitWeight} min={0} max={100} step={5} unit="%" tooltip="Balance between macro signals and real company profit data" infoTooltip={"Controls the balance between macro economic signals and real company profitability data.\n\nAt 0%: Tax decisions based entirely on macro signals (production/consumption balance, demand, taxable income).\nAt 50% (default): Equal mix of macro signals and real company profits from ECS data.\nAt 100%: Tax decisions driven entirely by actual company profitability - if companies are profitable, taxes can rise; if losing money, taxes drop.\n\nHigher values make the system more responsive to individual company health."} onChange={setProfitWeight} />
+          <SliderRow label="UI Update Speed" value={updateSpeed} min={1} max={3} step={1} tooltip="How often the UI refreshes data. 1 = Slow, 2 = Normal, 3 = Fast" displayValue={updateSpeed === 1 ? 'Slow' : updateSpeed === 2 ? 'Normal' : 'Fast'} onChange={setUpdateSpeed} />
           <SliderRow label="Panel Opacity" value={opacity} min={40} max={100} step={5} unit="%" tooltip="Window background transparency. Lower values make the panel more see-through" onChange={setOpacity} />
         </div>
 
@@ -485,7 +450,7 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
         <div className="ats-section">
           <div className="ats-section-title">
             Per-Resource Auto-Tax
-            <span className="ats-resource-count">{enabledCount} / {allResources.length} enabled</span>
+            <span className="ats-resource-count">{enabledCount} / {allResources.length} enabled</span>
           </div>
           <div className="ats-resource-groups">
             {stageGroups.map((sg) => {

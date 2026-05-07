@@ -1,12 +1,30 @@
-import React, { useMemo } from 'react';
-// React hooks are provided by the environment. Do not import to avoid duplicate type declarations.
+import React, { useState, useMemo, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
+import { trigger } from 'cs2/api';
 import './ServicesPanel.css';
+import ServiceIcon from '../assets/ServiceIcon';
+import ThemeIcon from '../assets/ThemeIcon';
+import PackIcon from '../assets/PackIcon';
 
-interface ServiceInfo {
+interface ServiceBuildingInfo {
+  entityKey: string;
+  name: string;
+  address: string;
+  category: string;
+  district: string;
+  theme: string;
+  assetPack: string;
+  level: number;
+  capacity: number;
+  usage: number;
+  efficiency: number;
+  isSignature: boolean;
+}
+
+interface ServiceSummary {
   id: number;
   name: string;
-  type?: string;
-  category?: string;
+  type: string;
+  category: string;
   budget: number;
   fee: number;
   upkeep: number;
@@ -16,208 +34,346 @@ interface ServiceInfo {
   usage: number;
 }
 
-const SERVICE_CATEGORIES = ['All', 'Utilities', 'Emergency', 'Networks', 'Transportation', 'Parks', 'Communications', 'Other'];
+const CATEGORIES = [
+  'All', 
+  'Electricity', 
+  'Water & Sewage', 
+  'Healthcare & Deathcare', 
+  'Garbage Management', 
+  'Education & Research', 
+  'Fire & Rescue', 
+  'Police & Administration', 
+  'Transportation', 
+  'Parks & Recreation', 
+  'Communications', 
+  'Welfare',
+  'Other'
+];
 
-const getServiceCategory = (name: string): string => {
-  const lower = (name || '').toLowerCase();
-  if (lower.includes('electric') || lower.includes('water') || lower.includes('sewage') || lower.includes('garbage')) return 'Utilities';
-  if (lower.includes('health') || lower.includes('death') || lower.includes('fire') || lower.includes('police') || lower.includes('disaster')) return 'Emergency';
-  if (lower.includes('road')) return 'Networks';
-  if (lower.includes('transport') || lower.includes('bus') || lower.includes('tram') || lower.includes('train') || lower.includes('metro') || lower.includes('taxi') || lower.includes('harbor') || lower.includes('airport')) return 'Transportation';
-  if (lower.includes('park') || lower.includes('recreation') || lower.includes('plaza') || lower.includes('tourism')) return 'Parks';
-  if (lower.includes('post') || lower.includes('telecom')) return 'Communications';
-  if (lower.includes('education') || lower.includes('research') || lower.includes('admin')) return 'Other';
-  return 'Other';
-};
+type SortField = 'name' | 'address' | 'category' | 'district' | 'theme' | 'assetPack' | 'level' | 'capacity' | 'usage' | 'efficiency';
+type SortDir = 'asc' | 'desc';
 
-const parseServicesData = (payload: string): ServiceInfo[] => {
+const parseServiceBuildingsData = (payload: string): ServiceBuildingInfo[] => {
   if (!payload) return [];
   try {
     const arr = JSON.parse(payload);
     if (!Array.isArray(arr)) return [];
     return arr.map((s: any) => ({
-      id: Number(s.id) || 0,
+      entityKey: String(s.entityKey || ''),
       name: String(s.name || ''),
-      type: String(s.type || ''),
+      address: String(s.address || ''),
       category: String(s.category || ''),
-      budget: Number(s.budget) || 0,
-      fee: Number(s.fee) || 0,
-      upkeep: Number(s.upkeep) || 0,
-      efficiency: Number(s.efficiency) || 0,
-      coverage: Number(s.coverage) || 0,
+      district: String(s.district || 'City'),
+      theme: String(s.theme || 'USA'),
+      assetPack: String(s.assetPack || 'Base Game'),
+      level: Number(s.level) || 0,
       capacity: Number(s.capacity) || 0,
       usage: Number(s.usage) || 0,
-    }));
+      efficiency: Number(s.efficiency) || 0,
+      isSignature: !!s.isSignature,
+    } as ServiceBuildingInfo));
   } catch {
     return [];
   }
 };
 
-const ServicesPanel: React.FC<{ servicesBrowserData?: string }> = ({ servicesBrowserData = '' }) => {
-  const services = React.useMemo(() => parseServicesData(servicesBrowserData), [servicesBrowserData]);
-  const [categoryFilter, setCategoryFilter] = React.useState('All');
-  const [searchText, setSearchText] = React.useState('');
-
-  const bodyRef = React.useRef<HTMLDivElement | null>(null);
-  const trackRef = React.useRef<HTMLDivElement | null>(null);
-  const thumbRef = React.useRef<HTMLDivElement | null>(null);
-  const [thumbTop, setThumbTop] = React.useState(0);
-  const [thumbHeight, setThumbHeight] = React.useState(48);
-
-  const updateScrollbar = React.useCallback(() => {
-    const body = bodyRef.current;
-    const track = trackRef.current;
-    if (!body || !track) return;
-    const visible = body.clientHeight;
-    const total = body.scrollHeight || 1;
-    try {
-      const bodyRect = body.getBoundingClientRect();
-      const wrapper = body.parentElement || body;
-      const wrapperRect = wrapper.getBoundingClientRect();
-      track.style.top = `${Math.max(0, bodyRect.top - wrapperRect.top)}px`;
-      track.style.height = `${body.clientHeight}px`;
-    } catch {}
-    if (visible >= total) { try { track.style.display = 'none'; } catch {} return; }
-    try { track.style.display = 'block'; } catch {}
-    const ratio = Math.max(0.03, Math.min(1, visible / total));
-    const trackHeight = track.clientHeight;
-    const thumbH = Math.max(16, Math.round(trackHeight * ratio));
-    const maxScroll = total - visible;
-    const top = maxScroll > 0 ? Math.round((body.scrollTop / maxScroll) * (trackHeight - thumbH)) : 0;
-    setThumbHeight(thumbH);
-    setThumbTop(top);
-  }, []);
-
-  React.useLayoutEffect(() => { updateScrollbar(); }, [services.length, categoryFilter, searchText, updateScrollbar]);
-
-  React.useEffect(() => {
-    const body = bodyRef.current;
-    if (!body) return;
-    const mo = new MutationObserver(() => updateScrollbar());
-    mo.observe(body, { childList: true, subtree: true });
-    return () => mo.disconnect();
-  }, [bodyRef.current, updateScrollbar]);
-
-  React.useEffect(() => {
-    let dragging = false;
-    let startY = 0;
-    let startTop = 0;
-    const thumb = thumbRef.current;
-    const track = trackRef.current;
-    const body = bodyRef.current;
-    if (!thumb || !track || !body) return;
-    const onDown = (ev: any) => {
-      try { if (ev.stopPropagation) ev.stopPropagation(); } catch {}
-      dragging = true; startY = ev.clientY || 0; startTop = thumbTop;
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-      ev.preventDefault();
-    };
-    const onMove = (ev: MouseEvent) => {
-      if (!dragging) return;
-      const dy = ev.clientY - startY;
-      const maxTop = track.clientHeight - thumbHeight;
-      const newTop = Math.max(0, Math.min(maxTop, startTop + dy));
-      const maxScroll = body.scrollHeight - body.clientHeight;
-      body.scrollTop = maxScroll > 0 ? Math.round((newTop / (track.clientHeight - thumbHeight)) * maxScroll) : 0;
-      setThumbTop(newTop);
-    };
-    const onUp = () => { dragging = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); updateScrollbar(); };
-    try { thumb.addEventListener('pointerdown', onDown as any); } catch {}
-    try { thumb.addEventListener('mousedown', onDown as any); } catch {}
-    return () => { try { thumb.removeEventListener('mousedown', onDown as any); } catch {} };
-  }, [thumbTop, thumbHeight, updateScrollbar]);
-
-  const filtered = React.useMemo(() => {
-    let list = services;
-    if (categoryFilter !== 'All') {
-      list = list.filter((s) => (s.category || getServiceCategory(s.name)) === categoryFilter);
-    }
-    if (searchText) {
-      const lower = searchText.toLowerCase();
-      list = list.filter((s) => s.name.toLowerCase().includes(lower) || (s.type || '').toLowerCase().includes(lower));
-    }
-    return list;
-  }, [services, categoryFilter, searchText]);
-
-  if (services.length === 0) {
-    // If the binding exists but contains no parsed services, show a helpful debug payload
-    if (servicesBrowserData && servicesBrowserData.length > 0) {
-      return (
-        <div className="svc-panel">
-          <div className="svc-panel-empty">No services parsed from payload. Raw payload shown below for debugging.</div>
-          <pre className="svc-debug-payload">{servicesBrowserData}</pre>
-        </div>
-      );
-    }
-    return <div className="svc-panel-empty">Service data will appear when the simulation is running.</div>;
+const parseServiceSummaries = (payload: string): ServiceSummary[] => {
+  if (!payload) return [];
+  try {
+    const arr = JSON.parse(payload);
+    if (!Array.isArray(arr)) return [];
+    return arr as ServiceSummary[];
+  } catch {
+    return [];
   }
+};
 
+const focusEntityKey = (entityKey: string) => {
+  try {
+    const parts = String(entityKey || '').split(',');
+    trigger('camera', 'focusEntity', {
+      index: Number(parts[0]) || 0,
+      version: Number(parts[1]) || 0,
+    });
+  } catch {}
+};
+
+const getServiceRowTooltip = (b: ServiceBuildingInfo) => {
+  const loadPct = b.capacity > 0 ? Math.round((b.usage / b.capacity) * 100) : 0;
+  return [
+    `<b>${b.address || b.name}</b>`,
+    `<br/>Category: ${b.category || 'Unknown'}`,
+    `District: ${b.district || 'City'}`,
+    `Theme: ${b.theme || 'USA'} • Pack: ${b.assetPack || 'Base Game'}`,
+    `Level: ${b.level > 0 ? `Lv ${b.level}` : '—'}`,
+    `<br/><b>Capacity: ${b.capacity.toFixed(0)}</b>`,
+    `<b>Usage: ${b.usage.toFixed(0)} (${loadPct}%)</b>`,
+    `<b>Efficiency: ${b.efficiency.toFixed(0)}%</b>`,
+    `<br/>Entity: ${b.entityKey}`,
+    `<br/><i>Click row or GO to focus camera</i>`,
+  ].join('\n');
+};
+
+interface CycleFilterButtonProps {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  displayValue?: (value: string) => string;
+}
+
+const CycleFilterButton: React.FC<CycleFilterButtonProps> = ({ label, value, options, onChange, displayValue }) => {
+  const currentIndex = Math.max(0, options.indexOf(value));
+  const nextValue = () => {
+    const nextVal = options[(currentIndex + 1) % options.length] || options[0] || value;
+    onChange(nextVal);
+  };
   return (
-    <div className="svc-panel">
-      {/* Filters � outside scroll, always visible */}
-      <div className="svc-filters">
-        <div className="svc-category-tabs">
-          {SERVICE_CATEGORIES.map((c) => (
-            <button
-              key={c}
-              className={`svc-category-tab${categoryFilter === c ? ' svc-category-active' : ''}`}
-              onClick={() => setCategoryFilter(c)}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-        <div className="svc-controls">
-          <input
-            className="svc-search"
-            placeholder="Search services..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value || '')}
-          />
-        </div>
-      </div>
+    <button className="svc-cycle-btn" onClick={nextValue} title={`${label}: ${value}. Click to cycle.`}>
+      {displayValue ? displayValue(value) : `${label}: ${value}`}
+    </button>
+  );
+};
 
-      {/* Table: sticky header + scrollable body */}
-      <div className="svc-table">
-        <div className="svc-table-header">
-          <div className="svc-col-name">Service</div>
-          <div className="svc-col-category">Category</div>
-          <div className="svc-col-budget">Budget%</div>
-          <div className="svc-col-fee">Fee%</div>
-          <div className="svc-col-eff">Eff</div>
-          <div className="svc-col-coverage">Coverage</div>
-          <div className="svc-col-cap">Capacity</div>
-          <div className="svc-col-usage">Usage</div>
-          <div className="svc-col-upkeep">Upkeep</div>
-        </div>
-        <div className="svc-scroll-wrap">
-          <div ref={bodyRef} className="svc-table-body" onScroll={updateScrollbar}>
-            {filtered.map((s) => (
-              <div key={`${s.id}-${s.name}`} className="svc-table-row">
-                <div className="svc-col-name">{s.name || `Service ${s.id}`}</div>
-                <div className="svc-col-category">{s.category || getServiceCategory(s.name)}</div>
-                <div className="svc-col-budget"
-                  style={{ color: s.budget > 0 && s.budget < 80 ? '#e88c3a' : s.budget >= 100 ? '#8bdb46' : 'rgba(255,255,255,0.7)' }}>
-                  {s.budget.toFixed(0)}%
+const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserData?: string }> = ({ servicesBuildingsData = '', servicesBrowserData = '' }) => {
+   const buildings = useMemo(() => parseServiceBuildingsData(servicesBuildingsData || ''), [servicesBuildingsData]);
+   const summaries = useMemo(() => parseServiceSummaries(servicesBrowserData || ''), [servicesBrowserData]);
+   const safeBuildings = Array.isArray(buildings) ? buildings : [];
+   const [categoryFilter, setCategoryFilter] = useState('All');
+   const [districtFilter, setDistrictFilter] = useState('All');
+   const [packFilter, setPackFilter] = useState('All');
+   const [themeFilter, setThemeFilter] = useState('All');
+   const [loadFilter, setLoadFilter] = useState<'All' | 'Empty' | 'Underused' | 'Busy' | 'Full'>('All');
+   const [searchText, setSearchText] = useState('');
+   const [sortField, setSortField] = useState<SortField>('name');
+   const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+   const categories = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.category).filter(Boolean))).sort()], [safeBuildings]);
+   const districts = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.district).filter(Boolean))).sort()], [safeBuildings]);
+   const packs = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.assetPack).filter(Boolean))).sort()], [safeBuildings]);
+   const themes = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.theme).filter(Boolean))).sort()], [safeBuildings]);
+
+   const filtered = useMemo(() => {
+     let list = safeBuildings;
+     if (categoryFilter !== 'All') list = list.filter((b) => b.category === categoryFilter);
+     if (districtFilter !== 'All') list = list.filter((b) => b.district === districtFilter);
+     if (packFilter !== 'All') list = list.filter((b) => b.assetPack === packFilter);
+     if (themeFilter !== 'All') list = list.filter((b) => b.theme === themeFilter);
+     if (loadFilter !== 'All') {
+       list = list.filter((b) => {
+         const load = b.capacity > 0 ? b.usage / b.capacity : 0;
+         switch (loadFilter) {
+           case 'Empty': return (b.usage || 0) <= 0;
+           case 'Underused': return load > 0 && load < 0.5;
+           case 'Busy': return load >= 0.5 && load < 0.9;
+           case 'Full': return load >= 0.9;
+           default: return true;
+         }
+       });
+     }
+     if (searchText) {
+       const lower = searchText.toLowerCase();
+       list = list.filter((b) => (b.name || '').toLowerCase().includes(lower) || (b.address || '').toLowerCase().includes(lower) || (b.category || '').toLowerCase().includes(lower) || (b.assetPack || '').toLowerCase().includes(lower));
+     }
+     return [...list].sort((a, b) => {
+       const dir = sortDir === 'asc' ? 1 : -1;
+       switch (sortField) {
+         case 'name': return dir * (a.name || '').localeCompare(b.name || '');
+         case 'address': return dir * (a.address || '').localeCompare(b.address || '');
+         case 'category': return dir * (a.category || '').localeCompare(b.category || '');
+         case 'district': return dir * (a.district || '').localeCompare(b.district || '');
+         case 'theme': return dir * (a.theme || '').localeCompare(b.theme || '');
+         case 'assetPack': return dir * (a.assetPack || '').localeCompare(b.assetPack || '');
+         case 'level': return dir * (a.level - b.level);
+         case 'capacity': return dir * (a.capacity - b.capacity);
+         case 'usage': return dir * (a.usage - b.usage);
+         case 'efficiency': return dir * (a.efficiency - b.efficiency);
+         default: return 0;
+       }
+     });
+   }, [safeBuildings, categoryFilter, districtFilter, packFilter, themeFilter, loadFilter, searchText, sortField, sortDir]);
+
+   const scrollRef = useRef<HTMLDivElement | null>(null);
+   const [showScrollbar, setShowScrollbar] = useState(false);
+   const [thumbHeight, setThumbHeight] = useState(0);
+   const [thumbTop, setThumbTop] = useState(0);
+   const [isDragging, setIsDragging] = useState(false);
+   const startY = useRef(0);
+   const startTop = useRef(0);
+
+   const updateScroll = useCallback(() => {
+     if (!scrollRef.current) return;
+     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+     if (scrollHeight <= clientHeight) {
+       setShowScrollbar(false);
+       return;
+     }
+     setShowScrollbar(true);
+     const ratio = clientHeight / scrollHeight;
+     setThumbHeight(Math.max(20, clientHeight * ratio));
+     setThumbTop((scrollTop / scrollHeight) * clientHeight);
+   }, []);
+
+   useLayoutEffect(() => {
+     updateScroll();
+     const el = scrollRef.current;
+     if (el) {
+       const obs = new ResizeObserver(updateScroll);
+       obs.observe(el);
+       return () => obs.disconnect();
+     }
+   }, [filtered, updateScroll]);
+
+   const onScroll = () => updateScroll();
+
+   const onThumbMouseDown = (e: React.MouseEvent) => {
+     e.preventDefault();
+     setIsDragging(true);
+     startY.current = e.clientY;
+     startTop.current = thumbTop;
+     const onMove = (ev: MouseEvent) => {
+       if (!scrollRef.current) return;
+       const delta = ev.clientY - startY.current;
+       const { scrollHeight, clientHeight } = scrollRef.current;
+       const newTop = Math.max(0, Math.min(clientHeight - thumbHeight, startTop.current + delta));
+       scrollRef.current.scrollTop = (newTop / clientHeight) * scrollHeight;
+     };
+     const onUp = () => {
+       setIsDragging(false);
+       document.removeEventListener('mousemove', onMove);
+       document.removeEventListener('mouseup', onUp);
+     };
+     document.addEventListener('mousemove', onMove);
+     document.addEventListener('mouseup', onUp);
+   };
+
+   const handleSort = (field: SortField) => {
+     if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
+     else { setSortField(field); setSortDir(field === 'name' || field === 'address' || field === 'category' || field === 'district' || field === 'theme' || field === 'assetPack' ? 'asc' : 'desc'); }
+   };
+   const sortIndicator = (field: SortField) => sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
+   const serviceLabels = useMemo(() => {
+     const k = (categoryFilter || '').toLowerCase();
+     if (k.includes('education') || k.includes('school') || k.includes('university')) {
+       return { cap: 'Students', use: 'Enrolled', eff: 'Quality' };
+     }
+     if (k.includes('police') || k.includes('fire') || k.includes('health') || k.includes('hospital') || k.includes('deathcare')) {
+       return { cap: 'Capacity', use: 'Active', eff: 'Coverage' };
+     }
+     if (k.includes('transport')) {
+       return { cap: 'Fleet/Cap', use: 'Riders', eff: 'Coverage' };
+     }
+     if (k.includes('garbage') || k.includes('waste') || k.includes('water') || k.includes('electric')) {
+       return { cap: 'Throughput', use: 'Load', eff: 'Util.' };
+     }
+     return { cap: 'Cap', use: 'Use', eff: 'Eff' };
+   }, [categoryFilter]);
+
+   if (safeBuildings.length === 0 && summaries.length === 0) {
+     if (servicesBuildingsData && servicesBuildingsData.length > 0) return <div className="svc-panel-empty">No service buildings parsed yet.</div>;
+     return <div className="svc-panel-empty">Service building data will appear when the simulation is running.</div>;
+   }
+
+   return (
+     <div className="svc-panel">
+       <div className="svc-filters">
+         <div className="svc-category-tabs">
+           {categories.map((c) => <button key={c} className={`svc-category-tab${categoryFilter === c ? ' svc-category-active' : ''}`} onClick={() => setCategoryFilter(c)}>{c}</button>)}
+         </div>
+         <div className="svc-controls">
+           <input className="svc-search" placeholder="Search service buildings..." value={searchText} onInput={(e: any) => setSearchText(e.target.value || '')} />
+           <div className="svc-filter-group">
+             <CycleFilterButton label="District" value={districtFilter} options={districts} onChange={setDistrictFilter} displayValue={(v) => v === 'All' ? 'All Districts' : v} />
+             <CycleFilterButton label="Theme" value={themeFilter} options={themes} onChange={setThemeFilter} displayValue={(v) => v === 'All' ? 'All Themes' : v} />
+             <CycleFilterButton label="Pack" value={packFilter} options={packs} onChange={setPackFilter} displayValue={(v) => v === 'All' ? 'All Packs' : v} />
+             <CycleFilterButton label="Load" value={loadFilter} options={['All', 'Empty', 'Underused', 'Busy', 'Full']} onChange={(v) => setLoadFilter(v as any)} displayValue={(v) => v === 'All' ? 'All Load' : v} />
+           </div>
+         </div>
+       </div>
+
+       {summaries.length > 0 && (
+          <div className="svc-summary-grid">
+            <div className="svc-summary-header">
+              <span>Global Service Status</span>
+              <span className="svc-summary-count">{summaries.length} services</span>
+            </div>
+            <div className="svc-summary-items">
+              {summaries.filter(s => categoryFilter === 'All' || s.category === categoryFilter).map((s) => {
+                const loadPct = s.capacity > 0 ? Math.min(100, Math.round((s.usage / s.capacity) * 100)) : 0;
+                return (
+                  <div key={s.id} className="svc-summary-card">
+                    <div className="svc-summary-card-top">
+                      <ServiceIcon category={s.name} size={20} />
+                      <div className="svc-summary-name">{s.name}</div>
+                      <div className="svc-summary-budget" title="Budget Allocation">{s.budget.toFixed(0)}%</div>
+                    </div>
+                    <div className="svc-summary-card-body">
+                      <div className="svc-summary-stat">
+                        <span className="label">Efficiency</span>
+                        <span className="value" style={{ color: s.efficiency >= 90 ? '#8bdb46' : s.efficiency >= 50 ? '#50b8e9' : '#e05050' }}>{s.efficiency.toFixed(0)}%</span>
+                      </div>
+                      <div className="svc-summary-stat">
+                        <span className="label">Usage</span>
+                        <span className="value">{loadPct}%</span>
+                      </div>
+                      <div className="svc-summary-bar-bg">
+                        <div className="svc-summary-bar-fill" style={{ width: `${loadPct}%`, backgroundColor: loadPct > 90 ? '#e05050' : loadPct > 70 ? '#f0ad4e' : '#50b8e9' }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+       <div className="svc-table">
+         <div className="svc-table-header">
+           <div className="svc-col-name svc-sortable" onClick={() => handleSort('name')}>Building{sortIndicator('name')}</div>
+           <div className="svc-col-category svc-sortable" onClick={() => handleSort('category')}>Category{sortIndicator('category')}</div>
+           <div className="svc-col-theme svc-sortable" onClick={() => handleSort('theme')}><ThemeIcon theme="All" size={14} />{sortIndicator('theme')}</div>
+           <div className="svc-col-pack svc-sortable" onClick={() => handleSort('assetPack')}><PackIcon pack="All" size={14} />{sortIndicator('assetPack')}</div>
+           <div className="svc-col-district svc-sortable" onClick={() => handleSort('district')}>District{sortIndicator('district')}</div>
+           <div className="svc-col-level svc-sortable" onClick={() => handleSort('level')}>Lv{sortIndicator('level')}</div>
+           <div className="svc-col-cap svc-sortable" onClick={() => handleSort('capacity')}>{serviceLabels.cap}{sortIndicator('capacity')}</div>
+           <div className="svc-col-usage svc-sortable" onClick={() => handleSort('usage')}>{serviceLabels.use}{sortIndicator('usage')}</div>
+           <div className="svc-col-eff svc-sortable" onClick={() => handleSort('efficiency')}>{serviceLabels.eff}{sortIndicator('efficiency')}</div>
+           <div className="svc-col-go">Go</div>
+         </div>
+         <div className="svc-table-scroll-wrap">
+           <div ref={scrollRef} className="svc-table-body" onScroll={onScroll}>
+             {showScrollbar && (
+               <div className="svc-scrollbar-track">
+                 <div
+                   className="svc-scrollbar-thumb"
+                   style={{ height: `${thumbHeight}rem`, top: `${thumbTop}rem` }}
+                   onMouseDown={onThumbMouseDown}
+                 />
+               </div>
+             )}
+            {filtered.slice(0, 400).map((b) => (
+              <div key={b.entityKey} className="svc-table-row" onClick={() => focusEntityKey(b.entityKey)} title={getServiceRowTooltip(b)}>
+                <div className="svc-col-name">
+                  <ServiceIcon category={b.category} />
+                  <ThemeIcon theme={b.theme} />
+                  <PackIcon pack={b.assetPack} />
+                  <span>{b.address || b.name}</span>
                 </div>
-                <div className="svc-col-fee"
-                  style={{ color: s.fee > 80 ? '#e05050' : s.fee > 50 ? '#e88c3a' : 'rgba(255,255,255,0.7)' }}>
-                  {s.fee.toFixed(0)}%
+                <div className="svc-col-category">{b.category}</div>
+                <div className="svc-col-theme"><ThemeIcon theme={b.theme} size={18} /></div>
+                <div className="svc-col-pack"><PackIcon pack={b.assetPack} size={18} /></div>
+                <div className="svc-col-district">{b.district || 'City'}</div>
+                <div className="svc-col-level">{b.level > 0 ? `Lv ${b.level}` : '—'}</div>
+                <div className="svc-col-cap">{b.capacity.toFixed(0)}</div>
+                <div className="svc-col-usage">{b.usage.toFixed(0)}</div>
+                <div className="svc-col-eff" style={{ color: b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#50b8e9' : '#e05050' }}>{b.efficiency.toFixed(0)}%</div>
+                <div className="svc-col-go">
+                  <button className="svc-go-btn" onClick={(e) => { e.stopPropagation(); focusEntityKey(b.entityKey); }}>GO</button>
                 </div>
-                <div className="svc-col-eff"
-                  style={{ color: s.efficiency >= 0.8 ? '#8bdb46' : s.efficiency >= 0.5 ? '#e88c3a' : '#e05050' }}>
-                  {(s.efficiency * 100).toFixed(0)}%
-                </div>
-                <div className="svc-col-coverage">{s.coverage.toFixed(1)}</div>
-                <div className="svc-col-cap">{s.capacity.toFixed(0)}</div>
-                <div className="svc-col-usage">{s.usage.toFixed(0)}</div>
-                <div className="svc-col-upkeep">{s.upkeep.toFixed(0)}</div>
               </div>
             ))}
-          </div>
-          <div ref={trackRef} className="svc-scrollbar-track" aria-hidden>
-            <div ref={thumbRef} className="svc-scrollbar-thumb" style={{ top: `${thumbTop}px`, height: `${thumbHeight}px` }} />
+            {filtered.length === 0 && <div className="svc-panel-empty">No buildings match filter.</div>}
           </div>
         </div>
       </div>

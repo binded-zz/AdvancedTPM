@@ -1,4 +1,4 @@
-﻿using Colossal.UI.Binding;
+using Colossal.UI.Binding;
 using Game.Buildings;
 using Game.Companies;
 using Game.Economy;
@@ -277,6 +277,10 @@ namespace AdvancedTPM
             public bool NeedsElectricity;
             public bool NeedsWater;
             public bool IsSignature;
+            public string District;
+            public string Theme;
+            public string AssetPack;
+            public string CompanyKind;
         }
 
         private List<CompanyInfo> CollectCompanyData()
@@ -458,6 +462,7 @@ namespace AdvancedTPM
 
                         info.ResourceKey = GetResourceKey(storedRes);
                         info.ResourceEnum = storedRes;
+                        info.CompanyKind = "Storage";
                     }
                     else
                     {
@@ -777,6 +782,42 @@ namespace AdvancedTPM
                         catch { }
 
                         info.IsSignature = sig;
+
+                        info.District = "City";
+                        info.Theme = "USA";
+                        info.AssetPack = "Base Game";
+                        if (string.IsNullOrEmpty(info.CompanyKind))
+                        {
+                            if (info.ZoneType == "RawIndustrial") info.CompanyKind = "Extraction";
+                            else info.CompanyKind = info.ZoneType;
+                        }
+                        try
+                        {
+                            if (prop != Entity.Null && em.Exists(prop))
+                            {
+
+                                if (em.HasComponent<PrefabRef>(prop))
+                                {
+                                    var pr = em.GetComponentData<PrefabRef>(prop);
+                                    var prefab = pr.m_Prefab;
+                                    if (_prefabSystem != null)
+                                    {
+                                        var pb = _prefabSystem.GetPrefab<PrefabBase>(prefab);
+                                        if (pb != null)
+                                        {
+                                            string pn = pb.name ?? "";
+                                            if (pn.Contains("European")) info.Theme = "European";
+                                            else if (pn.Contains("NorthAmerican")) info.Theme = "North American";
+                                            else if (pn.Contains("Asian")) info.Theme = "Asian";
+                                            
+                                            if (pn.StartsWith("DLC") || pn.Contains("_DLC")) info.AssetPack = "DLC";
+                                            else if (pn.Contains("Mod_")) info.AssetPack = "Custom";
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
                     }
                     catch { info.IsSignature = false; }
                 }
@@ -1053,7 +1094,7 @@ namespace AdvancedTPM
             foreach (var c in companies)
             {
                 parts.Add(string.Format(CultureInfo.InvariantCulture,
-                    "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9:F0}|{10:F0}|{11:F0}|{12}|{13}|{14}|{15}|{16}|{17}|{18}|{19}|{20}|{21}|{22}|{23}|{24}|{25}|{26}|{27}|{28}|{29}|{30}|{31}",
+                    "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9:F0}|{10:F0}|{11:F0}|{12}|{13}|{14}|{15}|{16}|{17}|{18}|{19}|{20}|{21}|{22}|{23}|{24}|{25}|{26}|{27}|{28}|{29}|{30}|{31}|{32}|{33}|{34}|{35}",
                     c.Entity.Index, c.Entity.Version,
                     EscapePipe(c.Name ?? "Unknown"),
                     c.ZoneType,
@@ -1079,12 +1120,15 @@ namespace AdvancedTPM
                     c.ProducesMail ? 1 : 0,
                     c.NeedsElectricity ? 1 : 0,
                     c.NeedsWater ? 1 : 0,
-                    // numeric service metrics
                     c.ElectricityConsumption.ToString(CultureInfo.InvariantCulture),
                     c.WaterConsumption.ToString(CultureInfo.InvariantCulture),
                     c.GarbageAccumulation.ToString(CultureInfo.InvariantCulture),
                     c.MailAccumulation.ToString(CultureInfo.InvariantCulture),
                     c.CrimeProbability.ToString(CultureInfo.InvariantCulture),
+                    EscapePipe(c.District ?? "City"),
+                    EscapePipe(c.Theme ?? "USA"),
+                    EscapePipe(c.AssetPack ?? "Base Game"),
+                    EscapePipe(c.CompanyKind ?? ""),
                     c.IsSignature ? 1 : 0));
             }
             return string.Join(";", parts);

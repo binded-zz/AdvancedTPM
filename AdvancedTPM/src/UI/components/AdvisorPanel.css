@@ -123,15 +123,24 @@
   border-bottom-color: rgba(80,180,240,0.9);
 }
 
-/* Content area */
+/* Content area: the container for the tabs. */
 .advisor-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   position: relative;
-  /* allow flex children to shrink so inner scroll boxes calculate correctly */
   min-height: 0;
+  box-sizing: border-box;
 }
-/* Reserve space so overlay scrollbars (if present) don't obscure content */
-.advisor-content { padding-right: 14rem; box-sizing: border-box; }
+
+/* Tab pane: the container for a single tab's content. */
+.advisor-tab-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden; /* Ensure pane itself doesn't scroll, only inner scroll boxes */
+}
 
 /* Overlay scrollbar for advisor content */
 .advisor-scrollbar-track {
@@ -176,6 +185,10 @@
   display: flex;
   flex-wrap: wrap;
   margin-bottom: 12rem;
+  flex-shrink: 0; /* Keep stats at top */
+}
+.advisor-stats-grid-wide {
+  padding: 8rem 10rem;
 }
 .advisor-stats-grid > * {
   margin-right: 8rem;
@@ -216,26 +229,51 @@
 }
 .advisor-section { position: relative; }
 
-/* Two-column overview layout */
-.advisor-overview-two {
+/* Two-column overview layout used in JSX */
+.advisor-overview-columns {
   display: flex;
-  margin-top: 12rem;
-}
-.advisor-overview-left, .advisor-overview-right {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0; /* allow children to shrink and enable inner scrolling */
+  min-height: 0;
+  /* gap replaced with margins on children for CoHTML compatibility */
+  padding: 0 10rem 10rem 10rem;
 }
 
-/* Scrollable box inside each column */
-.advisor-scroll-box {
-  flex: 1 1 auto;
+.advisor-overview-columns > .advisor-overview-col:first-child {
+  margin-right: 12rem;
+}
+
+.advisor-overview-col {
+  flex: 1 1 0%;
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(0,0,0,0.15);
+  border-radius: 4rem;
+  border: 1rem solid rgba(255,255,255,0.05);
+  padding: 4rem 0;
+}
+
+.advisor-overview-scroll {
+  flex: 1;
   overflow-y: auto;
-  /* reserve right padding to keep content clear of the overlay scrollbar/thumb */
-  padding: 8rem 18rem 8rem 0;
-  box-sizing: border-box;
-  position: relative; /* for any absolutely positioned children */
+  padding: 8rem 14rem 8rem 8rem;
+  min-height: 0;
+}
+
+.advisor-resource-icon {
+  width: 16rem;
+  height: 16rem;
+  margin-right: 8rem;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Profiles/Log scroll areas */
+.advisor-tab-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 .advisor-rec-box { padding-right: 10rem; }
 .advisor-section-title {
@@ -296,8 +334,11 @@
 }
 .advisor-rec-name {
   flex: 1;
-  font-size: 13rem;
+  font-size: 12rem;
   color: rgba(255,255,255,0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .advisor-rec-rate {
   font-size: 13rem;
@@ -332,18 +373,15 @@
 .advisor-decision-row {
   display: flex;
   align-items: center;
-  padding: 5rem 8rem;
+  padding: 4rem 6rem;
   background: rgba(255,255,255,0.03);
   border-radius: 3rem;
-  font-size: 13rem;
+  font-size: 12rem;
+  overflow: hidden;
 }
-
-/* Reserve space for the overlay scrollbar by adding right margin to the textual content
-   so the visual row background remains full-width while text doesn't flow under the thumb. */
-/* removed content-level right margins — layout reserves gutter via
-   the scroll body padding instead to keep row backgrounds full-width */
 .advisor-decision-row > * {
-  margin-right: 8rem;
+  margin-right: 6rem;
+  flex-shrink: 0;
 }
 .advisor-decision-row > *:last-child {
   margin-right: 0;
@@ -351,26 +389,24 @@
 .advisor-decision-resource {
   flex: 1;
   color: rgba(255,255,255,0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 .advisor-decision-change {
   color: rgba(255,255,255,0.7);
-  min-width: 80rem;
-  text-align: center;
+  white-space: nowrap;
+  font-size: 11rem;
 }
 .advisor-decision-outcome {
-  min-width: 45rem;
+  min-width: 36rem;
   text-align: right;
   font-weight: 600;
+  white-space: nowrap;
 }
 .advisor-decision-summary {
-  font-size: 11rem;
-  color: rgba(255,255,255,0.55);
-  max-width: 240rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: normal;
-  max-height: 28rem; /* approx 2 lines */
-  padding-left: 2rem;
+  display: none; /* hidden in overview half-panel — shown only in log full-width view */
 }
 
 /* Profiles tab */
@@ -455,8 +491,8 @@
 
 /* Small resource icon used in lists (decisions, recommendations, log) */
 .advisor-resource-icon {
-  width: 18rem;
-  height: 18rem;
+  width: 16rem;
+  height: 16rem;
   margin-right: 8rem;
   vertical-align: middle;
   display: block;
@@ -551,17 +587,20 @@
   margin-bottom: 3rem;
 }
 .advisor-log-row {
-  padding: 6rem 8rem;
+  padding: 5rem 8rem;
   background: rgba(255,255,255,0.03);
   border-radius: 3rem;
+  margin-bottom: 3rem;
 }
 .advisor-log-header {
   display: flex;
   align-items: center;
-  font-size: 13rem;
+  font-size: 12rem;
+  overflow: hidden;
 }
 .advisor-log-header > * {
-  margin-right: 10rem;
+  margin-right: 6rem;
+  flex-shrink: 0;
 }
 .advisor-log-header > *:last-child {
   margin-right: 0;
@@ -569,27 +608,36 @@
 .advisor-log-resource {
   flex: 1;
   color: rgba(255,255,255,0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 .advisor-log-change {
   color: rgba(255,255,255,0.7);
-  min-width: 80rem;
-  text-align: center;
+  white-space: nowrap;
+  font-size: 11rem;
 }
 .advisor-log-outcome {
-  min-width: 40rem;
-  text-align: right;
-  font-weight: 500;
-}
-.advisor-log-conf {
   min-width: 36rem;
   text-align: right;
-  font-size: 12rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.advisor-log-conf {
+  min-width: 32rem;
+  text-align: right;
+  font-size: 11rem;
+  white-space: nowrap;
 }
 .advisor-log-summary {
   font-size: 11rem;
   color: rgba(255,255,255,0.6);
   margin-top: 3rem;
   padding-left: 2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Scrollbar: -webkit-scrollbar not supported in CoHTML; use JS-based scrollbar or rely on default */

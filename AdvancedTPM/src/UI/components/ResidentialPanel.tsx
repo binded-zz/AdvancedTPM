@@ -1,7 +1,9 @@
-// React hooks are provided by the environment. Do not import to avoid duplicate type declarations.
-import React from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { trigger } from 'cs2/api';
 import './ResidentialPanel.css';
+import ThemeIcon from '../assets/ThemeIcon';
+import PackIcon from '../assets/PackIcon';
+import DistrictIcon from '../assets/DistrictIcon';
 
 interface ResidentialData {
   lowTotal: number;
@@ -22,6 +24,7 @@ interface ResidentialData {
 interface ResidentialBuilding {
   entityKey: string;
   address: string;
+  district?: string;
   density: string;
   level: number;
   occupied: number;
@@ -55,22 +58,23 @@ const parseResidentialData = (payload: string): ResidentialData | null => {
   }
 };
 
-// Parse per-building payload: "entityKey|address|density|level|occupied|capacity|theme|assetPack|isSignature;..."
+// Parse per-building payload: "entityKey|address|district|density|level|occupied|capacity|theme|assetPack|isSignature;..."
 const parseResidentialBuildings = (payload: string): ResidentialBuilding[] => {
   if (!payload) return [];
   return payload.split(';').map((chunk) => {
     const parts = chunk.split('|');
-    if (parts.length < 6) return null;
+    if (parts.length < 10) return null;
     return {
       entityKey: parts[0] || '',
       address: parts[1] || '',
-      density: parts[2] || 'Residential',
-      level: Number(parts[3]) || 1,
-      occupied: Number(parts[4]) || 0,
-      capacity: Number(parts[5]) || 0,
-      theme: parts[6] || 'Unknown',
-      assetPack: parts[7] || 'Base Game',
-      isSignature: parts[8] === '1',
+      district: parts[2] || 'City',
+      density: parts[3] || 'Residential',
+      level: Number(parts[4]) || 1,
+      occupied: Number(parts[5]) || 0,
+      capacity: Number(parts[6]) || 0,
+      theme: parts[7] || 'Unknown',
+      assetPack: parts[8] || 'Base Game',
+      isSignature: parts[9] === '1',
     } as ResidentialBuilding;
   }).filter((x): x is ResidentialBuilding => x !== null);
 };
@@ -84,181 +88,337 @@ const DENSITY_COLORS: Record<string, string> = {
   Residential: 'rgba(255,255,255,0.6)',
 };
 
+const RESIDENTIAL_ICON = 'Media/Game/Icons/ZoneResidential.svg';
+
+const normalizeTheme = (building: ResidentialBuilding): 'USA' | 'EU' => {
+  const raw = `${building.theme || ''} ${building.address || ''}`.toLowerCase();
+  return raw.includes('eu') || raw.includes('europe') ? 'EU' : 'USA';
+};
+
 type ResBldgSortField = 'address' | 'density' | 'level' | 'occupied' | 'capacity' | 'occupancy' | 'theme' | 'assetPack';
 type SortDir = 'asc' | 'desc';
+
+const FILTER_STEPS = ['0', '25', '50', '75', '90'];
+const OCCUPANCY_STATES = ['All', 'Empty', 'Half Empty', 'Mostly Empty', 'Occupied'];
+const FILTER_ICON_SIZE = 14;
+
+const formatThresholdLabel = (prefix: string, value: string) => {
+  if (value === '0') return `${prefix}: Any`;
+  return `${prefix}: ${value}+`;
+};
+
+const getResidentialRowTooltip = (b: ResidentialBuilding, data: ResidentialData) => {
+  const occPct = b.capacity > 0 ? pct(b.occupied, b.capacity) : (b.occupied > 0 ? 100 : 0);
+  const cityAvgHappiness = data.avgHappiness || 50;
+  const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
+  const levelAdj = (b.level - 3) * 2;
+  const estimate = Math.round(Math.max(0, Math.min(100, cityAvgHappiness + occupancyAdj + levelAdj)));
+  const lines = [
+    `<b>${b.address}</b>`,
+    `<br/>Density: ${b.density} â€¢ Level: Lv ${b.level}`,
+    `District: ${b.district || 'City'}`,
+    `Theme: ${normalizeTheme(b)} â€¢ Pack: ${b.assetPack || 'Base Game'}`,
+    `Occupancy: ${b.occupied}/${b.capacity || 0} (${occPct}%)`,
+    `<br/><b>Estimated Happiness: ${estimate}%</b>`,
+    `City Avg: ${cityAvgHappiness}%`,
+    `<br/>Signature: ${b.isSignature ? 'Yes' : 'No'}`,
+    `Entity: ${b.entityKey}`,
+    `<br/><i>Click row to expand details</i>`,
+  ];
+  return lines.join('\n');
+};
+
+const CycleFilterButton: React.FC<{
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  displayValue?: (value: string) => string;
+  icon?: (value: string) => React.ReactNode;
+}> = ({ label, value, options, onChange, displayValue, icon }) => {
+  const safeOptions = Array.isArray(options) && options.length > 0 ? options : ['All'];
+  const currentIndex = Math.max(0, safeOptions.indexOf(value));
+  const nextValue = () => onChange(safeOptions[(currentIndex + 1) % safeOptions.length]);
+
+  return (
+    <button
+      type="button"
+      className="res-bldg-dropdown"
+      onClick={nextValue}
+      title={`${label}: ${value}. Click to cycle.`}
+      style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+    >
+      {icon ? <span style={{ marginRight: '4rem', display: 'flex', alignItems: 'center' }}>{icon(value)}</span> : null}
+      {displayValue ? displayValue(value) : `${label}: ${value === 'All' ? `All ${label}s` : value}`}
+    </button>
+  );
+};
 
 const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialBuildingsData?: string }> = ({
   residentialBrowserData = '',
   residentialBuildingsData = '',
 }) => {
-  const data = React.useMemo(() => parseResidentialData(residentialBrowserData), [residentialBrowserData]);
-  const buildings = React.useMemo(() => parseResidentialBuildings(residentialBuildingsData), [residentialBuildingsData]);
+  const data = useMemo(() => parseResidentialData(residentialBrowserData || ''), [residentialBrowserData]);
+  const buildings = useMemo(() => parseResidentialBuildings(residentialBuildingsData || ''), [residentialBuildingsData]);
+  const safeBuildings = Array.isArray(buildings) ? buildings : [];
 
-  const [densityFilter, setDensityFilter] = React.useState('All');
-  const [themeFilter, setThemeFilter] = React.useState('All');
-  const [assetPackFilter, setAssetPackFilter] = React.useState('All');
-  const [levelFilter, setLevelFilter] = React.useState('All');
-  const [showSignatureOnly, setShowSignatureOnly] = React.useState(false);
-  const [minOccupancy, setMinOccupancy] = React.useState(0);
-  const [minHappiness, setMinHappiness] = React.useState(0);
-  const [sortField, setSortField] = React.useState<ResBldgSortField>('occupied');
-  const [sortDir, setSortDir] = React.useState<SortDir>('desc');
-  const [searchText, setSearchText] = React.useState('');
+  const [densityFilter, setDensityFilter] = useState('All');
+  const [themeFilter, setThemeFilter] = useState('All');
+  const [assetPackFilter, setAssetPackFilter] = useState('All');
+  const [districtFilter, setDistrictFilter] = useState('All');
+  const [levelFilter, setLevelFilter] = useState('All');
+  const [showSignatureOnly, setShowSignatureOnly] = useState(false);
+  const [occupancyStateFilter, setOccupancyStateFilter] = useState('All');
+  const [minHappiness, setMinHappiness] = useState(0);
+  const [maxHappiness, setMaxHappiness] = useState(100);
+  const [sortField, setSortField] = useState<ResBldgSortField>('occupied');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [searchText, setSearchText] = useState('');
+  const [selectedBuildingKey, setSelectedBuildingKey] = useState<string | null>(null);
+  const [expandedBuildingKey, setExpandedBuildingKey] = useState<string | null>(null);
+  const happinessTrackRef = useRef<HTMLDivElement | null>(null);
+  const happinessDraggingThumb = useRef<'min' | 'max' | null>(null);
 
-  const bodyRef = React.useRef<HTMLDivElement | null>(null);
-  const trackRef = React.useRef<HTMLDivElement | null>(null);
-  const thumbRef = React.useRef<HTMLDivElement | null>(null);
-  const [thumbTop, setThumbTop] = React.useState(0);
-  const [thumbHeight, setThumbHeight] = React.useState(48);
 
-  const updateScrollbar = React.useCallback(() => {
-    const body = bodyRef.current;
-    const track = trackRef.current;
-    if (!body || !track) return;
-    const visible = body.clientHeight;
-    const total = body.scrollHeight || 1;
-    try {
-      const bodyRect = body.getBoundingClientRect();
-      const wrapper = body.parentElement || body;
-      const wrapperRect = wrapper.getBoundingClientRect();
-      const relTop = Math.max(0, bodyRect.top - wrapperRect.top);
-      track.style.top = `${relTop}px`;
-      track.style.height = `${body.clientHeight}px`;
-    } catch {}
-    if (visible >= total) { try { track.style.display = 'none'; } catch {} return; }
-    try { track.style.display = 'block'; } catch {}
-    const ratio = Math.max(0.03, Math.min(1, visible / total));
-    const trackHeight = track.clientHeight;
-    const thumbH = Math.max(16, Math.round(trackHeight * ratio));
-    const maxScroll = total - visible;
-    const top = maxScroll > 0 ? Math.round((body.scrollTop / maxScroll) * (trackHeight - thumbH)) : 0;
-    setThumbHeight(thumbH);
-    setThumbTop(top);
-  }, []);
+  const onScroll = () => updateScroll();
 
-  React.useLayoutEffect(() => { updateScrollbar(); }, [buildings.length, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, minOccupancy, minHappiness, searchText, sortField, sortDir, updateScrollbar]);
-
-  React.useEffect(() => {
-    const body = bodyRef.current;
-    if (!body) return;
-    const mo = new MutationObserver(() => updateScrollbar());
-    mo.observe(body, { childList: true, subtree: true });
-    return () => mo.disconnect();
-  }, [bodyRef.current, updateScrollbar]);
-
-  React.useEffect(() => {
-    let dragging = false;
-    let startY = 0;
-    let startTop = 0;
-    const thumb = thumbRef.current;
-    const track = trackRef.current;
-    const body = bodyRef.current;
-    if (!thumb || !track || !body) return;
-    const onDown = (ev: any) => {
-      try { if (ev.stopPropagation) ev.stopPropagation(); } catch {}
-      dragging = true;
-      startY = ev.clientY || 0;
-      startTop = thumbTop;
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-      ev.preventDefault();
-    };
+  const onThumbMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    startY.current = e.clientY;
+    startTop.current = thumbTop;
     const onMove = (ev: MouseEvent) => {
-      if (!dragging) return;
-      const dy = ev.clientY - startY;
-      const maxTop = track.clientHeight - thumbHeight;
-      const newTop = Math.max(0, Math.min(maxTop, startTop + dy));
-      const maxScroll = body.scrollHeight - body.clientHeight;
-      body.scrollTop = maxScroll > 0 ? Math.round((newTop / (track.clientHeight - thumbHeight)) * maxScroll) : 0;
-      setThumbTop(newTop);
+      if (!scrollRef.current) return;
+      const delta = ev.clientY - startY.current;
+      const { scrollHeight, clientHeight } = scrollRef.current;
+      const newTop = Math.max(0, Math.min(clientHeight - thumbHeight, startTop.current + delta));
+      scrollRef.current.scrollTop = (newTop / clientHeight) * scrollHeight;
     };
-    const onUp = () => { dragging = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); updateScrollbar(); };
-    try { thumb.addEventListener('pointerdown', onDown as any); } catch {}
-    try { thumb.addEventListener('mousedown', onDown as any); } catch {}
-    return () => { try { thumb.removeEventListener('mousedown', onDown as any); } catch {} };
-  }, [thumbTop, thumbHeight, updateScrollbar]);
+    const onUp = () => {
+      setIsDragging(false);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
 
   const handleSort = (field: ResBldgSortField) => {
     if (sortField === field) { setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); }
     else { setSortField(field); setSortDir(field === 'address' ? 'asc' : 'desc'); }
   };
-  const sortIndicator = (field: ResBldgSortField) => sortField === field ? (sortDir === 'asc' ? ' ?' : ' ?') : '';
+  const sortIndicator = (field: ResBldgSortField) => sortField === field ? (sortDir === 'asc' ? ' â–²' : ' â–¼') : '';
+
+  const happinessFromClientX = useCallback((clientX: number): number => {
+    if (!happinessTrackRef.current) return 0;
+    const rect = happinessTrackRef.current.getBoundingClientRect();
+    const pctVal = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(pctVal * 100);
+  }, []);
+
+  const handleHappinessMouseDown = useCallback((thumb: 'min' | 'max') => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    happinessDraggingThumb.current = thumb;
+    const onMove = (ev: MouseEvent) => {
+      ev.preventDefault();
+      const val = happinessFromClientX(ev.clientX);
+      if (happinessDraggingThumb.current === 'min') {
+        setMinHappiness(Math.min(val, maxHappiness));
+      } else {
+        setMaxHappiness(Math.max(val, minHappiness));
+      }
+    };
+    const onUp = () => {
+      happinessDraggingThumb.current = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [happinessFromClientX, minHappiness, maxHappiness]);
+
+  const handleHappinessTrackClick = useCallback((e: React.MouseEvent) => {
+    const val = happinessFromClientX(e.clientX);
+    const distMin = Math.abs(val - minHappiness);
+    const distMax = Math.abs(val - maxHappiness);
+    if (distMin <= distMax) setMinHappiness(Math.min(val, maxHappiness));
+    else setMaxHappiness(Math.max(val, minHappiness));
+  }, [happinessFromClientX, minHappiness, maxHappiness]);
+
+  const happinessPctOf = (v: number) => v;
 
   // Extract unique values for filter dropdowns
-  const uniqueThemes = React.useMemo(() => {
-    if (!buildings || buildings.length === 0) return ['All'];
-    const themes = new Set(buildings.map(b => b.theme || 'Unknown').filter(t => t));
+  const uniqueThemes = useMemo(() => {
+    if (safeBuildings.length === 0) return ['All'];
+    const themes = new Set(safeBuildings.map((b) => normalizeTheme(b)).filter(Boolean));
     return ['All', ...Array.from(themes).sort()];
-  }, [buildings]) || ['All'];
+  }, [safeBuildings]) ?? ['All'];
 
-  const uniqueAssetPacks = React.useMemo(() => {
-    if (!buildings || buildings.length === 0) return ['All'];
-    const packs = new Set(buildings.map(b => b.assetPack || 'Base Game').filter(p => p));
+  const uniqueDistricts = useMemo(() => {
+    if (safeBuildings.length === 0) return ['All'];
+    const d = new Set(safeBuildings.map((b) => (b.district || 'City')).filter(Boolean));
+    return ['All', ...Array.from(d).sort()];
+  }, [safeBuildings]) ?? ['All'];
+
+  const uniqueAssetPacks = useMemo(() => {
+    if (safeBuildings.length === 0) return ['All'];
+    const packs = new Set(safeBuildings.map(b => b.assetPack || 'Base Game').filter(p => p));
     return ['All', ...Array.from(packs).sort()];
-  }, [buildings]) || ['All'];
+  }, [safeBuildings]) ?? ['All'];
 
-  const uniqueLevels = React.useMemo(() => {
-    if (!buildings || buildings.length === 0) return ['All'];
-    const levels = new Set(buildings.map(b => b.level).filter(l => typeof l === 'number'));
-    return ['All', ...Array.from(levels).sort((a, b) => a - b)];
-  }, [buildings]) || ['All'];
+  const uniqueLevels = useMemo(() => {
+    if (safeBuildings.length === 0) return ['All'];
+    const levels = new Set(
+      safeBuildings
+        .map(b => Number(b.level))
+        .filter(l => Number.isFinite(l) && l > 0)
+        .map(l => String(Math.round(l)))
+    );
+    return ['All', ...Array.from(levels).sort((a, b) => Number(a) - Number(b))];
+  }, [safeBuildings]) ?? ['All'];
 
-  const filteredBuildings = React.useMemo(() => {
-    if (!buildings || !data) return [];
-    let list = buildings;
-    if (densityFilter !== 'All') list = list.filter((b) => b.density === densityFilter);
-    if (themeFilter !== 'All') list = list.filter((b) => (b.theme || 'Unknown') === themeFilter);
-    if (assetPackFilter !== 'All') list = list.filter((b) => (b.assetPack || 'Base Game') === assetPackFilter);
-    if (levelFilter !== 'All') list = list.filter((b) => b.level === Number(levelFilter));
+  const filteredBuildings = useMemo(() => {
+    if (!safeBuildings.length || !data) return [];
+    let list = safeBuildings;
+    if (densityFilter !== 'All') list = list.filter((b) => String(b.density || '').trim() === densityFilter.trim());
+    if (themeFilter !== 'All') list = list.filter((b) => String(normalizeTheme(b) || '').trim() === themeFilter.trim());
+    if (districtFilter !== 'All') list = list.filter((b) => String(b.district || 'City').trim() === districtFilter.trim());
+    if (assetPackFilter !== 'All') list = list.filter((b) => String(b.assetPack || 'Base Game').trim() === assetPackFilter.trim());
+    if (levelFilter !== 'All') list = list.filter((b) => String(b.level || 0).trim() === levelFilter.trim());
     if (showSignatureOnly) list = list.filter((b) => b.isSignature === true);
 
-    // Occupancy filter
-    if (minOccupancy > 0) {
+    if (occupancyStateFilter !== 'All') {
       list = list.filter((b) => {
         const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
-        return occPct >= minOccupancy;
+        switch (occupancyStateFilter) {
+          case 'Empty': return (b.occupied || 0) === 0;
+          case 'Half Empty': return occPct > 0 && occPct < 50;
+          case 'Mostly Empty': return occPct > 0 && occPct < 75;
+          case 'Occupied': return occPct > 0;
+          default: return true;
+        }
       });
     }
 
-    // Happiness filter (using estimation algorithm)
-    if (minHappiness > 0) {
+    if (minHappiness > 0 || maxHappiness < 100) {
       list = list.filter((b) => {
         const base = data.avgHappiness || 50;
         const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
         const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
         const levelAdj = (b.level - 3) * 2;
         const estimate = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
-        return estimate >= minHappiness;
+        return estimate >= minHappiness && estimate <= maxHappiness;
       });
     }
 
-    if (searchText) { const lower = searchText.toLowerCase(); list = list.filter((b) => (b.address || '').toLowerCase().includes(lower)); }
+    if (searchText) {
+      const lower = searchText.toLowerCase();
+      list = list.filter((b) =>
+        (b.address || '').toLowerCase().includes(lower) ||
+        (b.theme || '').toLowerCase().includes(lower) ||
+        (b.assetPack || '').toLowerCase().includes(lower) ||
+        (b.density || '').toLowerCase().includes(lower)
+      );
+    }
     return [...list].sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortField) {
-        case 'address': return dir * a.address.localeCompare(b.address);
-        case 'density': return dir * a.density.localeCompare(b.density);
-        case 'level': return dir * (a.level - b.level);
-        case 'occupied': return dir * (a.occupied - b.occupied);
-        case 'capacity': return dir * (a.capacity - b.capacity);
+        case 'address': return dir * (a.address || '').localeCompare(b.address || '');
+        case 'density': return dir * (a.density || '').localeCompare(b.density || '');
+        case 'level': return dir * ((a.level || 0) - (b.level || 0));
+        case 'occupied': return dir * ((a.occupied || 0) - (b.occupied || 0));
+        case 'capacity': return dir * ((a.capacity || 0) - (b.capacity || 0));
         case 'theme': return dir * (a.theme || 'Unknown').localeCompare(b.theme || 'Unknown');
         case 'assetPack': return dir * (a.assetPack || 'Base Game').localeCompare(b.assetPack || 'Base Game');
         case 'occupancy': {
-          const oA = a.capacity > 0 ? a.occupied / a.capacity : 0;
-          const oB = b.capacity > 0 ? b.occupied / b.capacity : 0;
+          const oA = (a.capacity || 0) > 0 ? a.occupied / a.capacity : 0;
+          const oB = (b.capacity || 0) > 0 ? b.occupied / b.capacity : 0;
           return dir * (oA - oB);
         }
         default: return 0;
       }
     });
-  }, [buildings, data, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, minOccupancy, minHappiness, searchText, sortField, sortDir]);
+  }, [safeBuildings, data, densityFilter, themeFilter, assetPackFilter, levelFilter, showSignatureOnly, occupancyStateFilter, minHappiness, maxHappiness, searchText, sortField, sortDir]);
+
+  const safeFilteredBuildings = Array.isArray(filteredBuildings) ? filteredBuildings : [];
+
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [showScrollbar, setShowScrollbar] = useState(false);
+  const [thumbHeight, setThumbHeight] = useState(0);
+  const [thumbTop, setThumbTop] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startY = useRef(0);
+  const startTop = useRef(0);
+
+  const updateScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    if (scrollHeight <= clientHeight) {
+      setShowScrollbar(false);
+      return;
+    }
+    setShowScrollbar(true);
+    const ratio = clientHeight / scrollHeight;
+    setThumbHeight(Math.max(20, clientHeight * ratio));
+    setThumbTop((scrollTop / scrollHeight) * clientHeight);
+  }, []);
+
+  useLayoutEffect(() => {
+    updateScroll();
+    const el = scrollRef.current;
+    if (el) {
+      const obs = new ResizeObserver(updateScroll);
+      obs.observe(el);
+      return () => obs.disconnect();
+    }
+  }, [safeFilteredBuildings, updateScroll]);
+  const themeCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    safeBuildings.forEach((b) => {
+      const theme = normalizeTheme(b);
+      counts.set(theme, (counts.get(theme) || 0) + 1);
+    });
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [safeBuildings]);
+  const assetPackCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    safeBuildings.forEach((b) => {
+      const pack = b.assetPack || 'Base Game';
+      counts.set(pack, (counts.get(pack) || 0) + 1);
+    });
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [safeBuildings]);
+  const visiblePackColumns = useMemo(() => assetPackCounts.map(([pack]) => pack).filter((pack) => pack !== 'Base Game'), [assetPackCounts]);
+  const densitySummaryRows = useMemo(() => {
+    const makeRow = (label: 'Low' | 'Medium' | 'High', total: number, occupied: number, free: number) => {
+      const rowBuildings = safeBuildings.filter((b) => b.density === label);
+      const packCounts = new Map<string, number>();
+      rowBuildings.forEach((b) => packCounts.set(b.assetPack || 'Base Game', (packCounts.get(b.assetPack || 'Base Game') || 0) + 1));
+      return {
+        label: `${label} Density`,
+        total,
+        occupied,
+        free,
+        placed: rowBuildings.length,
+        usa: rowBuildings.filter((b) => normalizeTheme(b) === 'USA').length,
+        eu: rowBuildings.filter((b) => normalizeTheme(b) === 'EU').length,
+        packs: packCounts,
+      };
+    };
+    return [
+      makeRow('Low', data?.lowTotal || 0, data?.lowOccupied || 0, data?.lowFree || 0),
+      makeRow('Medium', data?.medTotal || 0, data?.medOccupied || 0, data?.medFree || 0),
+      makeRow('High', data?.highTotal || 0, data?.highOccupied || 0, data?.highFree || 0),
+    ];
+  }, [safeBuildings, data]);
 
   // CSV Export function (must be after filteredBuildings)
-  const exportToCSV = React.useCallback(() => {
-    if (!filteredBuildings || filteredBuildings.length === 0) return;
+  const exportToCSV = useCallback(() => {
+    if (safeFilteredBuildings.length === 0) return;
 
     const headers = ['Address', 'Density', 'Level', 'Theme', 'Asset Pack', 'Occupied', 'Capacity', 'Occupancy %', 'Est. Happiness %', 'Signature'];
-    const rows = filteredBuildings.map((b) => {
+    const rows = safeFilteredBuildings.map((b) => {
       const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
       const base = data?.avgHappiness || 50;
       const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
@@ -289,7 +449,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [filteredBuildings, data]);
+  }, [safeFilteredBuildings, data]);
 
   if (!data) {
     return <div className="res-panel-empty">Residential data will appear when the simulation is running.</div>;
@@ -301,55 +461,83 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
 
   return (
     <div className="res-panel">
-      {/* Summary cards — always visible, outside scroll */}
-      <div className="res-panel-summary">
-        <div className="res-summary-card">
-          <div className="res-summary-label">Total Units</div>
-          <div className="res-summary-value">{totalUnits.toLocaleString()}</div>
-          <div className="res-summary-sub">Occupied: {totalOccupied.toLocaleString()} ({pct(totalOccupied, totalUnits)}%)</div>
-          <div className="res-summary-sub">Free: {totalFree.toLocaleString()} ({pct(totalFree, totalUnits)}%)</div>
-        </div>
-        <div className="res-summary-card">
-          <div className="res-summary-label">City Happiness</div>
-          <div className="res-summary-value">{data.avgHappiness.toFixed(0)}%</div>
-          <div className="res-summary-sub">Unemployment: {(data.unemploymentRate * 100).toFixed(1)}%</div>
-        </div>
-        <div className="res-summary-card">
-          <div className="res-summary-label">Households</div>
-          <div className="res-summary-value">{data.movedInHouseholds.toLocaleString()}</div>
-          <div className="res-summary-sub">Homeless: {data.homelessHouseholds.toLocaleString()}</div>
-        </div>
-      </div>
-
-      {/* Aggregate density breakdown — outside scroll */}
-      <div className="res-panel-table">
-        <div className="res-table-header">
-          <div className="res-col-density">Zone Density</div>
-          <div className="res-col-total">Property Size</div>
-          <div className="res-col-occupied">Active Households</div>
-          <div className="res-col-free">Free</div>
-          <div className="res-col-occupancy">Occupancy</div>
-        </div>
-        { [
-          { label: 'Low Density', total: data.lowTotal, occupied: data.lowOccupied, free: data.lowFree },
-          { label: 'Medium Density', total: data.medTotal, occupied: data.medOccupied, free: data.medFree },
-          { label: 'High Density', total: data.highTotal, occupied: data.highOccupied, free: data.highFree },
-        ].map((row) => (
-          <div key={row.label} className="res-table-row">
-            <div className="res-col-density" style={{ color: DENSITY_COLORS[row.label.split(' ')[0]] }}>{row.label}</div>
-            <div className="res-col-total">{row.total.toLocaleString()}</div>
-            <div className="res-col-occupied">{row.occupied.toLocaleString()}</div>
-            <div className="res-col-free">{row.free.toLocaleString()}</div>
-            <div className="res-col-occupancy">{pct(row.occupied, row.total)}%</div>
+      {/* Top Section: Global Stats and Density Table side-by-side */}
+      <div className="res-top-section">
+        <div className="res-global-stats">
+          <div className="res-stat-item">
+            <span className="res-stat-label">Happiness</span>
+            <span className="res-stat-value" style={{ color: data.avgHappiness >= 70 ? '#8bdb46' : data.avgHappiness >= 40 ? '#50b8e9' : '#e05050' }}>
+              {data.avgHappiness}%
+            </span>
           </div>
-        )) }
+          <div className="res-stat-item">
+            <span className="res-stat-label">Unemployment</span>
+            <span className="res-stat-value" style={{ color: data.unemploymentRate > 10 ? '#e05050' : '#8bdb46' }}>
+              {data.unemploymentRate}%
+            </span>
+          </div>
+          <div className="res-stat-item">
+            <span className="res-stat-label">Homeless</span>
+            <span className="res-stat-value" style={{ color: data.homelessHouseholds > 100 ? '#e05050' : 'rgba(255,255,255,0.8)' }}>
+              {data.homelessHouseholds.toLocaleString()}
+            </span>
+          </div>
+          <div className="res-stat-item">
+            <span className="res-stat-label">Total Households</span>
+            <span className="res-stat-value">{totalOccupied.toLocaleString()} / {totalUnits.toLocaleString()}</span>
+            <span className="res-stat-label" style={{ fontSize: '10rem' }}>({pct(totalOccupied, totalUnits)}%)</span>
+          </div>
+        </div>
+
+        {/* Aggregate density breakdown */}
+        <div className="res-panel-table">
+          <div className="res-table-header">
+            <div className="res-col-density">Zone Density</div>
+            <div className="res-col-total">Size</div>
+            <div className="res-col-occupied">Active</div>
+            <div className="res-col-free">Free</div>
+            <div className="res-col-placed">Placed</div>
+            <div className="res-col-theme">USA</div>
+            <div className="res-col-theme">EU</div>
+            {visiblePackColumns.slice(0, 3).map((pack) => <div key={pack} className="res-col-pack">{pack}</div>)}
+          </div>
+          {densitySummaryRows.map((row) => (
+            <div key={row.label} className="res-table-row">
+              <div className="res-col-density" style={{ color: DENSITY_COLORS[row.label.split(' ')[0]] }}>{row.label}</div>
+              <div className="res-col-total">{row.total.toLocaleString()}</div>
+              <div className="res-col-occupied">{row.occupied.toLocaleString()}</div>
+              <div className="res-col-free">{row.free.toLocaleString()}</div>
+              <div className="res-col-placed">{row.placed.toLocaleString()}</div>
+              <div className="res-col-theme">{row.usa.toLocaleString()}</div>
+              <div className="res-col-theme">{row.eu.toLocaleString()}</div>
+              {visiblePackColumns.slice(0, 3).map((pack) => <div key={pack} className="res-col-pack">{(row.packs.get(pack) || 0).toLocaleString()}</div>)}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Per-building table — only when data is available */}
-      {buildings.length > 0 && (
+      {/* Per-building table â€” only when data is available */}
+      {safeBuildings.length > 0 && (
         <div className="res-bldg-section">
-          {/* Filters — outside scroll */}
+          {/* Filters â€” outside scroll */}
           <div className="res-bldg-filters">
+            <input
+              className="res-bldg-search"
+              placeholder="Search address, theme, or pack..."
+              value={searchText}
+              onInput={(e: any) => setSearchText(e.target.value || '')}
+            />
+            <button className="res-export-btn" onClick={() => {
+              setDensityFilter('All');
+              setThemeFilter('All');
+              setAssetPackFilter('All');
+              setLevelFilter('All');
+              setShowSignatureOnly(false);
+              setOccupancyStateFilter('All');
+              setMinHappiness(0);
+              setMaxHappiness(100);
+              setSearchText('');
+            }} title="Reset all residential filters">Clear</button>
             <div className="res-bldg-density-tabs">
               {['All', 'Low', 'Medium', 'High'].map((d) => (
                 <button
@@ -362,59 +550,66 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                 </button>
               ))}
             </div>
-            <select className="res-bldg-dropdown" value={themeFilter} onChange={(e: any) => setThemeFilter(e.target.value || 'All')}>
-              {uniqueThemes.map((t) => <option key={t} value={t}>{t === 'All' ? 'All Themes' : t}</option>)}
-            </select>
-            <select className="res-bldg-dropdown" value={assetPackFilter} onChange={(e: any) => setAssetPackFilter(e.target.value || 'All')}>
-              {uniqueAssetPacks.map((p) => <option key={p} value={p}>{p === 'All' ? 'All Packs' : p}</option>)}
-            </select>
-            <select className="res-bldg-dropdown" value={levelFilter} onChange={(e: any) => setLevelFilter(e.target.value || 'All')}>              {uniqueLevels.map((l) => <option key={l} value={l}>{l === 'All' ? 'All Levels' : `Level ${l}`}</option>)}
-            </select>
+            <div className="res-bldg-density-tabs">
+              {uniqueLevels.map((lvl) => (
+                <button
+                  key={lvl}
+                  className={`res-density-tab${levelFilter === lvl ? ' res-density-active' : ''}`}
+                  onClick={() => setLevelFilter(lvl)}
+                >
+                  {lvl === 'All' ? 'All Lv' : `Lv ${lvl}`}
+                </button>
+              ))}
+            </div>
+            <CycleFilterButton
+              label="Theme"
+              value={themeFilter || 'All'}
+              options={uniqueThemes || ['All']}
+              onChange={setThemeFilter}
+              icon={(v) => v === 'All' ? null : <ThemeIcon theme={v} size={FILTER_ICON_SIZE} />}
+            />
+            <CycleFilterButton
+              label="District"
+              value={districtFilter || 'All'}
+              options={uniqueDistricts || ['All']}
+              onChange={setDistrictFilter}
+              icon={(v) => v === 'All' ? null : <DistrictIcon district={v} size={FILTER_ICON_SIZE} />}
+            />
+            <CycleFilterButton
+              label="Pack"
+              value={assetPackFilter || 'All'}
+              options={uniqueAssetPacks || ['All']}
+              onChange={setAssetPackFilter}
+              icon={(v) => v === 'All' ? null : <PackIcon pack={v} size={FILTER_ICON_SIZE} />}
+            />
+            <CycleFilterButton
+              label="Occ"
+              value={occupancyStateFilter}
+              options={OCCUPANCY_STATES}
+              onChange={setOccupancyStateFilter}
+              displayValue={(v) => `Occ: ${v}`}
+            />
+            <div className="res-range-filter">
+              <span>{`Happy: ${minHappiness}â€“${maxHappiness}`}</span>
+              <div className="res-happy-slider-wrap">
+                <span className="res-happy-value">{minHappiness}%</span>
+                <div ref={happinessTrackRef} className="res-happy-track-area" onMouseDown={handleHappinessTrackClick}>
+                  <div className="res-happy-track" />
+                  <div className="res-happy-range-fill" style={{ left: `${happinessPctOf(minHappiness)}%`, width: `${happinessPctOf(maxHappiness) - happinessPctOf(minHappiness)}%` }} />
+                  <div className="res-happy-thumb" style={{ left: `${happinessPctOf(minHappiness)}%` }} onMouseDown={handleHappinessMouseDown('min')} />
+                  <div className="res-happy-thumb" style={{ left: `${happinessPctOf(maxHappiness)}%` }} onMouseDown={handleHappinessMouseDown('max')} />
+                </div>
+                <span className="res-happy-value">{maxHappiness}%</span>
+              </div>
+            </div>
             <label className="res-signature-checkbox">
               <input type="checkbox" checked={showSignatureOnly} onChange={(e: any) => setShowSignatureOnly(e.target.checked || false)} />
               <span>Signature Only</span>
             </label>
-            <label className="res-range-filter">
-              <span>Min Occupancy: {minOccupancy}%</span>
-              <input 
-                type="range" 
-                min="0" 
-                max="100" 
-                step="5" 
-                value={minOccupancy} 
-                onChange={(e: any) => setMinOccupancy(Number(e.target.value) || 0)}
-                className="res-range-slider"
-              />
-            </label>
-            <label className="res-range-filter">
-              <span>Min Happiness: {minHappiness}%</span>
-              <input 
-                type="range" 
-                min="0" 
-                max="100" 
-                step="5" 
-                value={minHappiness} 
-                onChange={(e: any) => setMinHappiness(Number(e.target.value) || 0)}
-                className="res-range-slider"
-              />
-            </label>
-            <input
-              className="res-bldg-search"
-              placeholder="Search address..."
-              value={searchText}
-              onInput={(e: any) => setSearchText(e.target.value || '')}
-            />
-            <button 
-              className="res-export-btn" 
-              onClick={exportToCSV}
-              title="Export filtered buildings to CSV"
-            >
-              Export CSV
-            </button>
-            <span className="res-bldg-count">{filteredBuildings.length} buildings</span>
+            <span className="res-bldg-count">{safeFilteredBuildings.length} buildings</span>
           </div>
 
-          {/* Sticky table header — outside scroll body */}
+          {/* Sticky table header â€” outside scroll body */}
           <div className="res-bldg-table">
             <div className="res-bldg-header">
               <div className="res-bcol-address res-sortable" onClick={() => handleSort('address')}>Name/Address{sortIndicator('address')}</div>
@@ -425,70 +620,97 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
               <div className="res-bcol-occupied res-sortable" onClick={() => handleSort('occupied')}>Active Households{sortIndicator('occupied')}</div>
               <div className="res-bcol-capacity res-sortable" onClick={() => handleSort('capacity')}>Property Size{sortIndicator('capacity')}</div>
               <div className="res-bcol-occupancy res-sortable" onClick={() => handleSort('occupancy')}>Occ%{sortIndicator('occupancy')}</div>
+              <div className="res-bcol-happy">Happy</div>
+              <div className="res-bcol-action">Go</div>
             </div>
 
-            {/* Scrollable body with overlay scrollbar */}
+            {/* Scrollable body with custom scrollbar */}
             <div className="res-bldg-scroll-wrap">
-              <div ref={bodyRef} className="res-bldg-body" onScroll={updateScrollbar}>
-                {filteredBuildings.length === 0 && (
+              <div ref={scrollRef} className="res-bldg-body" onScroll={onScroll}>
+                {showScrollbar && (
+                  <div className="res-scrollbar-track">
+                    <div
+                      className="res-scrollbar-thumb"
+                      style={{ height: `${thumbHeight}rem`, top: `${thumbTop}rem` }}
+                      onMouseDown={onThumbMouseDown}
+                    />
+                  </div>
+                )}
+                {safeFilteredBuildings.length === 0 && (
                   <div className="res-panel-empty">No buildings match the filter.</div>
                 )}
-                {filteredBuildings.map((b, i) => {
+                {safeFilteredBuildings.map((b, i) => {
                   const occPct = b.capacity > 0 ? pct(b.occupied, b.capacity) : (b.occupied > 0 ? 100 : 0);
                   const occColor = occPct >= 80 ? '#8bdb46' : occPct >= 40 ? '#50b8e9' : '#e88c3a';
+                  const isExpanded = expandedBuildingKey === b.entityKey;
                   return (
-                    <div key={b.entityKey} className={`res-bldg-row${i % 2 === 0 ? '' : ' res-bldg-row-alt'}`}>
-                      <div className="res-bcol-address">
-                        {b.isSignature && <span className="res-signature-badge" title="Signature Building">?</span>}
-                        {b.address}
+                    <React.Fragment key={b.entityKey}>
+                      <div className={`res-bldg-row${i % 2 === 0 ? '' : ' res-bldg-row-alt'}${selectedBuildingKey === b.entityKey ? ' res-bldg-row-selected' : ''}`}
+                        title={getResidentialRowTooltip(b, data)}
+                         onClick={() => {
+                           setSelectedBuildingKey(b.entityKey);
+                           setExpandedBuildingKey((prev) => prev === b.entityKey ? null : b.entityKey);
+                         }}>
+                        <div className="res-bcol-address">
+                          <img className="res-row-icon" src={RESIDENTIAL_ICON} alt="" />
+                          {b.isSignature && <span className="res-signature-badge" title="Signature Building">â˜…</span>}
+                          {b.address}
+                        </div>
+                        <div className="res-bcol-density" style={{ color: DENSITY_COLORS[b.density] || 'rgba(255,255,255,0.7)' }}>{b.density}</div>
+                        <div className="res-bcol-level">
+                          <span className="res-level-badge">Lv {b.level}</span>
+                        </div>
+                        <div className="res-bcol-theme">{normalizeTheme(b)}</div>
+                        <div className="res-bcol-assetpack">{b.assetPack || 'Base Game'}</div>
+                        <div className="res-bcol-occupied">{b.occupied}</div>
+                        <div className="res-bcol-capacity">{b.capacity > 0 ? b.capacity : '\u2014'}</div>
+                        <div className="res-bcol-occupancy" style={{ color: occColor }}>{occPct}%</div>
+                        <div className="res-bcol-happy">
+                          {(() => {
+                            const base = data.avgHappiness || 50;
+                            const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
+                            const levelAdj = (b.level - 3) * 2;
+                            const estimate = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
+                            const color = estimate >= 75 ? '#8bdb46' : estimate >= 50 ? '#50b8e9' : estimate >= 30 ? '#e88c3a' : '#e05050';
+                            return <span style={{ color, fontWeight: 700 }} title={`Estimated happiness: ${estimate}%`}>{`${estimate}%`}</span>;
+                          })()}
+                        </div>
+                        <div className="res-bcol-action">
+                          <button
+                            className="res-locate-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedBuildingKey(b.entityKey);
+                              try {
+                                const parts = b.entityKey.split(',');
+                                const idx = Number(parts[0]) || 0;
+                                const ver = Number(parts[1]) || 0;
+                                trigger('camera', 'focusEntity', { index: idx, version: ver });
+                              } catch {}
+                            }}
+                            title="Focus camera on this building"
+                          >
+                            GO
+                          </button>
+                        </div>
                       </div>
-                      <div className="res-bcol-density" style={{ color: DENSITY_COLORS[b.density] || 'rgba(255,255,255,0.7)' }}>{b.density}</div>
-                      <div className="res-bcol-level">
-                        <span className="res-level-badge">Lv {b.level}</span>
-                      </div>
-                      <div className="res-bcol-theme">{b.theme || 'Unknown'}</div>
-                      <div className="res-bcol-assetpack">{b.assetPack || 'Base Game'}</div>
-                      <div className="res-bcol-occupied">{b.occupied}</div>
-                      <div className="res-bcol-capacity">{b.capacity > 0 ? b.capacity : '\u2014'}</div>
-                      <div className="res-bcol-occupancy" style={{ color: occColor }}>{occPct}%</div>
-                      <div className="res-bcol-happy" style={{ width: '100rem', textAlign: 'right' }}>
-                        {(() => {
-                          // per-building happiness estimate: base on city avg, occupancy and level
-                          const base = data.avgHappiness || 50;
-                          const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
-                          const levelAdj = (b.level - 3) * 2;
-                          let estimate = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
-                          const color = estimate >= 75 ? '#8bdb46' : estimate >= 50 ? '#50b8e9' : estimate >= 30 ? '#e88c3a' : '#e05050';
-                          return (
-                            <span style={{ color, fontWeight: 700 }} title={`Estimated happiness: ${estimate}%`}>
-                              {`${estimate}%`}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                      <div style={{ width: '60rem', textAlign: 'right', paddingLeft: '8rem' }}>
-                        <button
-                          className="res-locate-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            try {
-                              const parts = b.entityKey.split(',');
-                              const idx = Number(parts[0]) || 0;
-                              const ver = Number(parts[1]) || 0;
-                              trigger('camera', 'focusEntity', { index: idx, version: ver });
-                            } catch {}
-                          }}
-                          title="Focus camera on this building"
-                        >
-                          GO
-                        </button>
-                      </div>
-                    </div>
+                      {isExpanded && (
+                        <div className="res-bldg-detail-row">
+                          <div className="res-bldg-detail-grid">
+                            <div><span className="res-bldg-detail-label">Address</span><span className="res-bldg-detail-value">{b.address}</span></div>
+                            <div><span className="res-bldg-detail-label">Density</span><span className="res-bldg-detail-value">{b.density}</span></div>
+                            <div><span className="res-bldg-detail-label">Theme</span><span className="res-bldg-detail-value">{normalizeTheme(b)}</span></div>
+                            <div><span className="res-bldg-detail-label">Pack</span><span className="res-bldg-detail-value">{b.assetPack || 'Base Game'}</span></div>
+                            <div><span className="res-bldg-detail-label">Level</span><span className="res-bldg-detail-value">{`Lv ${b.level}`}</span></div>
+                            <div><span className="res-bldg-detail-label">Occupancy</span><span className="res-bldg-detail-value">{`${b.occupied}/${b.capacity || 0} (${occPct}%)`}</span></div>
+                            <div><span className="res-bldg-detail-label">Signature</span><span className="res-bldg-detail-value">{b.isSignature ? 'Yes' : 'No'}</span></div>
+                            <div><span className="res-bldg-detail-label">Entity</span><span className="res-bldg-detail-value">{b.entityKey}</span></div>
+                          </div>
+                        </div>
+                      )}
+                    </React.Fragment>
                   );
                 })}
-              </div>
-              <div ref={trackRef} className="res-scrollbar-track" aria-hidden>
-                <div ref={thumbRef} className="res-scrollbar-thumb" style={{ top: `${thumbTop}px`, height: `${thumbHeight}px` }} />
               </div>
             </div>
           </div>
