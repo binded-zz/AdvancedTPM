@@ -282,7 +282,8 @@ const DistrictsPanel: React.FC<Props> = ({
                   <div className="dp-inline-policies-row">
                     {policyPrefabs.map(policy => {
                       const isActive = r.activePolicies.includes(policy.entityKey);
-                      if (!isActive && policyPrefabs.length > 10) return null; // Show only active if many
+                      const isExpanded = expandedRow === r.name;
+                      if (!isActive && !isExpanded) return null;
                       const iconUrl = policy.icon ? (policy.icon.startsWith('coui://') ? policy.icon : policy.icon) : '';
                       return (
                         <div 
