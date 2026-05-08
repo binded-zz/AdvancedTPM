@@ -81,6 +81,9 @@ namespace AdvancedTPM
                         var prefabRef = em.GetComponentData<PrefabRef>(ent);
                         var prefab = prefabRef.m_Prefab;
 
+                        // Exclude zoned buildings (residential, commercial, industrial, office)
+                        if (em.HasComponent<Game.Prefabs.BuildingPropertyData>(prefab)) continue;
+
                         string name = "";
                         try { if (_prefabSystem != null) name = _prefabSystem.GetPrefabName(prefab); } catch { }
                         if (string.IsNullOrEmpty(name)) name = "Building " + ent.Index;
@@ -257,7 +260,7 @@ namespace AdvancedTPM
             if (list.Count == 0) return;
             var payload = "[" + string.Join(",", list.Select(i => i.ToJson(serviceEnumType))) + "]";
             if (_servicesBrowserData != null) _servicesBrowserData.Update(payload);
-            try { if (Mod.log != null) Mod.log.Info($"ServicesBrowserSystem: payload len={payload?.Length ?? 0} services={list.Count}"); } catch { }
+            try { Mod.log?.Info($"ServicesBrowserSystem: payload len={payload?.Length ?? 0} services={list.Count}"); } catch { /* Colossal logger can throw internally */ }
             // Dump services payload to ModsData for easier capture when debugging
             try
             {

@@ -23,12 +23,16 @@
 .svc-table-scroll-wrap { flex:1; min-height:0; position:relative; overflow:hidden; display:flex; flex-direction:column; }
 .svc-table-body { flex:1; min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; padding-right:12rem; }
 
-/* Custom Scrollbar for Services */
-.svc-scrollbar-track { position:absolute; right:2rem; top:0; width:8rem; height:100%; background:rgba(12,18,24,0.55); border-radius:4rem; pointer-events:none; z-index:10; }
-.svc-scrollbar-thumb { position:absolute; left:1rem; width:6rem; background:rgba(80,140,200,0.75); border-radius:3rem; cursor:pointer; pointer-events:all; min-height:16rem; }
+/* Custom Scrollbar removed for native scrolling compatibility */
 
 .svc-table-row { display:flex; align-items:center; padding:6rem 10rem; font-size:12rem; border-bottom:1rem solid rgba(255,255,255,0.03); cursor:pointer; transition:background-color 0.1s; }
-.svc-table-row:hover { background:rgba(255,255,255,0.05); }
+.svc-table-row:hover, .svc-row-expanded { background:rgba(255,255,255,0.05); }
+
+/* Expandable Details */
+.svc-row-details { display:flex; flex-wrap:wrap; padding:10rem 14rem; background:rgba(0,0,0,0.2); border-bottom:1rem solid rgba(255,255,255,0.03); gap:15rem; font-size:11rem; }
+.svc-detail-group { display:flex; flex-direction:column; min-width:120rem; }
+.svc-detail-label { color:rgba(255,255,255,0.4); text-transform:uppercase; font-size:9rem; letter-spacing:0.3rem; margin-bottom:2rem; }
+.svc-detail-value { color:rgba(255,255,255,0.85); font-weight:500; }
 
 /* Columns */
 .svc-col-name { flex:1; min-width:0; display:flex; align-items:center; overflow:hidden; }

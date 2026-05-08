@@ -147,6 +147,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
    const [searchText, setSearchText] = useState('');
    const [sortField, setSortField] = useState<SortField>('name');
    const [sortDir, setSortDir] = useState<SortDir>('asc');
+   const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
 
    const categories = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.category).filter(Boolean))).sort()], [safeBuildings]);
    const districts = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.district).filter(Boolean))).sort()], [safeBuildings]);
@@ -193,60 +194,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
      });
    }, [safeBuildings, categoryFilter, districtFilter, packFilter, themeFilter, loadFilter, searchText, sortField, sortDir]);
 
-   const scrollRef = useRef<HTMLDivElement | null>(null);
-   const [showScrollbar, setShowScrollbar] = useState(false);
-   const [thumbHeight, setThumbHeight] = useState(0);
-   const [thumbTop, setThumbTop] = useState(0);
-   const [isDragging, setIsDragging] = useState(false);
-   const startY = useRef(0);
-   const startTop = useRef(0);
-
-   const updateScroll = useCallback(() => {
-     if (!scrollRef.current) return;
-     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-     if (scrollHeight <= clientHeight) {
-       setShowScrollbar(false);
-       return;
-     }
-     setShowScrollbar(true);
-     const ratio = clientHeight / scrollHeight;
-     setThumbHeight(Math.max(20, clientHeight * ratio));
-     setThumbTop((scrollTop / scrollHeight) * clientHeight);
-   }, []);
-
-   useLayoutEffect(() => {
-     updateScroll();
-     const el = scrollRef.current;
-     if (el) {
-       const obs = new ResizeObserver(updateScroll);
-       obs.observe(el);
-       return () => obs.disconnect();
-     }
-   }, [filtered, updateScroll]);
-
-   const onScroll = () => updateScroll();
-
-   const onThumbMouseDown = (e: React.MouseEvent) => {
-     e.preventDefault();
-     setIsDragging(true);
-     startY.current = e.clientY;
-     startTop.current = thumbTop;
-     const onMove = (ev: MouseEvent) => {
-       if (!scrollRef.current) return;
-       const delta = ev.clientY - startY.current;
-       const { scrollHeight, clientHeight } = scrollRef.current;
-       const newTop = Math.max(0, Math.min(clientHeight - thumbHeight, startTop.current + delta));
-       scrollRef.current.scrollTop = (newTop / clientHeight) * scrollHeight;
-     };
-     const onUp = () => {
-       setIsDragging(false);
-       document.removeEventListener('mousemove', onMove);
-       document.removeEventListener('mouseup', onUp);
-     };
-     document.addEventListener('mousemove', onMove);
-     document.addEventListener('mouseup', onUp);
-   };
-
+   // using native scrollbar
    const handleSort = (field: SortField) => {
      if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
      else { setSortField(field); setSortDir(field === 'name' || field === 'address' || field === 'category' || field === 'district' || field === 'theme' || field === 'assetPack' ? 'asc' : 'desc'); }
@@ -331,7 +279,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
        <div className="svc-table">
          <div className="svc-table-header">
            <div className="svc-col-name svc-sortable" onClick={() => handleSort('name')}>Building{sortIndicator('name')}</div>
-           <div className="svc-col-category svc-sortable" onClick={() => handleSort('category')}>Category{sortIndicator('category')}</div>
+           {categoryFilter === 'All' && <div className="svc-col-category svc-sortable" onClick={() => handleSort('category')}>Category{sortIndicator('category')}</div>}
            <div className="svc-col-theme svc-sortable" onClick={() => handleSort('theme')}><ThemeIcon theme="All" size={14} />{sortIndicator('theme')}</div>
            <div className="svc-col-pack svc-sortable" onClick={() => handleSort('assetPack')}><PackIcon pack="All" size={14} />{sortIndicator('assetPack')}</div>
            <div className="svc-col-district svc-sortable" onClick={() => handleSort('district')}>District{sortIndicator('district')}</div>
@@ -342,38 +290,63 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
            <div className="svc-col-go">Go</div>
          </div>
          <div className="svc-table-scroll-wrap">
-           <div ref={scrollRef} className="svc-table-body" onScroll={onScroll}>
-             {showScrollbar && (
-               <div className="svc-scrollbar-track">
-                 <div
-                   className="svc-scrollbar-thumb"
-                   style={{ height: `${thumbHeight}rem`, top: `${thumbTop}rem` }}
-                   onMouseDown={onThumbMouseDown}
-                 />
-               </div>
-             )}
-            {filtered.slice(0, 400).map((b) => (
-              <div key={b.entityKey} className="svc-table-row" onClick={() => focusEntityKey(b.entityKey)} title={getServiceRowTooltip(b)}>
-                <div className="svc-col-name">
-                  <ServiceIcon category={b.category} />
-                  <ThemeIcon theme={b.theme} />
-                  <PackIcon pack={b.assetPack} />
-                  <span>{b.address || b.name}</span>
-                </div>
-                <div className="svc-col-category">{b.category}</div>
-                <div className="svc-col-theme"><ThemeIcon theme={b.theme} size={18} /></div>
-                <div className="svc-col-pack"><PackIcon pack={b.assetPack} size={18} /></div>
-                <div className="svc-col-district">{b.district || 'City'}</div>
-                <div className="svc-col-level">{b.level > 0 ? `Lv ${b.level}` : '—'}</div>
-                <div className="svc-col-cap">{b.capacity.toFixed(0)}</div>
-                <div className="svc-col-usage">{b.usage.toFixed(0)}</div>
-                <div className="svc-col-eff" style={{ color: b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#50b8e9' : '#e05050' }}>{b.efficiency.toFixed(0)}%</div>
-                <div className="svc-col-go">
-                  <button className="svc-go-btn" onClick={(e) => { e.stopPropagation(); focusEntityKey(b.entityKey); }}>GO</button>
-                </div>
-              </div>
-            ))}
-            {filtered.length === 0 && <div className="svc-panel-empty">No buildings match filter.</div>}
+           <div className="svc-table-body">
+             {filtered.slice(0, 400).map((b) => (
+               <React.Fragment key={b.entityKey}>
+                 <div className={`svc-table-row${expandedEntity === b.entityKey ? ' svc-row-expanded' : ''}`} onClick={() => setExpandedEntity(expandedEntity === b.entityKey ? null : b.entityKey)} title={getServiceRowTooltip(b)}>
+                   <div className="svc-col-name">
+                     <ServiceIcon category={b.category} />
+                     <ThemeIcon theme={b.theme} />
+                     <PackIcon pack={b.assetPack} />
+                     <span>{b.address || b.name}</span>
+                   </div>
+                   {categoryFilter === 'All' && <div className="svc-col-category">{b.category}</div>}
+                   <div className="svc-col-theme"><ThemeIcon theme={b.theme} size={18} /></div>
+                   <div className="svc-col-pack"><PackIcon pack={b.assetPack} size={18} /></div>
+                   <div className="svc-col-district">{b.district || 'City'}</div>
+                   <div className="svc-col-level">{b.level > 0 ? `Lv ${b.level}` : '—'}</div>
+                   <div className="svc-col-cap">{b.capacity.toFixed(0)}</div>
+                   <div className="svc-col-usage">{b.usage.toFixed(0)}</div>
+                   <div className="svc-col-eff" style={{ color: b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#50b8e9' : '#e05050' }}>{b.efficiency.toFixed(0)}%</div>
+                   <div className="svc-col-go">
+                     <button className="svc-go-btn" onClick={(e) => { e.stopPropagation(); focusEntityKey(b.entityKey); }}>GO</button>
+                   </div>
+                 </div>
+                 {expandedEntity === b.entityKey && (
+                   <div className="svc-row-details">
+                     <div className="svc-detail-group">
+                       <span className="svc-detail-label">Service Category</span>
+                       <span className="svc-detail-value">{b.category}</span>
+                     </div>
+                     <div className="svc-detail-group">
+                       <span className="svc-detail-label">Building Name</span>
+                       <span className="svc-detail-value">{b.name}</span>
+                     </div>
+                     <div className="svc-detail-group">
+                       <span className="svc-detail-label">District</span>
+                       <span className="svc-detail-value">{b.district}</span>
+                     </div>
+                     <div className="svc-detail-group">
+                       <span className="svc-detail-label">{serviceLabels.cap}</span>
+                       <span className="svc-detail-value">{b.capacity.toFixed(0)}</span>
+                     </div>
+                     <div className="svc-detail-group">
+                       <span className="svc-detail-label">{serviceLabels.use}</span>
+                       <span className="svc-detail-value">{b.usage.toFixed(0)} ({b.capacity > 0 ? Math.round(b.usage / b.capacity * 100) : 0}%)</span>
+                     </div>
+                     <div className="svc-detail-group">
+                       <span className="svc-detail-label">Asset Level</span>
+                       <span className="svc-detail-value">{b.level > 0 ? `Level ${b.level}` : 'N/A'}</span>
+                     </div>
+                     <div className="svc-detail-group">
+                       <span className="svc-detail-label">Theme / Pack</span>
+                       <span className="svc-detail-value">{b.theme} / {b.assetPack}</span>
+                     </div>
+                   </div>
+                 )}
+               </React.Fragment>
+             ))}
+             {filtered.length === 0 && <div className="svc-panel-empty">No buildings match filter.</div>}
           </div>
         </div>
       </div>

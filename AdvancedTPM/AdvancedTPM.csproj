@@ -34,6 +34,12 @@
 		<Reference Include="Colossal.IO.AssetDatabase">
 			<Private>false</Private>
 		</Reference>
+		    <Reference Include="Colossal.Collections">
+      <HintPath>$(GamePath)\Cities2_Data\Managed\Colossal.Collections.dll</HintPath>
+    </Reference>
+    <Reference Include="Colossal.IO">
+			<Private>false</Private>
+		</Reference>
 		<Reference Include="Colossal.UI">
 			<Private>false</Private>
 		</Reference>

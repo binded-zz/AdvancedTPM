@@ -53,7 +53,7 @@ export interface CompanyVm {
 const isRawResource = (resourceKey: string): boolean => {
   if (!resourceKey) return false;
   const k = resourceKey.toLowerCase();
-  return ['grain','vegetables','cotton','livestock','fish','wood','ore','stone','coal','oil'].includes(k);
+  return ['grain', 'vegetables', 'cotton', 'livestock', 'fish', 'wood', 'ore', 'stone', 'coal', 'oil'].includes(k);
 };
 
 export interface CompanyHappinessMap {
@@ -76,7 +76,7 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
       // in1, in2, taxR, bLevel, effDetails, brandName, bldgAddr, happiness, producesGarbage, producesCrime,
       // producesMail, needsElectricity, needsWater, electricityConsumption, waterConsumption, garbageAccumulation,
       // mailAccumulation, crimeProbability, district, theme, assetPack, companyKind, isSignature
-      
+
       const getVal = (idx: number) => parts[idx] || '';
 
       const entityPart = getVal(0);
@@ -286,7 +286,7 @@ const ZONE_BADGE_LABELS: Record<string, string> = {
 
 const serviceIcon = (c: string): string | null => {
   if (c.includes('garbage') || c.includes('waste') || c.includes('landfill') || c.includes('recycling')) return 'Media/Game/Icons/Garbage.svg';
-  if (c.includes('park') || c.includes('recreation') || c.includes('leisure')) return 'Media/Game/Icons/Parks.svg';
+  if (c.includes('park') || c.includes('recreation') || c.includes('leisure')) return 'Media/Game/Icons/ParkAndRecreation.svg';
   if (c.includes('telecom') || c.includes('internet')) return 'Media/Game/Resources/Telecom.svg';
   return null;
 };
@@ -434,7 +434,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
 
   // Scroll to top and clear expansion when filters or sort changes so users see results
   useEffect(() => {
-    try { if (bodyRef.current) bodyRef.current.scrollTop = 0; } catch {}
+    try { if (bodyRef.current) bodyRef.current.scrollTop = 0; } catch { }
     setExpandedEntity(null);
   }, [zoneFilter, tierFilter, resourceFilter, packFilter, themeFilter, districtFilter, kindFilter, searchText]);
 
@@ -470,7 +470,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
         .map(c => c.resourceKey)
         .filter(Boolean)
     );
-    
+
     // Group them by their icon name
     const groups: Record<string, { icon: string, label: string, keys: string[] }> = {};
     availableKeys.forEach(key => {
@@ -481,7 +481,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
       }
       groups[icon].keys.push(key);
     });
-    
+
     return Object.values(groups).sort((a, b) => a.label.localeCompare(b.label));
   }, [zoneFilter, safeCompanies]);
 
@@ -749,7 +749,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
           <CycleFilterButton label="District" value={districtFilter} options={['All', ...Array.from(new Set(safeCompanies.map(c => c.district || 'City'))).sort()]} onChange={setDistrictFilter} />
           <div className="cb-resource-row-wrap" style={{ flex: '1 1 100%', marginTop: '4rem' }}>
             <div className="cb-dynamic-filter-row">
-              <button 
+              <button
                 className={`cb-filter-pill${resourceFilter === 'All' ? ' cb-filter-pill-active' : ''}`}
                 onClick={() => setResourceFilter('All')}
                 title="All Resources"
@@ -764,12 +764,12 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
                   title={group.label}
                   style={{ padding: '2rem 4rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
-                   <img src={`${RESOURCE_ICON_BASE}${group.icon}.svg`} className="cb-resource-tab-icon" style={{ width: '26rem', height: '26rem', margin: '2rem' }} />
+                  <img src={`${RESOURCE_ICON_BASE}${group.icon}.svg`} className="cb-resource-tab-icon" style={{ width: '26rem', height: '26rem', margin: '2rem' }} />
                 </button>
               ))}
             </div>
           </div>
-          
+
           <div className="cb-profit-filter" style={{ marginLeft: '8rem' }}>
             <span className="cb-profit-label">Profit %</span>
             <div className="cb-profit-slider-wrap">
@@ -867,9 +867,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
             const workerPct = c.maxWorkers > 0 ? Math.round((c.workers / c.maxWorkers) * 100) : 0;
             const profitDescription = c.profit > 20 ? 'Very profitable — high tax tolerance'
               : c.profit > 5 ? 'Healthy — moderate tax tolerance'
-              : c.profit > -5 ? 'Marginal — sensitive to tax changes'
-              : c.profit > -20 ? 'Struggling — consider lowering taxes'
-              : 'Critical — near bankruptcy, needs tax relief';
+                : c.profit > -5 ? 'Marginal — sensitive to tax changes'
+                  : c.profit > -20 ? 'Struggling — consider lowering taxes'
+                    : 'Critical — near bankruptcy, needs tax relief';
             return (
               <div key={`${c.entityIndex}-${c.entityVersion}`}>
                 <div
@@ -889,8 +889,8 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
                   <div className="cb-col-address">
                     <span className="cb-address-text">
                       {isSignatureView
-                          ? (c.buildingAddress && /\d|\s/.test(c.buildingAddress)) ? c.buildingAddress : (c.brandName || c.name || '-')
-                          : (c.buildingAddress || '-')}
+                        ? (c.buildingAddress && /\d|\s/.test(c.buildingAddress)) ? c.buildingAddress : (c.brandName || c.name || '-')
+                        : (c.buildingAddress || '-')}
                     </span>
                   </div>
                   <div className="cb-col-zone">
@@ -985,7 +985,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
                             <span className="cb-detail-label">Building Level</span>
                             <span className="cb-detail-value">
                               <span className="cb-building-level">
-                                {[1,2,3,4,5].map((lv) => (
+                                {[1, 2, 3, 4, 5].map((lv) => (
                                   <span key={lv} className={`cb-level-pip${lv <= c.buildingLevel ? ' cb-level-pip-filled' : ''}`} />
                                 ))}
                               </span>
