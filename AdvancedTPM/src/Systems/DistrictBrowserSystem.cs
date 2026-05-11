@@ -71,6 +71,27 @@ namespace AdvancedTPM
             public int eduWellEducated;
             public int eduHighlyEducated;
             public int localServices;
+            public int serviceMask;
+            public int workerUneducated;
+            public int workerPoorlyEducated;
+            public int workerEducated;
+            public int workerWellEducated;
+            public int workerHighlyEducated;
+            public int propertyCount;
+            public int resProp;
+            public int comProp;
+            public int indProp;
+            public int offProp;
+            public int storProp;
+            public int mixedProp;
+            public int buildingLevelSum;
+            public int buildingLevelSamples;
+            public double totalLandValue;
+            public int landValueSamples;
+            public int homeless;
+            public long upkeep;
+            public long resources;
+            public long fees;
 
             public void Add(DistrictStats other)
             {
@@ -100,6 +121,27 @@ namespace AdvancedTPM
                 eduWellEducated += other.eduWellEducated;
                 eduHighlyEducated += other.eduHighlyEducated;
                 localServices += other.localServices;
+                serviceMask |= other.serviceMask;
+                workerUneducated += other.workerUneducated;
+                workerPoorlyEducated += other.workerPoorlyEducated;
+                workerEducated += other.workerEducated;
+                workerWellEducated += other.workerWellEducated;
+                workerHighlyEducated += other.workerHighlyEducated;
+                propertyCount += other.propertyCount;
+                resProp += other.resProp;
+                comProp += other.comProp;
+                indProp += other.indProp;
+                offProp += other.offProp;
+                storProp += other.storProp;
+                mixedProp += other.mixedProp;
+                buildingLevelSum += other.buildingLevelSum;
+                buildingLevelSamples += other.buildingLevelSamples;
+                totalLandValue += other.totalLandValue;
+                landValueSamples += other.landValueSamples;
+                homeless += other.homeless;
+                upkeep += other.upkeep;
+                resources += other.resources;
+                fees += other.fees;
             }
         }
 
@@ -128,6 +170,12 @@ namespace AdvancedTPM
             [ReadOnly] public ComponentLookup<WorkProvider> m_WorkProviderLookup;
             [ReadOnly] public BufferLookup<Employee> m_EmployeeLookup;
             [ReadOnly] public ComponentLookup<Worker> m_WorkerLookup;
+            [ReadOnly] public ComponentLookup<Game.Buildings.CommercialProperty> m_CommercialPropertyLookup;
+            [ReadOnly] public ComponentLookup<Game.Buildings.OfficeProperty> m_OfficePropertyLookup;
+            [ReadOnly] public ComponentLookup<Game.Buildings.IndustrialProperty> m_IndustrialPropertyLookup;
+            [ReadOnly] public ComponentLookup<Game.Companies.StorageCompany> m_StorageCompanyLookup;
+            [ReadOnly] public ComponentLookup<SpawnableBuildingData> m_SpawnableLookup;
+            [ReadOnly] public ComponentLookup<Game.Net.LandValue> m_LandValueLookup;
 
             [ReadOnly] public ComponentLookup<Game.Buildings.ServiceUpgrade> m_ServiceUpgradeLookup;
             [ReadOnly] public ComponentLookup<Game.Buildings.Hospital> m_HospitalLookup;
@@ -161,6 +209,10 @@ namespace AdvancedTPM
                     DistrictStats stats = default;
 
                     bool isRes = m_ResidentialPropertyLookup.HasComponent(bEnt) || m_ResidentialPropertyLookup.HasComponent(prEnt);
+                    bool isCom = m_CommercialPropertyLookup.HasComponent(bEnt) || m_CommercialPropertyLookup.HasComponent(prEnt);
+                    bool isOff = m_OfficePropertyLookup.HasComponent(bEnt) || m_OfficePropertyLookup.HasComponent(prEnt);
+                    bool isInd = m_IndustrialPropertyLookup.HasComponent(bEnt) || m_IndustrialPropertyLookup.HasComponent(prEnt);
+                    bool isStor = m_StorageCompanyLookup.HasComponent(bEnt) || m_StorageCompanyLookup.HasComponent(prEnt);
                     bool isSvc = m_ServiceUpgradeLookup.HasComponent(bEnt) || m_HospitalLookup.HasComponent(bEnt) || m_SchoolLookup.HasComponent(bEnt) || m_PoliceStationLookup.HasComponent(bEnt) || m_FireStationLookup.HasComponent(bEnt) || m_ParkLookup.HasComponent(bEnt) || m_DeathcareFacilityLookup.HasComponent(bEnt) || m_GarbageFacilityLookup.HasComponent(bEnt);
                     
                     if (isSvc) stats.svc++;
@@ -225,11 +277,15 @@ namespace AdvancedTPM
                                         }
                                     }
 
-                                    if (m_PropertyRenterLookup.TryGetComponent(household, out var propertyRenter))
+                                if (m_PropertyRenterLookup.TryGetComponent(household, out var propertyRenter))
                                     {
                                         stats.totalRent += propertyRenter.m_Rent;
                                         stats.householdsWithRent++;
                                     }
+                                else
+                                {
+                                    stats.homeless++;
+                                }
                                 }
                             }
                         }
@@ -261,7 +317,58 @@ namespace AdvancedTPM
                         if (m_EmployeeLookup.TryGetBuffer(workEntity, out var employees))
                         {
                             stats.workers += employees.Length;
+                            for (int e = 0; e < employees.Length; e++)
+                            {
+                                Entity workerEnt = employees[e].m_Worker;
+                                if (m_CitizenLookup.TryGetComponent(workerEnt, out var workerCitizen))
+                                {
+                                    switch (workerCitizen.GetEducationLevel())
+                                    {
+                                        case 0: stats.workerUneducated++; break;
+                                        case 1: stats.workerPoorlyEducated++; break;
+                                        case 2: stats.workerEducated++; break;
+                                        case 3: stats.workerWellEducated++; break;
+                                        case 4: stats.workerHighlyEducated++; break;
+                                    }
+                                }
+                            }
                         }
+                    }
+
+                    // Compute service type mask for this building
+                    if (isSvc)
+                    {
+                        int mask = 0;
+                        if (m_HospitalLookup.HasComponent(bEnt)) mask |= (1 << 0);
+                        if (m_SchoolLookup.HasComponent(bEnt)) mask |= (1 << 1);
+                        if (m_PoliceStationLookup.HasComponent(bEnt)) mask |= (1 << 2);
+                        if (m_FireStationLookup.HasComponent(bEnt)) mask |= (1 << 3);
+                        if (m_ParkLookup.HasComponent(bEnt)) mask |= (1 << 4);
+                        if (m_DeathcareFacilityLookup.HasComponent(bEnt)) mask |= (1 << 5);
+                        if (m_GarbageFacilityLookup.HasComponent(bEnt)) mask |= (1 << 6);
+                        stats.serviceMask |= mask;
+                    }
+
+                    // Property type bookkeeping (clean, no double-counting)
+                    if (isCom) stats.comProp++;
+                    if (isOff) stats.offProp++;
+                    if (isInd) stats.indProp++;
+                    if (isStor) stats.storProp++;
+                    bool isMixed = isRes && (isCom || isOff || isInd || isStor);
+                    if (isMixed)           { stats.mixedProp++; stats.propertyCount++; }
+                    else if (isRes)        { stats.resProp++;   stats.propertyCount++; }
+                    else if (!isSvc && (isCom || isOff || isInd || isStor)) { stats.propertyCount++; }
+
+                    if (m_SpawnableLookup.HasComponent(prEnt)) {
+                        var sd = m_SpawnableLookup[prEnt];
+                        stats.buildingLevelSum += sd.m_Level;
+                        stats.buildingLevelSamples++;
+                        stats.upkeep += sd.m_Level * 8;
+                    }
+
+                    if (m_LandValueLookup.HasComponent(bEnt)) {
+                        stats.totalLandValue += m_LandValueLookup[bEnt].m_LandValue;
+                        stats.landValueSamples++;
                     }
 
                     if (stats.res != 0 || stats.biz != 0 || stats.svc != 0 || stats.households != 0 || stats.workers != 0)
@@ -271,10 +378,20 @@ namespace AdvancedTPM
 
                     if (isSvc && m_ServiceDistrictLookup.TryGetBuffer(bEnt, out var opDistricts))
                     {
+                        // Compute service mask for cross-district contribution
+                        int svcMask = 0;
+                        if (m_HospitalLookup.HasComponent(bEnt)) svcMask |= (1 << 0);
+                        if (m_SchoolLookup.HasComponent(bEnt)) svcMask |= (1 << 1);
+                        if (m_PoliceStationLookup.HasComponent(bEnt)) svcMask |= (1 << 2);
+                        if (m_FireStationLookup.HasComponent(bEnt)) svcMask |= (1 << 3);
+                        if (m_ParkLookup.HasComponent(bEnt)) svcMask |= (1 << 4);
+                        if (m_DeathcareFacilityLookup.HasComponent(bEnt)) svcMask |= (1 << 5);
+                        if (m_GarbageFacilityLookup.HasComponent(bEnt)) svcMask |= (1 << 6);
                         for (int j = 0; j < opDistricts.Length; j++)
                         {
                             DistrictStats opStats = default;
                             opStats.localServices = 1;
+                            opStats.serviceMask = svcMask;
                             m_Stream.Write(new DistrictDelta { district = opDistricts[j].m_District, stats = opStats });
                         }
                     }
@@ -476,6 +593,7 @@ namespace AdvancedTPM
             {
                 try
                 {
+                    Mod.log.Info($"DistrictBrowserSystem OnUpdate tick {_updateCounter}");
                     UpdatePolicyPrefabs();
                     UpdateDistrictData();
                 }
@@ -484,6 +602,35 @@ namespace AdvancedTPM
                     Mod.log.Warn($"DistrictBrowserSystem Update error: {ex.Message}\n{ex.StackTrace}");
                 }
             }
+        }
+
+        private string GetHappinessFactorsJson(Entity district)
+        {
+            try
+            {
+                var happinessSystem = World.GetExistingSystemManaged<AdvancedTPM.Systems.DistrictHappinessAggregationSystem>();
+                if (happinessSystem != null && happinessSystem.m_HappinessMap.IsCreated)
+                {
+                    if (happinessSystem.m_HappinessMap.TryGetValue(district, out var data))
+                    {
+                        var factors = new List<string>();
+                        for (int i = 0; i < 30; i++)
+                        {
+                            var val = data.Get(i);
+                            if (val.x > 0)
+                            {
+                                factors.Add($"[{i},{val.x},{val.y}]");
+                            }
+                        }
+                        return "[" + string.Join(",", factors) + "]";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Mod.log.Warn($"Error getting happiness factors: {ex.Message}");
+            }
+            return "[]";
         }
 
         private void UpdatePolicyPrefabs()
@@ -571,6 +718,12 @@ namespace AdvancedTPM
                 m_ServiceDistrictLookup = SystemAPI.GetBufferLookup<Game.Areas.ServiceDistrict>(true),
                 m_EconomyParameters = economyParameters,
                 m_TaxRates = taxRates,
+                m_CommercialPropertyLookup = SystemAPI.GetComponentLookup<Game.Buildings.CommercialProperty>(true),
+                m_OfficePropertyLookup = SystemAPI.GetComponentLookup<Game.Buildings.OfficeProperty>(true),
+                m_IndustrialPropertyLookup = SystemAPI.GetComponentLookup<Game.Buildings.IndustrialProperty>(true),
+                m_StorageCompanyLookup = SystemAPI.GetComponentLookup<Game.Companies.StorageCompany>(true),
+                m_SpawnableLookup = SystemAPI.GetComponentLookup<SpawnableBuildingData>(true),
+                m_LandValueLookup = SystemAPI.GetComponentLookup<Game.Net.LandValue>(true),
                 m_Stream = stream.AsWriter()
             };
 
@@ -598,8 +751,8 @@ namespace AdvancedTPM
                     }
                 }
             }
-            // For city, localServices should just be the total physical services, to avoid double-counting multi-district services
-            cityStats.localServices = cityStats.svc;
+            // For city, localServices = 0 so display shows: svc Local / svc Total (no double-counting)
+            cityStats.localServices = 0;
 
             // 1. Get City Row
             if (_citySystem.City != Entity.Null)
@@ -634,7 +787,9 @@ namespace AdvancedTPM
                 double avgRent = cityStats.householdsWithRent > 0 ? (double)cityStats.totalRent / cityStats.householdsWithRent : 0;
                 int avgHappiness = cityStats.citizenCount > 0 ? (int)(cityStats.totalHappiness / cityStats.citizenCount) : 0;
 
-                items.Add($"{{\"entityKey\":\"{key}\",\"name\":\"City\",\"isCity\":true,\"cityName\":\"{EscapeJson(cityName)}\",\"policies\":[{string.Join(",", activePolicies)}],\"res\":{cityStats.res},\"svc\":{cityStats.svc},\"biz\":{cityStats.biz},\"households\":{cityStats.households},\"householdCap\":{cityStats.householdCap},\"workers\":{cityStats.workers},\"maxWorkers\":{cityStats.maxWorkers},\"avgWealth\":{avgWealth},\"avgIncome\":{avgIncome},\"avgRent\":{avgRent},\"avgHappiness\":{avgHappiness},\"residents\":{cityStats.residents},\"children\":{cityStats.children},\"teens\":{cityStats.teens},\"adults\":{cityStats.adults},\"seniors\":{cityStats.seniors},\"eduUneducated\":{cityStats.eduUneducated},\"eduPoorlyEducated\":{cityStats.eduPoorlyEducated},\"eduEducated\":{cityStats.eduEducated},\"eduWellEducated\":{cityStats.eduWellEducated},\"eduHighlyEducated\":{cityStats.eduHighlyEducated},\"localServices\":{cityStats.localServices}}}");
+                var avgBuildingLevelCity = cityStats.buildingLevelSamples > 0 ? (double)cityStats.buildingLevelSum / cityStats.buildingLevelSamples : 0;
+                string happinessFactorsJson = GetHappinessFactorsJson(Entity.Null);
+                items.Add($"{{\"entityKey\":\"{key}\",\"name\":\"City\",\"isCity\":true,\"cityName\":\"{EscapeJson(cityName)}\",\"policies\":[{string.Join(",", activePolicies)}],\"res\":{cityStats.res},\"svc\":{cityStats.svc},\"biz\":{cityStats.biz},\"households\":{cityStats.households},\"householdCap\":{cityStats.householdCap},\"workers\":{cityStats.workers},\"maxWorkers\":{cityStats.maxWorkers},\"avgWealth\":{avgWealth},\"avgIncome\":{avgIncome},\"avgRent\":{avgRent},\"avgHappiness\":{avgHappiness},\"residents\":{cityStats.residents},\"children\":{cityStats.children},\"teens\":{cityStats.teens},\"adults\":{cityStats.adults},\"seniors\":{cityStats.seniors},\"eduUneducated\":{cityStats.eduUneducated},\"eduPoorlyEducated\":{cityStats.eduPoorlyEducated},\"eduEducated\":{cityStats.eduEducated},\"eduWellEducated\":{cityStats.eduWellEducated},\"eduHighlyEducated\":{cityStats.eduHighlyEducated},\"workerUneducated\":{cityStats.workerUneducated},\"workerPoorlyEducated\":{cityStats.workerPoorlyEducated},\"workerEducated\":{cityStats.workerEducated},\"workerWellEducated\":{cityStats.workerWellEducated},\"workerHighlyEducated\":{cityStats.workerHighlyEducated},\"localServices\":{cityStats.localServices},\"serviceMask\":{cityStats.serviceMask},\"propertyCount\":{cityStats.propertyCount},\"resProp\":{cityStats.resProp},\"comProp\":{cityStats.comProp},\"indProp\":{cityStats.indProp},\"offProp\":{cityStats.offProp},\"storProp\":{cityStats.storProp},\"mixedProp\":{cityStats.mixedProp},\"avgBuildingLevel\":{avgBuildingLevelCity},\"buildingLevelSamples\":{cityStats.buildingLevelSamples},\"totalLandValue\":{cityStats.totalLandValue},\"landValueSamples\":{cityStats.landValueSamples},\"homeless\":{cityStats.homeless},\"upkeep\":{cityStats.upkeep},\"resourceCost\":{cityStats.resources},\"feesPaid\":{cityStats.fees},\"happinessFactors\":{happinessFactorsJson}}}");
             }
 
             // 2. Get District Rows
@@ -668,7 +823,9 @@ namespace AdvancedTPM
                         double avgRent = stats.householdsWithRent > 0 ? (double)stats.totalRent / stats.householdsWithRent : 0;
                         int avgHappiness = stats.citizenCount > 0 ? (int)(stats.totalHappiness / stats.citizenCount) : 0;
                         
-                        items.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{EscapeJson(name)}\",\"policies\":[{string.Join(",", activePolicies)}],\"res\":{stats.res},\"svc\":{stats.svc},\"biz\":{stats.biz},\"households\":{stats.households},\"householdCap\":{stats.householdCap},\"workers\":{stats.workers},\"maxWorkers\":{stats.maxWorkers},\"avgWealth\":{avgWealth},\"avgIncome\":{avgIncome},\"avgRent\":{avgRent},\"avgHappiness\":{avgHappiness},\"residents\":{stats.residents},\"children\":{stats.children},\"teens\":{stats.teens},\"adults\":{stats.adults},\"seniors\":{stats.seniors},\"eduUneducated\":{stats.eduUneducated},\"eduPoorlyEducated\":{stats.eduPoorlyEducated},\"eduEducated\":{stats.eduEducated},\"eduWellEducated\":{stats.eduWellEducated},\"eduHighlyEducated\":{stats.eduHighlyEducated},\"localServices\":{stats.localServices}}}");
+                        var avgBuildingLevel = stats.buildingLevelSamples > 0 ? (double)stats.buildingLevelSum / stats.buildingLevelSamples : 0;
+                        string happinessFactorsJson = GetHappinessFactorsJson(entity);
+                        items.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{EscapeJson(name)}\",\"policies\":[{string.Join(",", activePolicies)}],\"res\":{stats.res},\"svc\":{stats.svc},\"biz\":{stats.biz},\"households\":{stats.households},\"householdCap\":{stats.householdCap},\"workers\":{stats.workers},\"maxWorkers\":{stats.maxWorkers},\"avgWealth\":{avgWealth},\"avgIncome\":{avgIncome},\"avgRent\":{avgRent},\"avgHappiness\":{avgHappiness},\"residents\":{stats.residents},\"children\":{stats.children},\"teens\":{stats.teens},\"adults\":{stats.adults},\"seniors\":{stats.seniors},\"eduUneducated\":{stats.eduUneducated},\"eduPoorlyEducated\":{stats.eduPoorlyEducated},\"eduEducated\":{stats.eduEducated},\"eduWellEducated\":{stats.eduWellEducated},\"eduHighlyEducated\":{stats.eduHighlyEducated},\"workerUneducated\":{stats.workerUneducated},\"workerPoorlyEducated\":{stats.workerPoorlyEducated},\"workerEducated\":{stats.workerEducated},\"workerWellEducated\":{stats.workerWellEducated},\"workerHighlyEducated\":{stats.workerHighlyEducated},\"localServices\":{stats.localServices},\"serviceMask\":{stats.serviceMask},\"propertyCount\":{stats.propertyCount},\"resProp\":{stats.resProp},\"comProp\":{stats.comProp},\"indProp\":{stats.indProp},\"offProp\":{stats.offProp},\"storProp\":{stats.storProp},\"mixedProp\":{stats.mixedProp},\"avgBuildingLevel\":{avgBuildingLevel},\"buildingLevelSamples\":{stats.buildingLevelSamples},\"totalLandValue\":{stats.totalLandValue},\"landValueSamples\":{stats.landValueSamples},\"homeless\":{stats.homeless},\"upkeep\":{stats.upkeep},\"resourceCost\":{stats.resources},\"feesPaid\":{stats.fees},\"happinessFactors\":{happinessFactorsJson}}}");
                     }
                 }
                 finally { entities.Dispose(); }
@@ -676,7 +833,18 @@ namespace AdvancedTPM
 
             stream.Dispose();
             statsMap.Dispose();
-            _districtBrowserData.Update("[" + string.Join(",", items) + "]");
+            var payload = "[" + string.Join(",", items) + "]";
+            _districtBrowserData.Update(payload);
+            // Debug: persist district browser payload so we can compare against in-game values
+            try {
+                var modsData = AdvancedTPM.Utilities.FilePaths.GetModsDataFolder();
+                if (!string.IsNullOrEmpty(modsData)) {
+                    System.IO.Directory.CreateDirectory(modsData);
+                    var path = System.IO.Path.Combine(modsData, "district_browser_payload.json");
+                    System.IO.File.WriteAllText(path, payload);
+                    Mod.log.Info($"Wrote district browser payload ({items.Count} items) to {path}");
+                }
+            } catch (System.Exception ex) { Mod.log.Info("Failed to write district browser payload: " + ex.Message); }
         }
 
         private string EscapeJson(string s)
