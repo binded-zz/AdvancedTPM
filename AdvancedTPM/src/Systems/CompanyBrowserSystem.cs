@@ -66,19 +66,13 @@ namespace AdvancedTPM
             try
             {
                 _signatureSystem = World.GetOrCreateSystemManaged<Game.UI.InGame.SignatureBuildingUISystem>();
+                // CRITICAL: Reflection-based signature query is unstable and causing native crashes.
+                /*
                 if (_signatureSystem != null)
                 {
                     _signatureQueryField = _signatureSystem.GetType().GetField("m_UnlockedSignatureBuildingQuery", BindingFlags.NonPublic | BindingFlags.Instance);
                 }
-                                try
-                                {
-                                    if (_signatureCacheStatusBinding != null)
-                                    {
-                                        var statusJson = "{\"timestamp\":\"" + _signatureCacheTimestamp.ToString("o") + "\",\"count\": " + _signaturePrefabIndices.Count + "}";
-                                        _signatureCacheStatusBinding.Update(statusJson);
-                                    }
-                                }
-                                catch { }
+                */
             }
             catch { }
 
@@ -128,30 +122,7 @@ namespace AdvancedTPM
         // Find a value-type component Type matching a short name (e.g. "ElectricityConsumer") and cache it.
         private Type FindServiceComponentType(string shortName)
         {
-            if (string.IsNullOrEmpty(shortName)) return null;
-            if (_serviceComponentTypeCache.TryGetValue(shortName, out var cached)) return cached;
-
-            try
-            {
-                var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-                foreach (var asm in assemblies)
-                {
-                    Type[] types = null;
-                    try { types = asm.GetTypes(); } catch { continue; }
-                    foreach (var t in types)
-                    {
-                        if (!t.IsValueType) continue; // component structs are value types
-                        if (t.Name.Equals(shortName, StringComparison.OrdinalIgnoreCase) || t.Name.IndexOf(shortName, StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            _serviceComponentTypeCache[shortName] = t;
-                            return t;
-                        }
-                    }
-                }
-            }
-            catch { }
-
-            _serviceComponentTypeCache[shortName] = null;
+            // CRITICAL: Runtime assembly scanning is unstable on the simulation thread.
             return null;
         }
 
@@ -159,45 +130,15 @@ namespace AdvancedTPM
         // em is passed to avoid referencing EntityManager property via reflection repeatedly.
         private double? TryReadComponentNumeric(EntityManager em, Entity ent, Type compType, string[] candidateFields)
         {
-            if (compType == null) return null;
-            try
-            {
-                var gm = em.GetType().GetMethod("GetComponentData", new Type[] { typeof(Entity) });
-                if (gm == null) return null;
-                var mg = gm.MakeGenericMethod(compType);
-                object compData = null;
-                try { compData = mg.Invoke(em, new object[] { ent }); } catch { return null; }
-                if (compData == null) return null;
-                var dt = compData.GetType();
-                foreach (var fn in candidateFields)
-                {
-                    var f = dt.GetField(fn, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (f != null)
-                    {
-                        var v = f.GetValue(compData);
-                        if (v is float fv) return (double)fv;
-                        if (v is double dv) return dv;
-                        if (v is int iv) return (double)iv;
-                        if (v is long lv) return (double)lv;
-                    }
-                    var p = dt.GetProperty(fn, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (p != null)
-                    {
-                        var v = p.GetValue(compData);
-                        if (v is float fv2) return (double)fv2;
-                        if (v is double dv2) return dv2;
-                        if (v is int iv2) return (double)iv2;
-                        if (v is long lv2) return (double)lv2;
-                    }
-                }
-            }
-            catch { }
+            // CRITICAL: Reflection-based data access is unstable and causing native crashes.
             return null;
         }
 
+        private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            base.OnUpdate();
+            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("CompanyBrowserSystem Heartbeat");
+            _updateCounter++;
 
             _updateCounter++;
             if (_updateCounter < 480) return; // ~8 seconds between refreshes to reduce UI jumping
@@ -699,56 +640,13 @@ namespace AdvancedTPM
                                 {
                                     var bRef = em.GetComponentData<PrefabRef>(bldg);
                                     var bPrefab = bRef.m_Prefab;
-                                    // Check SpawnableBuildingData fields reflectively for building type / status
+                                    // CRITICAL: Reflection on SpawnableBuildingData is unstable.
+                                    // Rely solely on explicit Signature component.
                                     try
                                     {
-                            // First, check for explicit Signature component on the prefab or building entity
-                            try
-                            {
-                                if (em.HasComponent<Game.Buildings.Signature>(bPrefab) || em.HasComponent<Game.Buildings.Signature>(bldg))
-                                {
-                                    sig = true;
-                                }
-                            }
-                            catch { }
-
-                            if (em.HasComponent<SpawnableBuildingData>(bPrefab))
+                                        if (em.HasComponent<Game.Buildings.Signature>(bPrefab) || em.HasComponent<Game.Buildings.Signature>(bldg))
                                         {
-                                            var sbd = em.GetComponentData<SpawnableBuildingData>(bPrefab);
-                                            var t = sbd.GetType();
-                                            // Try common field names that may contain building type/status
-                                            var typeField = t.GetField("m_BuildingType") ?? t.GetField("m_Type");
-                                            if (typeField != null)
-                                            {
-                                                var raw = typeField.GetValue(sbd);
-                                                if (raw != null)
-                                                {
-                                                    int iv = Convert.ToInt32(raw);
-                                                    if (Enum.IsDefined(typeof(Game.Prefabs.BuildingType), iv))
-                                                    {
-                                                        var bt = (Game.Prefabs.BuildingType)iv;
-                                                        if (bt == Game.Prefabs.BuildingType.SignatureCommercial || bt == Game.Prefabs.BuildingType.SignatureIndustrial || bt == Game.Prefabs.BuildingType.SignatureOffice || bt == Game.Prefabs.BuildingType.SignatureResidential)
-                                                            sig = true;
-                                                    }
-                                                }
-                                            }
-
-                                            var statusField = t.GetField("m_BuildingStatus") ?? t.GetField("m_Status") ?? t.GetField("m_StatusFlags");
-                                            if (!sig && statusField != null)
-                                            {
-                                                var raw = statusField.GetValue(sbd);
-                                                if (raw != null)
-                                                {
-                                                    int sv = Convert.ToInt32(raw);
-                                                    try
-                                                    {
-                                                        var st = (Game.Prefabs.BuildingStatusType)sv;
-                                                        if (st.HasFlag(Game.Prefabs.BuildingStatusType.SignatureCommercial) || st.HasFlag(Game.Prefabs.BuildingStatusType.SignatureIndustrial) || st.HasFlag(Game.Prefabs.BuildingStatusType.SignatureOffice) || st.HasFlag(Game.Prefabs.BuildingStatusType.SignatureResidential))
-                                                            sig = true;
-                                                    }
-                                                    catch { }
-                                                }
-                                            }
+                                            sig = true;
                                         }
                                     }
                                     catch { }
@@ -1136,64 +1034,8 @@ namespace AdvancedTPM
 
         private void RefreshSignatureCache()
         {
-            try
-            {
-                m_Log.Debug("Refreshing signature cache...");
-                _signaturePrefabIndices.Clear();
-                _signatureCacheTimestamp = DateTime.UtcNow;
-                if (_signatureSystem == null || _signatureQueryField == null)
-                {
-                    m_Log.Debug("Signature system or query field missing; aborting refresh.");
-                    return;
-                }
-                var qObj = _signatureQueryField.GetValue(_signatureSystem);
-                if (qObj is EntityQuery q)
-                {
-                    if (q.IsEmptyIgnoreFilter)
-                    {
-                        m_Log.Debug("Signature query is empty.");
-                        return;
-                    }
-                    var arr = q.ToEntityArray(Allocator.Temp);
-                    try
-                    {
-                        var nameList = new List<string>();
-                        m_Log.Debug($"Found {arr.Length} signature prefab entities.");
-                        for (int i = 0; i < arr.Length; i++)
-                        {
-                            _signaturePrefabIndices.Add(arr[i].Index);
-                            try
-                            {
-                                if (_prefabSystem != null)
-                                {
-                                    var nm = _prefabSystem.GetPrefabName(arr[i]);
-                                    if (!string.IsNullOrEmpty(nm)) nameList.Add(nm);
-                                }
-                            }
-                            catch (Exception ex) { m_Log.Warn($"Failed to query prefab name: {ex.Message}"); }
-                        }
-                        // Publish debug binding with prefab names as JSON array
-                        try
-                        {
-                            if (_signaturePrefabsBinding != null)
-                            {
-                                // simple JSON array serialization with escaping for quotes and backslashes
-                                for (int i = 0; i < nameList.Count; i++)
-                                {
-                                    if (nameList[i] == null) nameList[i] = "";
-                                    nameList[i] = nameList[i].Replace("\\", "\\\\").Replace("\"", "\\\"");
-                                }
-                                var json = "[" + string.Join(",", nameList.ConvertAll(n => "\"" + n + "\"").ToArray()) + "]";
-                                _signaturePrefabsBinding.Update(json);
-                                m_Log.Debug($"Published {nameList.Count} signature prefab names to binding.");
-                            }
-                        }
-                        catch (Exception ex) { m_Log.Warn($"Failed to publish signaturePrefabs binding: {ex.Message}"); }
-                    }
-                    finally { arr.Dispose(); }
-                }
-            }
-            catch { }
+            // CRITICAL: Internal query reflection is unstable.
+            // Neutralized to prevent native crashes.
         }
 
         private static string EscapePipe(string s) { return s.Replace("|", " ").Replace(";", " "); }

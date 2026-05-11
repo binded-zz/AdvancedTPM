@@ -40,6 +40,8 @@ namespace AdvancedTPM
             try { _citySystem = World.GetOrCreateSystemManaged<CitySystem>(); } catch { }
             try { _nameSystem = World.GetOrCreateSystemManaged<NameSystem>(); } catch { }
             try { _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>(); } catch { }
+            // CRITICAL: Reflection-based signature query is unstable.
+            /*
             try
             {
                 _signatureSystem = World.GetOrCreateSystemManaged<Game.UI.InGame.SignatureBuildingUISystem>();
@@ -49,6 +51,7 @@ namespace AdvancedTPM
                 }
             }
             catch { }
+            */
 
             // Query residential buildings: any building entity with a ResidentialProperty tag/component
             try
@@ -70,10 +73,12 @@ namespace AdvancedTPM
             Mod.log.Info("ResidentialBrowserSystem OnCreate finished");
         }
 
+        private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            base.OnUpdate();
-
+            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("ResidentialBrowserSystem Heartbeat");
+            if (Mod.Settings == null) return;
+            
             _updateCounter++;
             if (_updateCounter < 480) return; // ~8 seconds
             _updateCounter = 0;

@@ -194,9 +194,11 @@ namespace AdvancedTPM
             m_Log.Info("AutoTaxSystem initialized");
         }
 
+        private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            base.OnUpdate();
+            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("AutoTaxSystem Heartbeat");
+            if (!_autoTaxEnabled.value) return;
 
             var settings = Mod.Settings;
             if (settings == null) return;

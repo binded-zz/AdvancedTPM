@@ -207,7 +207,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     if (sortField === field) { setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); }
     else { setSortField(field); setSortDir(field === 'address' ? 'asc' : 'desc'); }
   };
-  const sortIndicator = (field: ResBldgSortField) => sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+  const sortIndicator = (field: ResBldgSortField) => sortField === field ? (sortDir === 'asc' ? ' (asc)' : ' (desc)') : '';
 
   const happinessFromClientX = useCallback((clientX: number): number => {
     if (!happinessTrackRef.current) return 0;

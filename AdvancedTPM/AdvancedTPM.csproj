@@ -5,6 +5,7 @@
 	
 		<!--The file where mod information which is required for publishing mod on PDX mods are stored-->
 		<PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	</PropertyGroup>
 
   <!--
@@ -31,12 +32,16 @@
 		<Reference Include="Colossal.Logging">
 			<Private>false</Private>
 		</Reference>
+		<Reference Include="Colossal.Mathematics">
+			<Private>false</Private>
+		</Reference>
 		<Reference Include="Colossal.IO.AssetDatabase">
 			<Private>false</Private>
 		</Reference>
-		    <Reference Include="Colossal.Collections">
-      <HintPath>$(GamePath)\Cities2_Data\Managed\Colossal.Collections.dll</HintPath>
-    </Reference>
+		<Reference Include="Colossal.Collections">
+			<HintPath>$(GamePath)\Cities2_Data\Managed\Colossal.Collections.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
     <Reference Include="Colossal.IO">
 			<Private>false</Private>
 		</Reference>

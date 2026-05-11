@@ -11,6 +11,7 @@ import DistrictsPanel from './DistrictsPanel';
 import ServiceIcon from '../assets/ServiceIcon';
 import ThemeIcon from '../assets/ThemeIcon';
 import PackIcon from '../assets/PackIcon';
+import { ModDebugPanel } from './ModDebugPanel';
 import './AdvancedTPMWindow.css';
 
 interface TaxResourceKey {
@@ -74,6 +75,8 @@ districtPoliciesData?: string;
   onCategoryChange: (category: string) => void;
   onCollapseChange?: (collapsed: boolean) => void;
   onToggleDebugPanel?: () => void;
+  showModDebug?: boolean;
+  onToggleModDebug?: () => void;
   onClose: () => void;
 }
 
@@ -576,6 +579,8 @@ districtPoliciesData,
   onCategoryChange,
   onCollapseChange,
   onToggleDebugPanel,
+  showModDebug,
+  onToggleModDebug,
   onClose,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -955,8 +960,10 @@ districtPoliciesData,
           residentialBuildingsData={residentialBuildingsData}
           servicesBuildingsData={servicesBuildingsData}
           companyBrowserData={companyBrowserData}
-        districtBrowserData={districtBrowserData}
-        districtPoliciesData={districtPoliciesData}
+          districtBrowserData={districtBrowserData}
+          districtPoliciesData={districtPoliciesData}
+          onToggleDebug={onToggleModDebug}
+          showDebug={showModDebug}
         />
       )}
 
@@ -1063,6 +1070,7 @@ districtPoliciesData,
         </div>
       );
     })()}
+      {showModDebug && <ModDebugPanel onClose={onToggleModDebug} />}
     </>
   );
 };

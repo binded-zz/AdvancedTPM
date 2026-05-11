@@ -105,7 +105,7 @@ const getServiceRowTooltip = (b: ServiceBuildingInfo) => {
     `<br/>Category: ${b.category || 'Unknown'}`,
     `District: ${b.district || 'City'}`,
     `Theme: ${b.theme || 'USA'} • Pack: ${b.assetPack || 'Base Game'}`,
-    `Level: ${b.level > 0 ? `Lv ${b.level}` : '—'}`,
+    `Level: ${b.level > 0 ? `Lv ${b.level}` : '-'}`,
     `<br/><b>Capacity: ${b.capacity.toFixed(0)}</b>`,
     `<b>Usage: ${b.usage.toFixed(0)} (${loadPct}%)</b>`,
     `<b>Efficiency: ${b.efficiency.toFixed(0)}%</b>`,
@@ -199,7 +199,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
      if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
      else { setSortField(field); setSortDir(field === 'name' || field === 'address' || field === 'category' || field === 'district' || field === 'theme' || field === 'assetPack' ? 'asc' : 'desc'); }
    };
-   const sortIndicator = (field: SortField) => sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+   const sortIndicator = (field: SortField) => sortField === field ? (sortDir === 'asc' ? ' (asc)' : ' (desc)') : '';
 
    const serviceLabels = useMemo(() => {
      const k = (categoryFilter || '').toLowerCase();

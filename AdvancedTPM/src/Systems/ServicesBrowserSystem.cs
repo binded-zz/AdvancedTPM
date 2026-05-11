@@ -53,9 +53,12 @@ namespace AdvancedTPM
             Mod.log.Info("ServicesBrowserSystem OnCreate finished");
         }
 
+        private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            base.OnUpdate();
+            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("ServicesBrowserSystem Heartbeat");
+            if (Mod.Settings == null) return;
+
             _updateCounter++;
             if (_updateCounter < 480) return; // ~8 seconds
             _updateCounter = 0;
@@ -193,30 +196,8 @@ namespace AdvancedTPM
 
         private void RefreshSignatureCache()
         {
-            try
-            {
-                _signaturePrefabIndices.Clear();
-                // Try to find the SignatureBuildingUISystem to get authoritative signature prefabs
-                var systems = World.Systems;
-                foreach (var s in systems)
-                {
-                    if (s.GetType().Name.Contains("SignatureBuildingUISystem"))
-                    {
-                        var field = s.GetType().GetField("m_SignatureQuery", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                        if (field != null)
-                        {
-                            var q = (EntityQuery)field.GetValue(s);
-                            if (q != null)
-                            {
-                                var entities = q.ToEntityArray(Unity.Collections.Allocator.Temp);
-                                foreach (var e in entities) _signaturePrefabIndices.Add(e.Index);
-                                entities.Dispose();
-                            }
-                        }
-                    }
-                }
-            }
-            catch { }
+            // CRITICAL: World system iteration with reflection is unstable.
+            // Neutralized to prevent native crashes.
         }
 
         private void UpdateServicesData()
@@ -225,11 +206,12 @@ namespace AdvancedTPM
             var em = EntityManager;
             var city = _citySystem.City;
             if (!em.Exists(city)) return;
-
-            var serviceEnumType = FindType("Game.City.CityService") ?? FindType("Game.City.Service") ?? FindType("CityService");
+            var serviceEnumType = (Type)null;
             var map = new Dictionary<int, ServiceInfo>();
 
-            // Try to read budget/fee buffers from the city entity using reflection.
+            // CRITICAL: Reflection-based buffer reading is unstable.
+            // Replaced with safe placeholder logic.
+            /*
             ReadServiceBuffer(em, city, "ServiceBudget", serviceEnumType, map, new[] { "m_Service", "m_ServiceType", "m_Type" }, new[] { "m_Budget", "m_BudgetPercentage", "m_Percentage" }, (info, val) => info.Budget = val);
             ReadServiceBuffer(em, city, "ServiceFee", serviceEnumType, map, new[] { "m_Service", "m_ServiceType", "m_Type" }, new[] { "m_Fee", "m_FeePercentage", "m_Percentage" }, (info, val) => info.Fee = val);
             ReadServiceBuffer(em, city, "ServiceUpkeep", serviceEnumType, map, new[] { "m_Service", "m_ServiceType", "m_Type" }, new[] { "m_Upkeep", "m_Cost", "m_Value" }, (info, val) => info.Upkeep = val);
@@ -237,6 +219,7 @@ namespace AdvancedTPM
             ReadServiceBuffer(em, city, "ServiceCoverage", serviceEnumType, map, new[] { "m_Service", "m_ServiceType", "m_Type" }, new[] { "m_Coverage", "m_Value" }, (info, val) => info.Coverage = val);
             ReadServiceBuffer(em, city, "ServiceCapacity", serviceEnumType, map, new[] { "m_Service", "m_ServiceType", "m_Type" }, new[] { "m_Capacity", "m_Value" }, (info, val) => info.Capacity = val);
             ReadServiceBuffer(em, city, "ServiceUsage", serviceEnumType, map, new[] { "m_Service", "m_ServiceType", "m_Type" }, new[] { "m_Usage", "m_Value" }, (info, val) => info.Usage = val);
+            */
 
             // If no buffers were found, still publish a list of services from the enum
             // so the UI can render the known service names with zeroed values.
@@ -276,155 +259,17 @@ namespace AdvancedTPM
             catch (Exception ex) { try { Mod.log.Warn($"Failed to write services payload: {ex.Message}"); } catch { } }
         }
 
-        private void ReadServiceBuffer(EntityManager em, Entity city, string bufferTypeName, Type serviceEnumType, Dictionary<int, ServiceInfo> map,
-            string[] serviceFields, string[] valueFields, Action<ServiceInfo, float> applyValue)
-        {
-            try
-            {
-                var bufferType = FindType(bufferTypeName);
-                if (bufferType == null) return;
 
-                var getBuffer = em.GetType().GetMethod("GetBuffer", new[] { typeof(Entity) });
-                if (getBuffer == null) return;
-                var gb = getBuffer.MakeGenericMethod(bufferType);
-                var buffer = gb.Invoke(em, new object[] { city });
-                if (buffer == null) return;
-
-                var lengthProp = buffer.GetType().GetProperty("Length");
-                var itemGetter = buffer.GetType().GetMethod("get_Item");
-                if (lengthProp == null || itemGetter == null) return;
-                var len = (int)lengthProp.GetValue(buffer);
-
-                for (int i = 0; i < len; i++)
-                {
-                    var element = itemGetter.Invoke(buffer, new object[] { i });
-                    if (element == null) continue;
-
-                    int serviceId = ReadEnumValue(element, serviceEnumType, serviceFields);
-                    if (serviceId < 0) continue;
-
-                    if (!map.TryGetValue(serviceId, out var info))
-                    {
-                        info = new ServiceInfo(serviceId);
-                        map[serviceId] = info;
-                        // Try to extract a human-friendly type/name from the buffer element
-                        try
-                        {
-                            var name = ReadStringValue(element, new[] { "m_Name", "m_DisplayName", "m_TypeName", "m_Label", "m_ServiceName" });
-                            if (!string.IsNullOrEmpty(name)) info.TypeName = name;
-                        }
-                        catch { }
-                        map[serviceId] = info;
-                    }
-
-                    var value = ReadNumeric(element, valueFields);
-                    if (value.HasValue) applyValue(info, (float)value.Value);
-                }
-            }
-            catch { }
-        }
-
-        private static int ReadEnumValue(object element, Type serviceEnumType, string[] fields)
-        {
-            if (element == null) return -1;
-            var t = element.GetType();
-            foreach (var fName in fields)
-            {
-                try
-                {
-                    var f = t.GetField(fName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (f != null)
-                    {
-                        var raw = f.GetValue(element);
-                        if (raw != null) return Convert.ToInt32(raw);
-                    }
-                    var p = t.GetProperty(fName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (p != null)
-                    {
-                        var raw = p.GetValue(element);
-                        if (raw != null) return Convert.ToInt32(raw);
-                    }
-                }
-                catch { }
-            }
-            return -1;
-        }
-
-        private static double? ReadNumeric(object element, string[] fields)
-        {
-            if (element == null) return null;
-            var t = element.GetType();
-            foreach (var fName in fields)
-            {
-                try
-                {
-                    var f = t.GetField(fName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (f != null)
-                    {
-                        var raw = f.GetValue(element);
-                        if (raw is float fv) return fv;
-                        if (raw is double dv) return dv;
-                        if (raw is int iv) return iv;
-                        if (raw is long lv) return lv;
-                    }
-                    var p = t.GetProperty(fName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (p != null)
-                    {
-                        var raw = p.GetValue(element);
-                        if (raw is float fv2) return fv2;
-                        if (raw is double dv2) return dv2;
-                        if (raw is int iv2) return iv2;
-                        if (raw is long lv2) return lv2;
-                    }
-                }
-                catch { }
-            }
-            return null;
-        }
-
-        private static string ReadStringValue(object element, string[] fields)
-        {
-            if (element == null) return null;
-            var t = element.GetType();
-            foreach (var fName in fields)
-            {
-                try
-                {
-                    var f = t.GetField(fName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (f != null)
-                    {
-                        var raw = f.GetValue(element);
-                        if (raw != null) return raw.ToString();
-                    }
-                    var p = t.GetProperty(fName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (p != null)
-                    {
-                        var raw = p.GetValue(element);
-                        if (raw != null) return raw.ToString();
-                    }
-                }
-                catch { }
-            }
-            return null;
-        }
 
         private static Type FindType(string typeName)
         {
-            if (string.IsNullOrEmpty(typeName)) return null;
-            try
-            {
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    try
-                    {
-                        var t = asm.GetTypes().FirstOrDefault(x => x.FullName == typeName || x.Name == typeName || x.FullName?.EndsWith("." + typeName) == true);
-                        if (t != null) return t;
-                    }
-                    catch { }
-                }
-            }
-            catch { }
+            // CRITICAL: Type discovery via assembly scanning is unstable.
             return null;
+        }
+        
+        private void ReadServiceBuffer(EntityManager em, Entity city, string bufferName, Type serviceEnumType, Dictionary<int, ServiceInfo> map, string[] serviceFields, string[] valueFields, Action<ServiceInfo, float> setter)
+        {
+            // CRITICAL: Reflection-based buffer reading is unstable.
         }
 
         private sealed class ServiceInfo

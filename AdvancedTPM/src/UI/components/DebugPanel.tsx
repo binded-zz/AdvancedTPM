@@ -57,7 +57,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAct
         onMouseDown={(e) => { drag.current = { active: true, sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y }; }}
       >
         <strong>TPM Debug</strong>
-        <button onClick={onTogglePanel} style={{ background: 'transparent', border: '1rem solid rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer' }}>âœ•</button>
+        <button onClick={onTogglePanel} style={{ background: 'transparent', border: '1rem solid rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer' }}>X</button>
       </div>
       <div style={{ padding: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
