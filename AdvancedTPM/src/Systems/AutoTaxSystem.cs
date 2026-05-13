@@ -194,9 +194,11 @@ namespace AdvancedTPM
             m_Log.Info("AutoTaxSystem initialized");
         }
 
+        private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            base.OnUpdate();
+            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("AutoTaxSystem Heartbeat");
+            if (!_autoTaxEnabled.value) return;
 
             var settings = Mod.Settings;
             if (settings == null) return;
@@ -700,7 +702,8 @@ namespace AdvancedTPM
         private string SerializeStatus(int happiness, int adjustCount, int raiseCount, int lowerCount, int holdCount)
         {
             // Format: happiness|adjustCount|raiseCount|lowerCount|holdCount|perResourceDirections
-            // Per-resource directions: key=direction:score,key=direction:score,...
+            // Per-resource directions: key=direction:score:balance:demand:income:profit:happiness:rateDrag:companies:avgProfit:learned
+            // Note: f[6] = city happiness (0-100 int) — the same value across all resources (city-wide Wellbeing stat)
             var parts = new List<string>
             {
                 happiness.ToString(CultureInfo.InvariantCulture),
@@ -715,13 +718,13 @@ namespace AdvancedTPM
             {
                 if (kvp.Value.Direction != 0 || Math.Abs(kvp.Value.Score) > 0.01f)
                 {
-                    // Format: key=direction:score:balance:demand:income:profit:happiness:rateDrag:companies:avgProfit:learned
                     resourceParts.Add(string.Format(CultureInfo.InvariantCulture,
-                        "{0}={1}:{2:0.##}:{3:0.##}:{4:0.##}:{5:0.##}:{6:0.##}:{7:0.##}:{8:0.##}:{9}:{10:0.#}:{11:0.##}",
+                        "{0}={1}:{2:0.##}:{3:0.##}:{4:0.##}:{5:0.##}:{6:0.##}:{7}:{8:0.##}:{9}:{10:0.#}:{11:0.##}",
                         kvp.Key, kvp.Value.Direction, kvp.Value.Score,
                         kvp.Value.BalanceFactor, kvp.Value.DemandFactor,
                         kvp.Value.IncomeFactor, kvp.Value.ProfitFactor,
-                        kvp.Value.HappinessFactor, kvp.Value.RateDrag,
+                        happiness,                    // f[6] = city happiness 0-100 (replaces tiny HappinessFactor)
+                        kvp.Value.RateDrag,
                         kvp.Value.Companies, kvp.Value.AvgProfit,
                         kvp.Value.LearnedFactor));
                 }

@@ -3,8 +3,15 @@ import { trigger } from 'cs2/api';
 // Removed invalid imports from 'cs2/bindings'.
 import { resourceCategories, ResourceCategory } from '../data/resourceTaxonomy';
 import AutoTaxSettingsPanel from './AutoTaxSettingsPanel';
-import CompanyBrowser, { parseCompanies } from './CompanyBrowser';
+import CompanyBrowser, { parseCompanies, resourceIconSrc, resourceIconName, resourceLabel } from './CompanyBrowser';
 import AdvisorPanel from './AdvisorPanel';
+import ResidentialPanel from './ResidentialPanel';
+import ServicesPanel from './ServicesPanel';
+import DistrictsPanel from './DistrictsPanel';
+import ServiceIcon from '../assets/ServiceIcon';
+import ThemeIcon from '../assets/ThemeIcon';
+import PackIcon from '../assets/PackIcon';
+import { ModDebugPanel } from './ModDebugPanel';
 import './AdvancedTPMWindow.css';
 
 interface TaxResourceKey {
@@ -48,15 +55,28 @@ interface AdvancedTPMWindowProps {
   signatureCompaniesJson?: string;
   signatureCacheStatus?: string;
   signatureInfo?: string;
+  onRefreshSignatureCache?: () => void;
+  onRefreshCompanyBrowserData?: () => void;
   advisorData: string;
   decisionLogData: string;
   learningStatsData: string;
   learningEnabled: boolean;
+  residentialBrowserData?: string;
+  residentialBuildingsData?: string;
+  residentialSignatureBuildingsData?: string;
+  administrationBrowserData?: string;
+  servicesBrowserData?: string;
+  servicesBuildingsData?: string;
+districtBrowserData?: string;
+districtPoliciesData?: string;
   onAutoTaxToggle: (enabled: boolean) => void;
   onToggleLearning: (enabled: boolean) => void;
   onResourceTaxRateChange: (key: string, rate: number) => void;
   onCategoryChange: (category: string) => void;
   onCollapseChange?: (collapsed: boolean) => void;
+  onToggleDebugPanel?: () => void;
+  showModDebug?: boolean;
+  onToggleModDebug?: () => void;
   onClose: () => void;
 }
 
@@ -125,7 +145,7 @@ const formatCurrency = (value: number): string => {
   return `${rounded < 0 ? '-' : ''}${Math.abs(rounded).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
-/** Format weight in game-style units: kg / t / kt — unit glued to number (no space) */
+/** Format weight in game-style units: kg / t / kt â€” unit glued to number (no space) */
 const formatWeight = (tonnes: number): string => {
   const abs = Math.abs(tonnes);
   if (abs < 0.001) return '0t';
@@ -157,7 +177,7 @@ const getStageIcon = (stage: string): string => {
   }
 };
 
-/* ── Custom Slider ── */
+/* ———— Custom Slider ———— */
 interface CustomSliderProps {
   value: number;
   min: number;
@@ -211,8 +231,8 @@ const CustomSlider: React.FC<CustomSliderProps> = ({ value, min, max, onChange }
   );
 };
 
-/* ── Resource Sub-Row ── */
-const ResourceSubRow: React.FC<{
+/* ———— Resource Sub-Row ———— */
+const ResourceSubRow = React.memo<{
   resource: ResourceRowVm;
   icon: string;
   localRate: number;
@@ -222,7 +242,7 @@ const ResourceSubRow: React.FC<{
   onSelect: (key: string) => void;
   onTooltipShow: (lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
   onTooltipHide: () => void;
-}> = ({ resource, icon, localRate, selected, autoTaxDir, onRateChange, onSelect, onTooltipShow, onTooltipHide }) => {
+}>(({ resource, icon, localRate, selected, autoTaxDir, onRateChange, onSelect, onTooltipShow, onTooltipHide }) => {
   const [hover, setHover] = useState(false);
   const prodRef = useRef<HTMLDivElement>(null);
   const isIncomeNegative = resource.taxIncome < 0;
@@ -355,10 +375,10 @@ const ResourceSubRow: React.FC<{
       </div>
     </div>
   );
-};
+});
 
-/* ── Category Group Row ── */
-const CategoryGroupRow: React.FC<{
+/* â”€â”€ Category Group Row â”€â”€ */
+const CategoryGroupRow = React.memo<{
   category: ResourceCategory;
   categoryRows: ResourceRowVm[];
   isFirst: boolean;
@@ -373,14 +393,18 @@ const CategoryGroupRow: React.FC<{
   // when true (viewing 'All' resources) this group should start collapsed on mount
   isAllView?: boolean;
   onToggle?: (expanded: boolean) => void;
-}> = ({ category, categoryRows, isFirst, iconMap, localRates, selectedRowKey, autoTaxDirections, onRateChange, onSelect, onTooltipShow, onTooltipHide, isAllView, onToggle }) => {
+}>(({ category, categoryRows, isFirst, iconMap, localRates, selectedRowKey, autoTaxDirections, onRateChange, onSelect, onTooltipShow, onTooltipHide, isAllView, onToggle }) => {
   const [expanded, setExpanded] = useState<boolean>(isAllView ? false : true);
-  // Keep expanded state in sync when view mode changes between 'all' and a single category
+  const isAllViewMounted = useRef(false);
   useEffect(() => {
+    if (!isAllViewMounted.current) {
+      isAllViewMounted.current = true;
+      return; // skip reset on initial mount - initial state already set correctly
+    }
+    // Only reset when the view mode actually switches (all <-> single category)
     const next = isAllView ? false : true;
     setExpanded(next);
     if (onToggle) {
-      // allow layout to settle
       requestAnimationFrame(() => requestAnimationFrame(() => onToggle!(next)));
     }
   }, [isAllView]);
@@ -432,6 +456,11 @@ const CategoryGroupRow: React.FC<{
     <div className={isFirst ? 'adv-category-group' : 'adv-category-group adv-category-group-border'}>
       <div
         className={`adv-category-header${headerHover ? ' adv-category-header-hover' : ''}`}
+        onClick={() => {
+          const next = !expanded;
+          setExpanded(next);
+          if (onToggle) requestAnimationFrame(() => requestAnimationFrame(() => onToggle(next)));
+        }}
         onMouseOver={(e) => {
           setHeaderHover(true);
           // show floating tooltip at mouse coords so it doesn't snap to production/consumption element
@@ -450,12 +479,6 @@ const CategoryGroupRow: React.FC<{
         <div className="adv-category-title">{category.label}</div>
         <div
           className={`adv-expand-button${buttonHover ? ' adv-expand-button-hover' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            const next = !expanded;
-            setExpanded(next);
-            if (onToggle) requestAnimationFrame(() => requestAnimationFrame(() => onToggle(next)));
-          }}
           onMouseOver={() => setButtonHover(true)}
           onMouseOut={() => setButtonHover(false)}
         >
@@ -504,8 +527,7 @@ const CategoryGroupRow: React.FC<{
           </div>
         </div>
       </div>
-      {expanded && (
-        <div className="adv-prefab-list">
+      <div className="adv-prefab-list" style={{ display: expanded ? 'flex' : 'none' }}>
           {categoryRows.map((r) => (
             <ResourceSubRow
               key={r.key}
@@ -521,12 +543,11 @@ const CategoryGroupRow: React.FC<{
             />
           ))}
         </div>
-      )}
     </div>
   );
-};
+});
 
-/* ── Main Advanced Window ── */
+/* ———— Main Advanced Window ———— */
 const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   selectedCategory,
   rows,
@@ -540,30 +561,62 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   decisionLogData,
   learningStatsData,
   learningEnabled,
+  residentialBrowserData,
+  residentialBuildingsData,
+  residentialSignatureBuildingsData,
+  servicesBrowserData,
+  servicesBuildingsData,
+districtBrowserData,
+districtPoliciesData,
   signaturePrefabs,
   signatureCompaniesJson,
   signatureCacheStatus,
+  onRefreshSignatureCache,
+  onRefreshCompanyBrowserData,
   onToggleLearning,
   onAutoTaxToggle,
   onResourceTaxRateChange,
   onCategoryChange,
   onCollapseChange,
+  onToggleDebugPanel,
+  showModDebug,
+  onToggleModDebug,
   onClose,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
-  const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor'>('resources');
+  const [useGameIcons, setUseGameIcons] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem('atpm.useGameZoneIcons');
+      if (v === null) return true; // default on
+      return v === '1' || v === 'true';
+    } catch { return true; }
+  });
+
+  // Listen for in-page changes to the icon mode (from settings panel) and update state
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        const val = e && typeof e.detail !== 'undefined' ? !!e.detail : (localStorage.getItem('atpm.useGameIcons') === '1');
+        setUseGameIcons(val);
+      } catch { }
+    };
+    window.addEventListener('atpm.useGameIconsChanged', handler as EventListener);
+    return () => window.removeEventListener('atpm.useGameIconsChanged', handler as EventListener);
+  }, []);
+  const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor' | 'residential' | 'services' | 'districts'>('resources');
   const safeCategory = (selectedCategory || 'all').toLowerCase();
   const iconMap = new Map(resourceCategories.flatMap((c) => c.resources.map((r) => [r.key, r.icon] as const)));
   const autoTaxParsed = useMemo(() => parseAutoTaxStatus(autoTaxStatus), [autoTaxStatus]);
   const autoTaxDirections = autoTaxParsed?.directions ?? new Map();
+  const businessCompanies = useMemo(() => parseCompanies(companyBrowserData || ''), [companyBrowserData]);
 
   // Compute signature companies using authoritative flags from the server (isSignature)
   // and an explicit list of signature company entity keys published by the C# system.
   let signatureCompanies: any[] = [];
   let signatureCount = 0;
   const _signatureCompanies = useMemo(() => {
-    const all = parseCompanies(companyBrowserData || '');
+    const all = businessCompanies;
     // Parse signature company keys published by the system (JSON array of "idx,ver" strings)
     const keySet = new Set<string>();
     if (signatureCompaniesJson) {
@@ -581,17 +634,37 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
       try { const parsed = JSON.parse(signaturePrefabs); if (Array.isArray(parsed)) names = parsed.map((s: any) => String(s)); } catch { names = []; }
     }
     return all.filter((c) => c.isSignature || keySet.has(`${c.entityIndex},${c.entityVersion}`) || (names.length > 0 && names.includes(c.name)));
-  }, [companyBrowserData, signatureCompaniesJson, signaturePrefabs]);
+  }, [businessCompanies, signatureCompaniesJson, signaturePrefabs]);
   signatureCompanies = _signatureCompanies;
-  signatureCount = signatureCompanies.length;
+
+  // Parse residential signature buildings: entityKey|address|level|occupied|capacity|theme|assetPack
+  const residentialSignatureBuildings = useMemo(() => {
+    if (!residentialSignatureBuildingsData) return [];
+    return residentialSignatureBuildingsData.split(';').map((chunk) => {
+      const p = chunk.split('|');
+      if (p.length < 7) return null;
+      return {
+        entityKey: p[0] || '',
+        address: p[1] || '',
+        level: Number(p[2]) || 1,
+        occupied: Number(p[3]) || 0,
+        capacity: Number(p[4]) || 0,
+        theme: p[5] || 'Unknown',
+        assetPack: p[6] || 'Base Game',
+      };
+    }).filter(Boolean) as Array<{ entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; }>;
+  }, [residentialSignatureBuildingsData]);
+
+  signatureCount = signatureCompanies.length + residentialSignatureBuildings.length;
 
   // Parse panel opacity from autoTaxSettings (slot 8: ...||profitWeight|opacity)
   const panelOpacity = useMemo(() => {
     if (!autoTaxSettings) return 1;
     const parts = autoTaxSettings.split('|');
+    // Index 8 is the 9th slot
     if (parts.length > 8) {
       const val = Number(parts[8]);
-      if (!isNaN(val) && val >= 40 && val <= 100) return val / 100;
+      if (!isNaN(val)) return val / 100;
     }
     return 1;
   }, [autoTaxSettings]);
@@ -649,114 +722,10 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
     setSelectedRowKey((prev) => prev === key ? null : key);
   };
 
-  // Overlay scrollbar for resources list
+  // Refs for resources list
   const tableBodyRef = useRef<HTMLDivElement | null>(null);
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
-  const tableTrackRef = useRef<HTMLDivElement | null>(null);
-  const tableThumbRef = useRef<HTMLDivElement | null>(null);
-  const [tableThumbTop, setTableThumbTop] = useState(0);
-  const [tableThumbHeight, setTableThumbHeight] = useState(48);
 
-  const updateTableScrollbar = useCallback(() => {
-    const body = tableBodyRef.current;
-    const track = tableTrackRef.current;
-    const thumb = tableThumbRef.current;
-    const wrapper = tableWrapperRef.current;
-    if (!body || !track || !thumb || !wrapper) return;
-    // position track relative to wrapper using bounding rects
-    try {
-      const bodyRect = body.getBoundingClientRect();
-      const wrapperRect = wrapper.getBoundingClientRect();
-      let relTop = bodyRect.top - wrapperRect.top;
-      relTop = Math.max(0, Math.min(relTop, Math.max(0, wrapperRect.height - body.clientHeight)));
-      track.style.top = `${relTop}px`;
-      track.style.height = `${body.clientHeight}px`;
-    } catch {}
-    const visible = body.clientHeight;
-    const total = body.scrollHeight || 1;
-    if (visible >= total || !Number.isFinite(visible) || !Number.isFinite(total)) {
-      try { track.style.display = 'none'; } catch {}
-      return;
-    }
-    try { track.style.display = 'block'; } catch {}
-    const ratio = Math.max(0.03, Math.min(1, visible / total));
-    const trackHeight = track.clientHeight;
-    const thumbH = Math.max(16, Math.round(trackHeight * ratio));
-    const scrollTop = body.scrollTop;
-    const maxScroll = total - visible;
-    const top = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * (trackHeight - thumbH)) : 0;
-    setTableThumbHeight(thumbH);
-    setTableThumbTop(top);
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => updateTableScrollbar();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [updateTableScrollbar]);
-
-  useEffect(() => {
-    updateTableScrollbar();
-  }, [displayCategories.length, rows, selectedRowKey, updateTableScrollbar]);
-
-  const handleTableBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    updateTableScrollbar();
-  };
-
-  // Thumb drag
-  useEffect(() => {
-    let dragging = false;
-    let startY = 0;
-    let startTop = 0;
-    const thumb = tableThumbRef.current;
-    const track = tableTrackRef.current;
-    const body = tableBodyRef.current;
-    if (!thumb || !track || !body) return;
-    const onDown = (ev: any) => {
-      try { if (ev.stopPropagation) ev.stopPropagation(); } catch {}
-      dragging = true;
-      startY = ev.clientY || (ev.touches && ev.touches[0] && ev.touches[0].clientY) || 0;
-      startTop = tableThumbTop;
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-      document.addEventListener('touchmove', onMove as any, { passive: false });
-      document.addEventListener('touchend', onUp as any);
-      ev.preventDefault();
-    };
-    const onMove = (ev: MouseEvent) => {
-      if (!dragging) return;
-      const dy = ev.clientY - startY;
-      const trackH = track.clientHeight;
-      const maxTop = trackH - tableThumbHeight;
-      const newTop = Math.max(0, Math.min(maxTop, startTop + dy));
-      const total = body.scrollHeight - body.clientHeight;
-      const scrollPos = total > 0 ? Math.round((newTop / (trackH - tableThumbHeight)) * total) : 0;
-      body.scrollTop = scrollPos;
-      setTableThumbTop(newTop);
-    };
-    const onUp = () => {
-      dragging = false;
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      document.removeEventListener('touchmove', onMove as any);
-      document.removeEventListener('touchend', onUp as any);
-      updateTableScrollbar();
-    };
-    try { thumb.addEventListener('pointerdown', onDown as any); } catch {}
-    try { thumb.addEventListener('mousedown', onDown as any); } catch {}
-    try { thumb.addEventListener('touchstart', onDown as any); } catch {}
-    return () => {
-      try { thumb.removeEventListener('mousedown', onDown as any); } catch {}
-    };
-  }, [tableThumbTop, tableThumbHeight]);
-
-  useEffect(() => {
-    const body = tableBodyRef.current;
-    if (!body) return;
-    const mo = new MutationObserver(() => updateTableScrollbar());
-    mo.observe(body, { childList: true, subtree: true, attributes: true });
-    return () => mo.disconnect();
-  }, [tableBodyRef.current, updateTableScrollbar]);
 
 
   const handleRateChange = (key: string, rate: number) => {
@@ -764,7 +733,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
     onResourceTaxRateChange(key, rate);
   };
 
-  // Tooltip state — rendered OUTSIDE .adv-window to escape overflow:hidden clipping in CoHTML
+  // Tooltip state â€” rendered OUTSIDE .adv-window to escape overflow:hidden clipping in CoHTML
   // Tooltip may be anchored to an element (`rect`) or to explicit client coords (`x`,`y`) to float/follow cursor.
   const [tooltip, setTooltip] = useState<{ lines: string[]; rect?: DOMRect; alignRight?: boolean; x?: number; y?: number } | null>(null);
   const showTooltip = useCallback((lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => {
@@ -795,14 +764,14 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         <button
           className={`adv-learn-toggle${learningEnabled ? ' adv-learn-active' : ''}`}
           onClick={() => onToggleLearning(!learningEnabled)}
-          title={learningEnabled ? 'Learning: ON — Click to disable' : 'Learning: OFF — Click to enable'}
+          title={learningEnabled ? 'Learning: ON - Click to disable' : 'Learning: OFF - Click to enable'}
         >
           Learning
         </button>
         <button
           className={`adv-autotax-toggle${autoTaxEnabled ? ' adv-autotax-toggle-active' : ''}`}
           onClick={() => onAutoTaxToggle(!autoTaxEnabled)}
-          title={autoTaxEnabled ? 'Auto-Tax: ON — Click to disable' : 'Auto-Tax: OFF — Click to enable'}
+          title={autoTaxEnabled ? 'Auto-Tax: ON - Click to disable' : 'Auto-Tax: OFF - Click to enable'}
         >
           {autoTaxEnabled ? 'AUTO' : 'AUTO'}
         </button>
@@ -813,12 +782,19 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         >
           <svg className="adv-settings-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
         </button>
-        <button className="adv-collapse-btn" onClick={() => setCollapsed((v) => !v)}>{collapsed ? '+' : '−'}</button>
+        <button
+          className="adv-collapse-btn"
+          onClick={() => onToggleDebugPanel?.()}
+          title="Open / close debug panel"
+          style={{ fontSize: 11, opacity: 0.6 }}
+        >DBG</button>
+        <button className="adv-collapse-btn" onClick={() => setCollapsed((v) => !v)}>{collapsed ? '+' : '-'}</button>
         <button className="adv-close-btn" onClick={onClose}>X</button>
       </div>
 
       {!collapsed && (
       <>
+
 
       {/* View mode tabs */}
       <div className="adv-view-tabs">
@@ -848,9 +824,27 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         >
           Advisor
         </button>
+        <button
+          className={`adv-view-tab${viewMode === 'residential' ? ' adv-view-tab-active' : ''}`}
+          onClick={() => setViewMode('residential')}
+        >
+          Residential
+        </button>
+        <button
+          className={`adv-view-tab${viewMode === 'services' ? ' adv-view-tab-active' : ''}`}
+          onClick={() => setViewMode('services')}
+        >
+          Services
+        </button>
+        <button
+          className={`adv-view-tab${viewMode === 'districts' ? ' adv-view-tab-active' : ''}`}
+          onClick={() => setViewMode('districts')}
+        >
+          Districts
+        </button>
       </div>
 
-      {/* Category filter tabs — resources view only */}
+      {/* Category filter tabs â€” resources view only */}
       {viewMode === 'resources' && (
       <div className="adv-filter-bar">
         {resourceCategories.map((cat) => (
@@ -905,14 +899,14 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
                 </span>
               )}
               {autoTaxParsed.raiseCount > 0
-                ? <span className="adv-autotax-status-raise" title={`${autoTaxParsed.raiseCount} resource(s) had their tax rate increased this cycle`}>{`\u25B2 ${autoTaxParsed.raiseCount}`}</span>
-                : <span className="adv-autotax-status-raise adv-autotax-status-zero" title="No resources raised this cycle">{`\u25B2 0`}</span>}
-              {autoTaxParsed.lowerCount > 0
-                ? <span className="adv-autotax-status-lower" title={`${autoTaxParsed.lowerCount} resource(s) had their tax rate decreased this cycle`}>{`\u25BC ${autoTaxParsed.lowerCount}`}</span>
-                : <span className="adv-autotax-status-lower adv-autotax-status-zero" title="No resources lowered this cycle">{`\u25BC 0`}</span>}
+                ? <span className="adv-autotax-status-raise" title={`${autoTaxParsed.raiseCount} resource(s) had their tax rate increased this cycle`}>{`▲ ${autoTaxParsed.raiseCount}`}</span>
+                : <span className="adv-autotax-status-raise adv-autotax-status-zero" title="No resources raised this cycle">{`▲ 0`}</span>}
+              {autoTaxParsed.lowerCount > 0 
+                ? <span className="adv-autotax-status-lower" title={`${autoTaxParsed.lowerCount} resource(s) had their tax rate decreased this cycle`}>{`▼ ${autoTaxParsed.lowerCount}`}</span>
+                : <span className="adv-autotax-status-lower adv-autotax-status-zero" title="No resources lowered this cycle">{`▼ 0`}</span>}
               {autoTaxParsed.holdCount > 0
-                ? <span className="adv-autotax-status-hold" title={`${autoTaxParsed.holdCount} resource(s) unchanged \u2014 tax rate is already optimal`}>{`\u2192 ${autoTaxParsed.holdCount}`}</span>
-                : <span className="adv-autotax-status-hold adv-autotax-status-zero" title="No resources at hold">{`\u2192 0`}</span>}
+                ? <span className="adv-autotax-status-hold" title={`${autoTaxParsed.holdCount} resource(s) unchanged \u2014 tax rate is already optimal`}>{`→ ${autoTaxParsed.holdCount}`}</span>
+                : <span className="adv-autotax-status-hold adv-autotax-status-zero" title="No resources at hold">{`→ 0`}</span>}
             </div>
           );
         }
@@ -921,25 +915,17 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
       {/* Businesses view */}
       {viewMode === 'businesses' && (
         <div className="adv-table-section">
-          <CompanyBrowser companies={parseCompanies(companyBrowserData)} happinessData={companyHappinessData} isSignatureView={false} />
+          <CompanyBrowser companies={businessCompanies} happinessData={companyHappinessData} isSignatureView={false} />
         </div>
       )}
 
-      {/* Signature Buildings view (filtered subset of businesses) */}
+      {/* Signature Buildings view â€” unified commercial + residential */}
       {viewMode === 'signature' && (
-        <div className="adv-table-section">
-          {(() => {
-            const filtered = signatureCompanies;
-            if (filtered.length === 0) {
-              return (
-                <div className="adv-empty" style={{ padding: '20rem', textAlign: 'center' }}>
-                  No signature buildings unlocked.
-                </div>
-              );
-            }
-            return <CompanyBrowser companies={filtered} happinessData={companyHappinessData} isSignatureView={true} />;
-          })()}
-        </div>
+        <SignatureUnifiedView
+          signatureCompanies={signatureCompanies}
+          residentialSignatureBuildings={residentialSignatureBuildings}
+          servicesBuildingsData={servicesBuildingsData ?? ''}
+        />
       )}
 
       {/* Advisor view */}
@@ -957,7 +943,31 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         </div>
       )}
 
-      {/* Resources view — Table structure */}
+      {viewMode === 'residential' && (
+        <div className="adv-table-section">
+          <ResidentialPanel residentialBrowserData={residentialBrowserData} residentialBuildingsData={residentialBuildingsData} />
+        </div>
+      )}
+
+      {viewMode === 'services' && (
+        <div className="adv-table-section">
+          <ServicesPanel servicesBuildingsData={servicesBuildingsData} />
+        </div>
+      )}
+
+      {viewMode === 'districts' && (
+        <DistrictsPanel
+          residentialBuildingsData={residentialBuildingsData}
+          servicesBuildingsData={servicesBuildingsData}
+          companyBrowserData={companyBrowserData}
+          districtBrowserData={districtBrowserData}
+          districtPoliciesData={districtPoliciesData}
+          onToggleDebug={onToggleModDebug}
+          showDebug={showModDebug}
+        />
+      )}
+
+      {/* Resources view â€” Table structure */}
       {viewMode === 'resources' && (
       <div className="adv-table-section">
         <div className="adv-table-header">
@@ -971,7 +981,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         </div>
 
       <div className="adv-table-content-wrapper" ref={tableWrapperRef}>
-        <div className="adv-table-content" ref={tableBodyRef} onScroll={handleTableBodyScroll}>
+        <div className="adv-table-content" ref={tableBodyRef}>
             {displayCategories.map((cat, idx) => {
               const catRows = getCategoryRows(cat);
               if (catRows.length === 0) return null;
@@ -990,16 +1000,9 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
                   isAllView={safeCategory === 'all'}
                   onTooltipShow={showTooltip}
                   onTooltipHide={hideTooltip}
-                  onToggle={() => {
-                    // allow CSS transitions/layout to settle before recalculating
-                    requestAnimationFrame(() => requestAnimationFrame(() => updateTableScrollbar()));
-                  }}
                 />
               );
             })}
-          </div>
-          <div ref={tableTrackRef} className="adv-scrollbar-track" aria-hidden>
-            <div ref={tableThumbRef} className="adv-scrollbar-thumb" style={{ top: `${tableThumbTop}px`, height: `${tableThumbHeight}px` }} />
           </div>
 
           <div className="adv-table-lines">
@@ -1067,8 +1070,310 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
         </div>
       );
     })()}
+      {showModDebug && <ModDebugPanel onClose={onToggleModDebug} />}
     </>
   );
 };
 
+/* â”€â”€ Unified Signature View â”€â”€ */
+interface SigResBuilding { entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; }
+
+type SigSortField = 'name' | 'type' | 'theme' | 'assetPack' | 'level';
+
+const focusSignatureEntity = (entityKey: string) => {
+  try {
+    const parts = String(entityKey || '').split(',');
+    trigger('camera', 'focusEntity', { index: Number(parts[0]) || 0, version: Number(parts[1]) || 0 });
+  } catch {}
+};
+
+const SignatureUnifiedView: React.FC<{ 
+  signatureCompanies: any[]; 
+  residentialSignatureBuildings: SigResBuilding[];
+  servicesBuildingsData: string;
+}> = ({
+  signatureCompanies,
+  residentialSignatureBuildings,
+  servicesBuildingsData,
+}) => {
+  const [typeFilter, setTypeFilter] = useState('All');
+  const [themeFilter, setThemeFilter] = useState('All');
+  const [packFilter, setPackFilter] = useState('All');
+  const [sortField, setSortField] = useState<SigSortField>('name');
+  const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+
+  // Parse services
+  const serviceSignatures = useMemo(() => {
+    if (!servicesBuildingsData) return [];
+    try {
+      const arr = JSON.parse(servicesBuildingsData);
+      if (!Array.isArray(arr)) return [];
+      return arr.filter((s: any) => s.isSignature).map((s: any) => ({
+        entityKey: s.entityKey,
+        name: s.name,
+        address: s.address,
+        type: s.category || 'Service',
+        theme: s.theme || 'USA',
+        assetPack: s.assetPack || 'Base Game',
+        level: s.level || 0,
+        extraInfo: `Efficiency: ${Math.round(s.efficiency || 0)}%`,
+        district: s.district || 'City',
+        resourceKey: '',
+      }));
+    } catch { return []; }
+  }, [servicesBuildingsData]);
+
+  // Build combined list
+  const allItems = useMemo(() => {
+    const commercial = signatureCompanies.map((c) => {
+      const workers = c.workers || 0;
+      const maxWorkers = c.maxWorkers || 0;
+      const profit = c.profit || 0;
+      const happiness = c.happiness || 0;
+      
+      let extra = c.resourceName ? `Resource: ${c.resourceName}` : '';
+      if (maxWorkers > 0) extra += ` \u2022 Jobs: ${workers}/${maxWorkers}`;
+      if (profit !== 0) extra += ` \u2022 Profit: ${profit > 0 ? '+' : ''}${profit.toFixed(1)}`;
+      if (happiness > 0) extra += ` \u2022 Happy: ${Math.round(happiness)}%`;
+
+      return {
+        entityKey: `${c.entityIndex},${c.entityVersion}`,
+        name: c.name || c.companyName || '',
+        address: c.address || '',
+        type: (c.zoneType || c.companyKind || 'Commercial'),
+        theme: c.theme || 'USA',
+        assetPack: c.assetPack || 'Base Game',
+        level: c.level || 0,
+        extraInfo: extra,
+        district: c.district || 'City',
+        resourceKey: c.resourceKey || '',
+        // Carry over metrics for tooltip
+        workers, maxWorkers, profit, happiness
+      };
+    });
+    const residential = residentialSignatureBuildings.map((b) => {
+      const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : 0;
+      return {
+        entityKey: b.entityKey,
+        name: b.address,
+        address: b.address,
+        type: 'Residential',
+        theme: b.theme || 'Unknown',
+        assetPack: b.assetPack || 'Base Game',
+        level: b.level || 0,
+        extraInfo: b.capacity > 0 
+          ? `${b.occupied}/${b.capacity} Households (${occPct}%)` 
+          : (b.occupied > 0 ? `${b.occupied} Residents` : 'Empty'),
+        district: (b as any).district || 'City',
+        resourceKey: '',
+      };
+    });
+    return [...commercial, ...residential, ...serviceSignatures];
+  }, [signatureCompanies, residentialSignatureBuildings, serviceSignatures]);
+
+  const [distFilter, setDistFilter] = useState('All');
+  const [resFilter, setResFilter] = useState('All');
+
+  const typeOptions = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => String(i.type || '').trim()).filter(Boolean))).sort()], [allItems]);
+  const themes = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => i.theme).filter(Boolean)))], [allItems]);
+  const packs = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => i.assetPack).filter(Boolean)))], [allItems]);
+  const districts = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => (i as any).district).filter(Boolean))).sort()], [allItems]);
+  const resources = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => (i as any).resourceKey).filter(Boolean))).sort()], [allItems]);
+
+  const filtered = useMemo(() => {
+    let list = allItems;
+    if (typeFilter !== 'All') list = list.filter((i) => String(i.type || '').toLowerCase() === typeFilter.toLowerCase());
+    if (themeFilter !== 'All') list = list.filter((i) => String(i.theme || '').toLowerCase() === themeFilter.toLowerCase());
+    if (packFilter !== 'All') list = list.filter((i) => String(i.assetPack || 'Base Game').toLowerCase().includes(packFilter.toLowerCase()));
+    if (distFilter !== 'All') list = list.filter((i) => String((i as any).district || 'City').toLowerCase() === distFilter.toLowerCase());
+    if (resFilter !== 'All') list = list.filter((i) => resourceIconName((i as any).resourceKey || '') === resFilter);
+
+    return [...list].sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'name') cmp = a.name.localeCompare(b.name);
+      else if (sortField === 'type') cmp = a.type.localeCompare(b.type);
+      else if (sortField === 'theme') cmp = a.theme.localeCompare(b.theme);
+      else if (sortField === 'assetPack') cmp = a.assetPack.localeCompare(b.assetPack);
+      else if (sortField === 'level') cmp = a.level - b.level;
+      return sortDir * cmp;
+    });
+  }, [allItems, typeFilter, themeFilter, packFilter, distFilter, resFilter, sortField, sortDir]);
+
+
+  const handleSort = (f: SigSortField) => {
+    if (sortField === f) setSortDir((d) => (d === 1 ? -1 : 1) as 1 | -1);
+    else { setSortField(f); setSortDir(1); }
+  };
+
+  const getItemTooltip = (item: { name: string; type: string; theme: string; assetPack: string; level: number; address: string; entityKey: string; extraInfo: string }) => [
+    item.name,
+    `Type: ${item.type}`,
+    `Theme: ${item.theme} - Pack: ${item.assetPack}`,
+    `Level: ${item.level > 0 ? `Lv ${item.level}` : '-'}`,
+    ...(item.address && item.address !== item.name ? [`Address: ${item.address}`] : []),
+    ...(item.extraInfo ? [item.extraInfo] : []),
+    `Entity: ${item.entityKey}`,
+    'Click row or GO to focus camera',
+  ].join('\n');
+
+  const SortHdr: React.FC<{ field: SigSortField; label: string; style?: React.CSSProperties }> = ({ field, label, style }) => (
+    <div
+      className="sig-col-hdr"
+      style={{ cursor: 'pointer', userSelect: 'none', ...style }}
+      onClick={() => handleSort(field)}
+    >
+      {label}{sortField === field ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+    </div>
+  );
+
+  if (allItems.length === 0) {
+    return (
+      <div className="adv-table-section">
+        <div className="adv-empty" style={{ padding: '20rem', textAlign: 'center', color: 'rgba(255,255,255,0.55)', fontSize: '13rem', fontStyle: 'italic' }}>
+          No signature buildings unlocked yet. Build and complete signature building requirements to see them here.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="adv-table-section sig-view">
+      {/* Filter bar */}
+      <div className="sig-filters">
+        <div className="sig-type-btns">
+          {typeOptions.map((t) => (
+            <button
+              key={t}
+              className={`sig-type-btn${typeFilter === t ? ' sig-type-btn-active' : ''}`}
+              onClick={() => setTypeFilter(t)}
+            >
+              {t !== 'All' && <ServiceIcon category={t.toLowerCase() === 'residential' ? 'residential' : t} size={14} style={{ marginRight: '6rem' }} />}
+              {t}
+            </button>
+          ))}
+        </div>
+        <div className="sig-filter-selects">
+          <div className="sig-filter-pill-row">
+            <span className="sig-filter-pill-label">Theme</span>
+            {themes.map((t) => (
+              <button key={`theme-${t}`} className={`sig-filter-pill${themeFilter === t ? ' sig-filter-pill-active' : ''}`} onClick={() => setThemeFilter(t)}>
+                {t !== 'All' && <ThemeIcon theme={t} size={14} style={{ marginRight: '4rem' }} />}
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className="sig-filter-pill-row">
+            <span className="sig-filter-pill-label">Pack</span>
+            {packs.map((p) => (
+              <button key={`pack-${p}`} className={`sig-filter-pill${packFilter === p ? ' sig-filter-pill-active' : ''}`} onClick={() => setPackFilter(p)}>
+                {p !== 'All' && <PackIcon pack={p} size={14} style={{ marginRight: '4rem' }} />}
+                {p}
+              </button>
+            ))}
+          </div>
+          {districts.length > 2 && (
+            <div className="sig-filter-pill-row">
+              <span className="sig-filter-pill-label">District</span>
+              {districts.map((d) => (
+                <button key={`dist-${d}`} className={`sig-filter-pill${distFilter === d ? ' sig-filter-pill-active' : ''}`} onClick={() => setDistFilter(d)}>{d}</button>
+              ))}
+            </div>
+          )}
+          {resources.length > 2 && (
+            <div className="sig-filter-pill-row" style={{ flexWrap: 'wrap' }}>
+              <span className="sig-filter-pill-label">Resource</span>
+              <button 
+                className={`sig-filter-pill${resFilter === 'All' ? ' sig-filter-pill-active' : ''}`} 
+                onClick={() => setResFilter('All')}
+                title="All Resources"
+              >
+                All
+              </button>
+              {(() => {
+                // Group by icon to avoid duplicates like Paper/Commercial Paper in filters
+                const groups: Record<string, { icon: string, label: string }> = {};
+                resources.forEach(r => {
+                  if (r === 'All') return;
+                  const icon = resourceIconName(r);
+                  if (!groups[icon]) groups[icon] = { icon, label: resourceLabel(r) };
+                });
+                return Object.values(groups).sort((a,b) => a.label.localeCompare(b.label)).map(g => (
+                  <button 
+                    key={`res-${g.icon}`} 
+                    className={`sig-filter-pill${resFilter === g.icon ? ' sig-filter-pill-active' : ''}`} 
+                    onClick={() => setResFilter(resFilter === g.icon ? 'All' : g.icon)} 
+                    title={g.label} 
+                    style={{ padding: '2rem 4rem' }}
+                  >
+                    <img src={resourceIconSrc(g.icon)} alt="" style={{ width: '16rem', height: '16rem' }} />
+                  </button>
+                ));
+              })()}
+            </div>
+          )}
+          <div className="sig-summary-row" style={{ display: 'flex', alignItems: 'center', padding: '4rem 10rem', borderTop: '1rem solid rgba(255,255,255,0.05)', marginTop: '4rem' }}>
+            <span className="sig-count" style={{ fontSize: '11rem', opacity: 0.6 }}>{filtered.length} buildings shown</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Table header */}
+      <div className="sig-table-header">
+        <SortHdr field="name" label="Building Name" style={{ flex: 3 }} />
+        <SortHdr field="type" label="Type" style={{ width: '80rem' }} />
+        <SortHdr field="theme" label="Theme" style={{ width: '80rem', textAlign: 'center' }} />
+        <SortHdr field="assetPack" label="Pack" style={{ width: '80rem', textAlign: 'center' }} />
+        <SortHdr field="level" label="Lv" style={{ width: '36rem', textAlign: 'center' }} />
+        <div className="sig-col-hdr" style={{ width: '60rem', textAlign: 'center' }}>District</div>
+      </div>
+
+      {/* Scrollable rows */}
+      <div className="sig-rows-wrap" style={{ flex: 1, minHeight: 0 }}>
+        <div ref={bodyRef} className="sig-rows-scroll" style={{ overflowY: 'auto' }}>
+          {filtered.map((item) => (
+            <div key={item.entityKey} className="sig-row-container" style={{ borderBottom: '1rem solid rgba(255,255,255,0.05)' }}>
+              <div className={`sig-row${expandedEntity === item.entityKey ? ' sig-row-active' : ''}`} 
+                  onClick={() => {
+                    focusSignatureEntity(item.entityKey);
+                    setExpandedEntity(prev => prev === item.entityKey ? null : item.entityKey);
+                  }} 
+                  title={getItemTooltip(item)}
+                  style={{ display: 'flex', alignItems: 'center', padding: '6rem 10rem', cursor: 'pointer' }}
+              >
+                <div className="sig-col-name" style={{ flex: 3, display: 'flex', alignItems: 'center' }}>
+                  <ServiceIcon category={String(item.type).toLowerCase() === 'residential' ? 'residential' : item.type} size={14} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: '6rem' }}>{item.name}</span>
+                </div>
+                <div className="sig-col-type" style={{ width: '80rem' }}>
+                  <span className={`sig-type-badge sig-type-${String(item.type).toLowerCase()}`} style={{ fontSize: '9rem', padding: '1rem 4rem' }}>
+                    {item.type}
+                  </span>
+                </div>
+                <div className="sig-col-theme" style={{ width: '80rem', textAlign: 'center' }}>
+                  <ThemeIcon theme={item.theme} size={14} />
+                </div>
+                <div className="sig-col-pack" style={{ width: '80rem', textAlign: 'center' }}>
+                  <PackIcon pack={item.assetPack} size={14} />
+                </div>
+                <div className="sig-col-level" style={{ width: '36rem', textAlign: 'center', color: 'rgba(255,255,255,0.75)' }}>{item.level > 0 ? item.level : '-'}</div>
+                <div className="sig-col-dist" style={{ width: '60rem', textAlign: 'center', opacity: 0.8, fontSize: '10rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.district}</div>
+              </div>
+              {expandedEntity === item.entityKey && (
+                <div className="sig-row-details" style={{ padding: '4rem 10rem 8rem 34rem', background: 'rgba(0,0,0,0.15)', fontSize: '10rem', color: 'rgba(255,255,255,0.6)' }}>
+                  <div className="sig-detail-line" style={{ marginBottom: '2rem' }}>{item.address}</div>
+                  {item.extraInfo && <div className="sig-detail-line sig-detail-extra" style={{ color: '#50b8e9' }}>{item.extraInfo}</div>}
+                  <div className="sig-detail-line" style={{ marginTop: '4rem', fontStyle: 'italic' }}>Entity: {item.entityKey}</div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default AdvancedTPMWindow;
+

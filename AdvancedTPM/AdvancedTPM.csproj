@@ -1,10 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
+		<OutputType>Library</OutputType>
+		<TargetFramework>net472</TargetFramework>
 		<Configurations>Debug;Release</Configurations>
 	
 		<!--The file where mod information which is required for publishing mod on PDX mods are stored-->
 		<PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	</PropertyGroup>
 
   <!--
@@ -31,7 +34,17 @@
 		<Reference Include="Colossal.Logging">
 			<Private>false</Private>
 		</Reference>
+		<Reference Include="Colossal.Mathematics">
+			<Private>false</Private>
+		</Reference>
 		<Reference Include="Colossal.IO.AssetDatabase">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.Collections">
+			<HintPath>$(GamePath)\Cities2_Data\Managed\Colossal.Collections.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+    <Reference Include="Colossal.IO">
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="Colossal.UI">
@@ -41,6 +54,9 @@
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="Colossal.Localization">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.PSI.Common">
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="Unity.InputSystem">
@@ -88,6 +104,6 @@
 	</ItemGroup>
 
 	<Target Name="BuildUI" AfterTargets="AfterBuild">
-		<Exec Command="npm run build" WorkingDirectory="$(ProjectDir)src" />
+		<Exec Command="npm run build" WorkingDirectory="$(ProjectDir)" />
 	</Target>
 </Project>

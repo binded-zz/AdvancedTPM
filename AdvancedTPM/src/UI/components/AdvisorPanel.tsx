@@ -1,7 +1,5 @@
-import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import './AdvisorPanel.css';
-import * as ReactDOM from 'react-dom';
-import { resourceCategories } from '../data/resourceTaxonomy';
 
 interface LearningProfile {
   key: string;
@@ -46,7 +44,6 @@ interface AdvisorPanelProps {
   decisionLogData: string;
   learningStatsData: string;
   learningEnabled: boolean;
-  useGameIcons?: boolean;
   onToggleLearning: (enabled: boolean) => void;
   onResetLearning: () => void;
   onSetAggressiveness: (level: number) => void;
@@ -133,9 +130,14 @@ const parseLearningStats = (data: string): LearningStats => {
 };
 
 const getResourceLabel = (key: string): string => {
-  // Capitalize and clean up resource key for display
-  const clean = key.startsWith('c_') ? key.slice(2) : key;
-  return clean.charAt(0).toUpperCase() + clean.slice(1).replace(/food/i, 'Food').replace(/conveniencefood/i, 'Convenience Food');
+  const clean = (key || '').startsWith('c_') ? (key || '').slice(2) : (key || '');
+  return clean
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/convenience\s*food/gi, 'Convenience Food')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (s) => s.toUpperCase());
 };
 
 const getConfidenceColor = (conf: number): string => {
@@ -151,15 +153,46 @@ const getOutcomeColor = (score: number): string => {
 };
 
 const getDirectionSymbol = (dir: number): string => {
-  if (dir > 0) return '\u25B2'; // ▲
-  if (dir < 0) return '\u25BC'; // ▼
-  return '\u25CF'; // ●
+  if (dir > 0) return '\u25B2'; // Up
+  if (dir < 0) return '\u25BC'; // Down
+  return '\u25CF'; // Neutral
 };
 
 const getDirectionColor = (dir: number): string => {
   if (dir > 0) return '#8bdb46';
   if (dir < 0) return '#e05050';
   return 'rgba(255,255,255,0.5)';
+};
+
+const RESOURCE_ICON_BASE = 'Media/Game/Resources/';
+const ZONE_ICON_BASE = 'Media/Game/Icons/';
+const RESOURCE_ICON_MAP: Record<string, string> = {
+  grain: 'Grain', vegetables: 'Vegetables', cotton: 'Cotton', livestock: 'Livestock',
+  fish: 'Fish', wood: 'Wood', ore: 'Ore', stone: 'Stone', coal: 'Coal', oil: 'Oil',
+  food: 'Food', beverages: 'Beverages', conveniencefood: 'ConvenienceFood',
+  textiles: 'Textiles', timber: 'Timber', paper: 'Paper', furniture: 'Furniture',
+  metals: 'Metals', steel: 'Steel', minerals: 'Minerals', concrete: 'Concrete',
+  machinery: 'Machinery', electronics: 'Electronics', vehicles: 'Vehicles',
+  petrochemicals: 'Petrochemicals', plastics: 'Plastics', chemicals: 'Chemicals',
+  pharmaceuticals: 'Pharmaceuticals', software: 'Software', telecom: 'Telecom',
+  financial: 'Financial', media: 'Media', lodging: 'Lodging', meals: 'Meals',
+  entertainment: 'Entertainment', recreation: 'Recreation',
+  c_food: 'Food', c_beverages: 'Beverages', c_conveniencefood: 'ConvenienceFood',
+  c_textiles: 'Textiles', c_timber: 'Timber', c_paper: 'Paper', c_furniture: 'Furniture',
+  c_electronics: 'Electronics', c_vehicles: 'Vehicles', c_petrochemicals: 'Petrochemicals',
+  c_plastics: 'Plastics', c_chemicals: 'Chemicals', c_pharmaceuticals: 'Pharmaceuticals',
+};
+const getResourceIconSrc = (key: string): string | null => {
+  const lk = key.toLowerCase();
+  const name = RESOURCE_ICON_MAP[lk];
+  return name ? `${RESOURCE_ICON_BASE}${name}.svg` : null;
+};
+const getResourceTypeIcon = (key: string): string => {
+  const lk = key.toLowerCase();
+  if (lk.startsWith('c_')) return `${ZONE_ICON_BASE}ZoneCommercial.svg`;
+  const rawResources = ['grain', 'vegetables', 'cotton', 'livestock', 'fish', 'wood', 'ore', 'stone', 'coal', 'oil'];
+  if (rawResources.includes(lk)) return `${ZONE_ICON_BASE}ZoneExtractors.svg`;
+  return `${ZONE_ICON_BASE}ZoneIndustrial.svg`;
 };
 
 const AGGRESSIVENESS_LABELS: Record<number, string> = {
@@ -171,76 +204,14 @@ const AGGRESSIVENESS_LABELS: Record<number, string> = {
 };
 
 // Move ProfileRow to module scope so its identity is stable across renders.
-// Find icon name for a given resource key using the shared taxonomy.
-const findResourceIcon = (key: string): string | null => {
-  if (!key) return null;
-  const normalized = key.replace(/^c_/, '');
-  for (const cat of resourceCategories) {
-    for (const r of cat.resources) {
-      if (r.key === normalized) return r.icon;
-    }
-  }
-  return null;
-};
-
-// Map a stage string to the game's zone icon path. These icons are provided
-// by the base game under Media/Game/Icons; use exact names so we don't invent
-// fallbacks. This returns a path like 'Media/Game/Icons/ZoneIndustrial.svg'.
-const getZoneIconPath = (stage: string | null): string | null => {
-  if (!stage) return null;
-  const ICON_BASE = 'Media/Game/Icons/';
-  const map: Record<string, string> = {
-    Industrial: 'ZoneIndustrial',
-    Commercial: 'ZoneCommercial',
-    Retail: 'ZoneCommercial',
-    RawResource: 'ZoneIndustrial',
-    Immaterial: 'Economy',
-    Office: 'Economy',
-  };
-  const name = map[stage] || stage.replace(/[^a-zA-Z0-9]/g, '');
-  return `${ICON_BASE}${name}.svg`;
-};
-
-// Find resource stage (e.g., 'Commercial' or 'Industrial') for a given key.
-// Try exact key match first (so commercial keys like `c_food` map to the
-// commercial entry), then fall back to the base resource name (remove `c_`).
-const findResourceStage = (key: string): string | null => {
-  if (!key) return null;
-  // First try exact match
-  for (const cat of resourceCategories) {
-    for (const r of cat.resources) {
-      if (r.key === key) return r.stage as string;
-    }
-  }
-  // Fallback: normalized (remove c_ prefix)
-  const normalized = key.replace(/^c_/, '');
-  for (const cat of resourceCategories) {
-    for (const r of cat.resources) {
-      if (r.key === normalized) return r.stage as string;
-    }
-  }
-  return null;
-};
-
-// Use the game's icon assets for zone/zone-type icons. CompanyBrowser uses
-// icons from Media/Game/Icons (e.g. ZoneIndustrial.svg). Reuse the same
-// convention here so advisor rows match the resources/company UI.
-// Render a small zone-type badge next to the resource icon. The badge is
-// pure CSS (no SVGs) and styled via advisor-zone-* classes in CSS so it
-// matches the look used elsewhere in the UI.
-
-const ProfileRow: React.FC<{ p: LearningProfile; useGameIcons?: boolean }> = React.memo(({ p, useGameIcons }) => {
-  const icon = findResourceIcon(p.key);
-  const stage = findResourceStage(p.key);
+const ProfileRow: React.FC<{ p: LearningProfile }> = React.memo(({ p }) => {
+  const iconSrc = getResourceIconSrc(p.key);
+  const typeIcon = getResourceTypeIcon(p.key);
   return (
     <div className="advisor-profile-row">
       <div className="advisor-profile-name">
-        {icon && <img src={`Media/Game/Resources/${icon}.svg`} className="advisor-profile-icon" alt="" />}
-        {stage && (useGameIcons ? (
-          <img src={getZoneIconPath(stage) as string} className="advisor-zone-icon" title={stage} alt="" />
-        ) : (
-          <span className={`advisor-zone-badge advisor-zone-${(stage || '').toLowerCase()}`} title={stage} />
-        ))}
+        {typeIcon && <img src={typeIcon} className="advisor-profile-type-icon" alt="" title={p.key.startsWith('c_') ? 'Commercial' : 'Industrial'} />}
+        {iconSrc && <img src={iconSrc} className="advisor-profile-icon" alt="" />}
         {getResourceLabel(p.key)}
       </div>
       <div className="advisor-profile-bars">
@@ -289,16 +260,21 @@ const ProfileRow: React.FC<{ p: LearningProfile; useGameIcons?: boolean }> = Rea
           </div>
         </div>
         <div className="advisor-profile-meta">
-          <span className="advisor-profile-meta-label">conf:</span>
-          <span style={{ color: getConfidenceColor(p.confidence) }}>{`${Math.round(p.confidence * 100)}%`}</span>
-          <span className="advisor-profile-meta-sep">{'\u00B7'}</span>
-          <span className="advisor-profile-meta-samples">{`${p.sampleCount} samples`}</span>
-          <span className="advisor-profile-meta-sep">{'\u00B7'}</span>
-          <span style={{ color: getOutcomeColor(p.avgOutcome) }}>avg: {p.avgOutcome > 0 ? '+' : ''}{p.avgOutcome.toFixed(2)}</span>
+          <span style={{ color: getConfidenceColor(p.confidence), marginRight: '10rem' }}>
+            {`${(p.confidence * 100).toFixed(0)}\u00a0%`} conf
+          </span>
+          <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
+          <span style={{ marginRight: '10rem' }}>{p.sampleCount} samples</span>
+          <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
+          <span style={{ color: getOutcomeColor(p.avgOutcome), marginRight: '10rem' }}>
+            avg: {p.avgOutcome > 0 ? '+' : ''}{p.avgOutcome.toFixed(2)}
+          </span>
           {p.volatility > 0.15 && (
             <>
-              <span className="advisor-profile-meta-sep">{'\u00B7'}</span>
-              <span style={{ color: '#f0c040' }}>vol: {(p.volatility * 100).toFixed(0)}%</span>
+              <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
+              <span style={{ color: '#f0c040' }}>
+                vol: {(p.volatility * 100).toFixed(0)}%
+              </span>
             </>
           )}
         </div>
@@ -317,8 +293,7 @@ const ProfileRow: React.FC<{ p: LearningProfile; useGameIcons?: boolean }> = Rea
     a.confidence === b.confidence &&
     a.sampleCount === b.sampleCount &&
     a.avgOutcome === b.avgOutcome &&
-    a.volatility === b.volatility &&
-    prev.useGameIcons === next.useGameIcons
+    a.volatility === b.volatility
   );
 });
 
@@ -327,142 +302,78 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   decisionLogData,
   learningStatsData,
   learningEnabled,
-  useGameIcons = true,
   onToggleLearning,
   onResetLearning,
   onSetAggressiveness,
 }) => {
-  // Overlay scrollbar refs for Recent Decisions (left) and Recommendations (right)
-  const leftBodyRef = React.useRef<HTMLDivElement | null>(null);
-  const leftTrackRef = React.useRef<HTMLDivElement | null>(null);
-  const leftThumbRef = React.useRef<HTMLDivElement | null>(null);
-  const [leftThumbTop, setLeftThumbTop] = React.useState(0);
-  const [leftThumbHeight, setLeftThumbHeight] = React.useState(48);
+  const [activeTab, setActiveTab] = useState<'overview' | 'profiles' | 'log'>('overview');
+  const [confirmReset, setConfirmReset] = useState(false);
 
-  const rightBodyRef = React.useRef<HTMLDivElement | null>(null);
-  const rightTrackRef = React.useRef<HTMLDivElement | null>(null);
-  const rightThumbRef = React.useRef<HTMLDivElement | null>(null);
-  const [rightThumbTop, setRightThumbTop] = React.useState(0);
-  const [rightThumbHeight, setRightThumbHeight] = React.useState(48);
+  // Overlay scrollbar refs — left col (recommendations), right col (decisions)
+  const leftBodyRef = useRef<HTMLDivElement | null>(null);
+  const leftTrackRef = useRef<HTMLDivElement | null>(null);
+  const leftThumbRef = useRef<HTMLDivElement | null>(null);
+  const [leftThumbTop, setLeftThumbTop] = useState(0);
+  const [leftThumbHeight, setLeftThumbHeight] = useState(48);
 
-  const makeUpdater = (bodyRef: React.RefObject<HTMLDivElement>, trackRef: React.RefObject<HTMLDivElement>, setThumbH: (h: number) => void, setThumbT: (t: number) => void) => {
-    return () => {
-      const body = bodyRef.current;
-      const track = trackRef.current;
-      if (!body || !track) return;
-      try {
-        // Use offsetTop relative to the positioned wrapper when possible — more stable for normal flow
-        const wrapper = (track.parentElement as HTMLElement) || body.parentElement || body;
-        // ensure wrapper is positioned
-        // compute body's offsetTop relative to wrapper
-        let relTop = 0;
-        if (body.offsetTop != null) {
-          // Walk up offsets until reaching wrapper
-          let el: HTMLElement | null = body;
-          relTop = 0;
-          while (el && el !== wrapper) {
-            relTop += (el as HTMLElement).offsetTop || 0;
-            el = (el.parentElement as HTMLElement) || null;
-          }
-        } else {
-          const bodyRect = body.getBoundingClientRect();
-          const wrapperRect = wrapper.getBoundingClientRect();
-          relTop = bodyRect.top - wrapperRect.top;
-        }
-      // Clamp into wrapper bounds
-        try {
-          const wrapperRect = wrapper.getBoundingClientRect();
-          relTop = Math.max(0, Math.min(relTop, Math.max(0, wrapperRect.height - body.clientHeight)));
-        } catch {}
-        // Anchor the overlay track to the main panel viewport (.advisor-content) instead
-        // so the scrollbar appears at the far-right of the panel rather than inside
-        // a narrower section column which would overlay content.
-        try {
-          // Anchor the overlay track to the nearest column wrapper (usually the
-          // parent `.advisor-section`) so each column has its own track positioned
-          // at that column's right edge. The wrapper is already positioned in CSS
-          // (see `.advisor-section { position: relative; }`).
-          const column = (body.parentElement as HTMLElement) || wrapper || body;
-          track.style.position = 'absolute';
-          // small distance (8rem) from the column's right edge
-          const rootFont = parseFloat(getComputedStyle(document.documentElement).fontSize || '16');
-          const gutterPx = Math.round(8 * rootFont);
-          track.style.right = `${gutterPx}px`;
-          // top should be relative to the column's top
-          track.style.top = `${relTop}px`;
-          track.style.height = `${body.clientHeight}px`;
-          // ensure the track is a child of the column so absolute positioning is anchored correctly
-          if (track.parentElement !== column) {
-            try { column.appendChild(track); } catch {}
-          }
-        } catch {
-          // Fallback: absolute positioning relative to wrapper
-          try { track.style.position = 'absolute'; track.style.top = `${relTop}px`; track.style.height = `${body.clientHeight}px`; } catch {}
-        }
-      } catch {}
-      const visible = body.clientHeight;
-      const total = body.scrollHeight || 1;
-      if (visible >= total || !Number.isFinite(visible) || !Number.isFinite(total)) {
-        try { track.style.display = 'none'; } catch {}
-        return;
-      }
-      try { track.style.display = 'block'; } catch {}
-      const ratio = Math.max(0.03, Math.min(1, visible / total));
-      const trackHeight = track.clientHeight;
-      const thumbH = Math.max(16, Math.round(trackHeight * ratio));
-      const scrollTop = body.scrollTop;
-      const maxScroll = total - visible;
-      const top = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * (trackHeight - thumbH)) : 0;
-      setThumbH(thumbH);
-      setThumbT(top);
-    };
-  };
+  const rightBodyRef = useRef<HTMLDivElement | null>(null);
+  const rightTrackRef = useRef<HTMLDivElement | null>(null);
+  const rightThumbRef = useRef<HTMLDivElement | null>(null);
+  const [rightThumbTop, setRightThumbTop] = useState(0);
+  const [rightThumbHeight, setRightThumbHeight] = useState(48);
 
-  const updateLeftScrollbar = React.useCallback(makeUpdater(leftBodyRef, leftTrackRef, setLeftThumbHeight, setLeftThumbTop), []);
-  const updateRightScrollbar = React.useCallback(makeUpdater(rightBodyRef, rightTrackRef, setRightThumbHeight, setRightThumbTop), []);
+  const profilesBodyRef = useRef<HTMLDivElement | null>(null);
+  const profilesTrackRef = useRef<HTMLDivElement | null>(null);
+  const profilesThumbRef = useRef<HTMLDivElement | null>(null);
+  const [profilesThumbTop, setProfilesThumbTop] = useState(0);
+  const [profilesThumbHeight, setProfilesThumbHeight] = useState(48);
 
-  // Profiles and Log overlays
-  const profilesBodyRef = React.useRef<HTMLDivElement | null>(null);
-  const profilesTrackRef = React.useRef<HTMLDivElement | null>(null);
-  const profilesThumbRef = React.useRef<HTMLDivElement | null>(null);
-  const [profilesThumbTop, setProfilesThumbTop] = React.useState(0);
-  const [profilesThumbHeight, setProfilesThumbHeight] = React.useState(48);
+  const logBodyRef = useRef<HTMLDivElement | null>(null);
+  const logTrackRef = useRef<HTMLDivElement | null>(null);
+  const logThumbRef = useRef<HTMLDivElement | null>(null);
+  const [logThumbTop, setLogThumbTop] = useState(0);
+  const [logThumbHeight, setLogThumbHeight] = useState(48);
 
-  const logBodyRef = React.useRef<HTMLDivElement | null>(null);
-  const logTrackRef = React.useRef<HTMLDivElement | null>(null);
-  const logThumbRef = React.useRef<HTMLDivElement | null>(null);
-  const [logThumbTop, setLogThumbTop] = React.useState(0);
-  const [logThumbHeight, setLogThumbHeight] = React.useState(48);
-
-  const updateProfilesScrollbar = React.useCallback(makeUpdater(profilesBodyRef, profilesTrackRef, setProfilesThumbHeight, setProfilesThumbTop), []);
-  const updateLogScrollbar = React.useCallback(makeUpdater(logBodyRef, logTrackRef, setLogThumbHeight, setLogThumbTop), []);
-
-  React.useEffect(() => { const onResize = () => { updateProfilesScrollbar(); updateLogScrollbar(); }; window.addEventListener('resize', onResize); return () => window.removeEventListener('resize', onResize); }, [updateProfilesScrollbar, updateLogScrollbar]);
-
-  // Hook up drag handlers for profiles and log (invoked after makeDrag is defined)
-
-  React.useEffect(() => {
-    const body = profilesBodyRef.current;
-    if (body) {
-      const mo = new MutationObserver(() => updateProfilesScrollbar());
-      mo.observe(body, { childList: true, subtree: true, attributes: true });
-      return () => mo.disconnect();
+  const makeUpdate = useCallback((
+    bodyRef: React.RefObject<HTMLDivElement>,
+    trackRef: React.RefObject<HTMLDivElement>,
+    setThumbH: (h: number) => void,
+    setThumbT: (t: number) => void,
+  ) => () => {
+    const body = bodyRef.current;
+    const track = trackRef.current;
+    if (!body || !track) return;
+    const visible = body.clientHeight;
+    const total = body.scrollHeight || 1;
+    if (visible >= total || !Number.isFinite(visible) || !Number.isFinite(total)) {
+      try { track.style.display = 'none'; } catch {}
+      return;
     }
-  }, [profilesBodyRef.current, updateProfilesScrollbar]);
-  React.useEffect(() => {
-    const body = logBodyRef.current;
-    if (body) {
-      const mo = new MutationObserver(() => updateLogScrollbar());
-      mo.observe(body, { childList: true, subtree: true, attributes: true });
-      return () => mo.disconnect();
-    }
-  }, [logBodyRef.current, updateLogScrollbar]);
+    try { track.style.display = 'block'; } catch {}
+    const ratio = Math.max(0.03, Math.min(1, visible / total));
+    const trackH = track.clientHeight;
+    const thumbH = Math.max(16, Math.round(trackH * ratio));
+    const maxScroll = total - visible;
+    const top = maxScroll > 0 ? Math.round((body.scrollTop / maxScroll) * (trackH - thumbH)) : 0;
+    setThumbH(thumbH);
+    setThumbT(top);
+  }, []);
 
-  React.useEffect(() => { const onResize = () => { updateLeftScrollbar(); updateRightScrollbar(); }; window.addEventListener('resize', onResize); return () => window.removeEventListener('resize', onResize); }, [updateLeftScrollbar, updateRightScrollbar]);
+  const updateLeft = useCallback(makeUpdate(leftBodyRef, leftTrackRef, setLeftThumbHeight, setLeftThumbTop), []);
+  const updateRight = useCallback(makeUpdate(rightBodyRef, rightTrackRef, setRightThumbHeight, setRightThumbTop), []);
+  const updateProfiles = useCallback(makeUpdate(profilesBodyRef, profilesTrackRef, setProfilesThumbHeight, setProfilesThumbTop), []);
+  const updateLog = useCallback(makeUpdate(logBodyRef, logTrackRef, setLogThumbHeight, setLogThumbTop), []);
 
-  // Drag handlers for left and right thumbs
-  const makeDrag = (thumbRef: React.RefObject<HTMLDivElement>, trackRef: React.RefObject<HTMLDivElement>, bodyRef: React.RefObject<HTMLDivElement>, thumbTop: number, thumbH: number, setThumbTop: (t: number) => void) => {
-    React.useEffect(() => {
+  const makeDragHandler = (
+    thumbRef: React.RefObject<HTMLDivElement>,
+    trackRef: React.RefObject<HTMLDivElement>,
+    bodyRef: React.RefObject<HTMLDivElement>,
+    thumbTopVal: number,
+    thumbHeightVal: number,
+    setThumbTop: (t: number) => void,
+    onUpdate: () => void,
+  ) => {
+    useEffect(() => {
       let dragging = false;
       let startY = 0;
       let startTop = 0;
@@ -470,91 +381,68 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
       const track = trackRef.current;
       const body = bodyRef.current;
       if (!thumb || !track || !body) return;
-      const onDown = (ev: any) => { try { if (ev.stopPropagation) ev.stopPropagation(); } catch {}; dragging = true; startY = ev.clientY || (ev.touches && ev.touches[0] && ev.touches[0].clientY) || 0; startTop = thumbTop; document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); ev.preventDefault(); };
-      const onMove = (ev: MouseEvent) => { if (!dragging) return; const dy = ev.clientY - startY; const trackH = track.clientHeight; const maxTop = trackH - thumbH; const newTop = Math.max(0, Math.min(maxTop, startTop + dy)); const total = body.scrollHeight - body.clientHeight; const scrollPos = total > 0 ? Math.round((newTop / (trackH - thumbH)) * total) : 0; body.scrollTop = scrollPos; setThumbTop(newTop); };
-      const onUp = () => { dragging = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-      try { thumb.addEventListener('pointerdown', onDown as any); } catch {};
-      try { thumb.addEventListener('mousedown', onDown as any); } catch {};
-      return () => { try { thumb.removeEventListener('mousedown', onDown as any); } catch {} };
-    }, [thumbTop, thumbH, thumbRef, trackRef, bodyRef, setThumbTop]);
+      const onDown = (ev: any) => {
+        try { ev.stopPropagation?.(); } catch {}
+        dragging = true;
+        startY = ev.clientY || (ev.touches?.[0]?.clientY) || 0;
+        startTop = thumbTopVal;
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        ev.preventDefault();
+      };
+      const onMove = (ev: MouseEvent) => {
+        if (!dragging) return;
+        const dy = ev.clientY - startY;
+        const maxTop = track.clientHeight - thumbHeightVal;
+        const newTop = Math.max(0, Math.min(maxTop, startTop + dy));
+        const maxScroll = body.scrollHeight - body.clientHeight;
+        body.scrollTop = maxScroll > 0 ? Math.round((newTop / Math.max(1, maxTop)) * maxScroll) : 0;
+        setThumbTop(newTop);
+      };
+      const onUp = () => {
+        dragging = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        onUpdate();
+      };
+      try { thumb.addEventListener('pointerdown', onDown as any); } catch {}
+      try { thumb.addEventListener('mousedown', onDown as any); } catch {}
+      return () => {
+        try { thumb.removeEventListener('pointerdown', onDown as any); } catch {}
+        try { thumb.removeEventListener('mousedown', onDown as any); } catch {}
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+    }, [thumbTopVal, thumbHeightVal]);
   };
 
-  makeDrag(leftThumbRef, leftTrackRef, leftBodyRef, leftThumbTop, leftThumbHeight, setLeftThumbTop);
-  makeDrag(rightThumbRef, rightTrackRef, rightBodyRef, rightThumbTop, rightThumbHeight, setRightThumbTop);
-
-  // Now hook up drag handlers for profiles and log
-  makeDrag(profilesThumbRef, profilesTrackRef, profilesBodyRef, profilesThumbTop, profilesThumbHeight, setProfilesThumbTop);
-  makeDrag(logThumbRef, logTrackRef, logBodyRef, logThumbTop, logThumbHeight, setLogThumbTop);
-
-  React.useEffect(() => {
-    const body = leftBodyRef.current;
-    if (body) {
-      const mo = new MutationObserver(() => updateLeftScrollbar());
-      mo.observe(body, { childList: true, subtree: true, attributes: true });
-      return () => mo.disconnect();
-    }
-  }, [leftBodyRef.current, updateLeftScrollbar]);
-  React.useEffect(() => {
-    const body = rightBodyRef.current;
-    if (body) {
-      const mo = new MutationObserver(() => updateRightScrollbar());
-      mo.observe(body, { childList: true, subtree: true, attributes: true });
-      return () => mo.disconnect();
-    }
-  }, [rightBodyRef.current, updateRightScrollbar]);
-
-  const [activeTab, setActiveTab] = useState<'overview' | 'profiles' | 'log'>('overview');
-  const [confirmReset, setConfirmReset] = useState(false);
-  const [showAllProfiles, setShowAllProfiles] = useState(false);
-  const [showLegend, setShowLegend] = useState(false);
-  const legendBtnRef = React.useRef<HTMLButtonElement | null>(null);
-  const [legendPos, setLegendPos] = React.useState<DOMRect | null>(null);
-
-  // Keep legend positioned near the button when open — update on resize/scroll
-  React.useEffect(() => {
-    if (!showLegend) return;
-    const update = () => {
-      try {
-        const rect = legendBtnRef.current && legendBtnRef.current.getBoundingClientRect();
-        setLegendPos(rect || null);
-      } catch { setLegendPos(null); }
-    };
-    update();
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
-  }, [showLegend]);
-
-
+  makeDragHandler(leftThumbRef, leftTrackRef, leftBodyRef, leftThumbTop, leftThumbHeight, setLeftThumbTop, updateLeft);
+  makeDragHandler(rightThumbRef, rightTrackRef, rightBodyRef, rightThumbTop, rightThumbHeight, setRightThumbTop, updateRight);
+  makeDragHandler(profilesThumbRef, profilesTrackRef, profilesBodyRef, profilesThumbTop, profilesThumbHeight, setProfilesThumbTop, updateProfiles);
+  makeDragHandler(logThumbRef, logTrackRef, logBodyRef, logThumbTop, logThumbHeight, setLogThumbTop, updateLog);
 
   const { profiles, recommendations } = useMemo(() => parseAdvisorData(advisorData), [advisorData]);
   const decisions = useMemo(() => parseDecisionLog(decisionLogData), [decisionLogData]);
   const stats = useMemo(() => parseLearningStats(learningStatsData), [learningStatsData]);
-
-  // Recompute left/right scrollbars when profiles/decisions/activeTab change
-  useEffect(() => {
-    updateLeftScrollbar();
-    updateRightScrollbar();
-  }, [profiles.length, decisions.length, activeTab, updateLeftScrollbar, updateRightScrollbar]);
-
-  // Recompute profiles/log scrollbars when their data or active tab changes
-  useEffect(() => {
-    if (activeTab === 'profiles') {
-      requestAnimationFrame(() => requestAnimationFrame(() => updateProfilesScrollbar()));
-    }
-    if (activeTab === 'log') {
-      requestAnimationFrame(() => requestAnimationFrame(() => updateLogScrollbar()));
-    }
-  }, [activeTab, profiles.length, decisions.length, updateProfilesScrollbar, updateLogScrollbar]);
 
   const sortedProfiles = useMemo(
     () => [...profiles].sort((a, b) => b.sampleCount - a.sampleCount),
     [profiles]
   );
 
-  // No row limit: render all sorted profiles by default. Keep showAllProfiles state for compatibility.
-  const displayedProfiles = useMemo(() => sortedProfiles, [sortedProfiles]);
+  useLayoutEffect(() => {
+    if (activeTab === 'overview') { updateLeft(); updateRight(); }
+    else if (activeTab === 'profiles') updateProfiles();
+    else if (activeTab === 'log') updateLog();
+  }, [activeTab, profiles.length, decisions.length, recommendations.length, sortedProfiles.length]);
 
+  useEffect(() => {
+    const onResize = () => { updateLeft(); updateRight(); updateProfiles(); updateLog(); };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [updateLeft, updateRight, updateProfiles, updateLog]);
+
+  // Limit rendered profiles to avoid heavy renders when there are many (kept for potential future use)
   const handleReset = () => {
     if (confirmReset) {
       onResetLearning();
@@ -565,35 +453,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
     }
   };
 
-  // Ensure scroll resets and scrollbar thumb recalculates when switching tabs
-  useEffect(() => {
-    const el = document.querySelector('.advisor-content') as HTMLElement | null;
-    if (!el) return;
-    // reset scroll to top on tab change
-    el.scrollTop = 0;
-    // force reflow then allow scrollbar to update
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      // no-op to let layout settle
-    }));
-  }, [activeTab]);
-
-  // ProfileRow component moved to module scope to ensure stable identity and allow memoization
-
-  const LegendPopup: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
-    // use the same styling as the settings info popup for consistent appearance
-    <div className="ats-info-popup" role="dialog" aria-label="Advisor legend" style={style}>
-      <div className="advisor-legend-title">Legend</div>
-      <ul>
-        <li><span className="legend-icon legend-up">▲</span> Green up arrow: recommend increase</li>
-        <li><span className="legend-icon legend-down">▼</span> Red down arrow: recommend decrease</li>
-        <li><span className="legend-icon legend-dot">●</span> Grey dot: neutral / no change</li>
-        <li><strong>Change</strong>: shows old% → new% (tax rate change)</li>
-        <li><strong>Outcome</strong>: effect on outcome metric (positive is good)</li>
-        <li><strong>Confidence</strong>: model confidence (0–100%)</li>
-        <li>Example: <em>14% → 13% &nbsp; -0.02 &nbsp; 59%</em> — old rate 14%, new rate 13%, outcome change -0.02, confidence 59%</li>
-      </ul>
-    </div>
-  );
+  // ProfileRow component is defined at module scope for stable identity
 
   return (
     <div className="advisor-panel">
@@ -624,25 +484,6 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
         >
           {confirmReset ? 'Confirm Reset' : 'Reset'}
         </button>
-        <button ref={legendBtnRef} className="advisor-legend-btn" onClick={() => {
-          // toggle and capture button position for portal positioning
-          const next = !showLegend;
-          setShowLegend(next);
-          try {
-            const rect = legendBtnRef.current && legendBtnRef.current.getBoundingClientRect();
-            setLegendPos(rect || null);
-          } catch { setLegendPos(null); }
-        }} title="Legend">?</button>
-        {showLegend && legendPos && (() => {
-          // Prefer appending the popup to the same top-level container as the main window
-          // so it participates in the same stacking context used by other tooltips.
-          const win = document.querySelector('.adv-window');
-          const container = (win && (win.parentElement || document.body)) || document.body;
-          return ReactDOM.createPortal(
-            <LegendPopup style={{ position: 'fixed', top: legendPos.bottom + 8, left: legendPos.left, zIndex: 10000 }} />,
-            container
-          );
-        })()}
       </div>
 
       {/* Tab bar */}
@@ -668,181 +509,145 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
       </div>
 
       {/* Content area */}
-      {/* Content area */}
       <div className="advisor-content">
-          <div className="advisor-overview" style={{ display: activeTab === 'overview' ? undefined : 'none' }}>
-            {/* Stats summary */}
-            <div className="advisor-stats-grid">
-              <div className="advisor-stat">
-                <div className="advisor-stat-value">{stats.totalSamples}</div>
-                <div className="advisor-stat-label">Observations</div>
-        </div>
-              <div className="advisor-stat">
-                <div className="advisor-stat-value">{profiles.length}</div>
-                <div className="advisor-stat-label">Active Profiles</div>
-              </div>
-              <div className="advisor-stat">
-                <div className="advisor-stat-value" style={{ color: getConfidenceColor(stats.avgConfidence) }}>
-                  {`${(stats.avgConfidence * 100).toFixed(0)}\u00a0%`}
-                </div>
-                <div className="advisor-stat-label">Avg Confidence</div>
-              </div>
-              <div className="advisor-stat">
-                <div className="advisor-stat-value">{stats.pendingEvents}</div>
-                <div className="advisor-stat-label">Pending</div>
-        </div>
-            </div>
-            {/* Overview explanation removed per user request; info popup available via header info button */}
 
-            {/* Two-column: Recent Decisions (left) and Recommendations (right) */}
-            <div className="advisor-overview-two">
-              <div className="advisor-overview-left">
-                {decisions.length > 0 ? (
-                  <div className="advisor-section">
-                    <div className="advisor-section-title">Recent Decisions</div>
-                    <div className="advisor-decision-headers">
-                      <span className="advisor-decision-resource">Resource</span>
-                      <span className="advisor-decision-change">Change</span>
-                      <span className="advisor-decision-outcome">Outcome</span>
-                      <span className="advisor-decision-summary">Summary</span>
-                    </div>
-                    <div className="advisor-scroll-box" ref={leftBodyRef} onScroll={updateLeftScrollbar}>
-                      <div className="advisor-decision-list">
-                        {decisions.slice(-50).reverse().map((d, i) => {
-                          const icon = findResourceIcon(d.key);
+        {/* ———— OVERVIEW TAB ———— */}
+        <div className="advisor-tab-pane" style={{ display: activeTab === 'overview' ? 'flex' : 'none', flexDirection: 'column' }}>
+          {/* Stats boxes */}
+          <div className="advisor-stats-grid advisor-stats-grid-wide">
+            <div className="advisor-stat">
+              <div className="advisor-stat-value">{stats.totalSamples}</div>
+              <div className="advisor-stat-label">Observations</div>
+            </div>
+            <div className="advisor-stat">
+              <div className="advisor-stat-value">{profiles.length}</div>
+              <div className="advisor-stat-label">Active Profiles</div>
+            </div>
+            <div className="advisor-stat">
+              <div className="advisor-stat-value" style={{ color: getConfidenceColor(stats.avgConfidence) }}>
+                {`${(stats.avgConfidence * 100).toFixed(0)}\u00a0%`}
+              </div>
+              <div className="advisor-stat-label">Avg Confidence</div>
+            </div>
+            <div className="advisor-stat">
+              <div className="advisor-stat-value">{stats.pendingEvents}</div>
+              <div className="advisor-stat-label">Pending</div>
+            </div>
+          </div>
+
+          {/* Two-column layout */}
+          <div className="advisor-overview-columns">
+            {/* Left — Recommendations */}
+            <div className="advisor-overview-col">
+              <div className="advisor-section-title">Recommendations</div>
+              <div className="advisor-col-content-wrap" style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+                {recommendations.length === 0 ? (
+                  <div className="advisor-empty">
+                    {learningEnabled
+                      ? 'Learning is active. Recommendations will appear after enough data is collected.'
+                      : 'Enable adaptive learning to start collecting city response data.'}
+                  </div>
+                ) : (
+                  <>
+                    <div ref={leftBodyRef} className="advisor-overview-scroll" onScroll={updateLeft}>
+                      <div className="advisor-rec-list">
+                        {recommendations.map((rec) => {
+                          const recIcon = getResourceIconSrc(rec.key);
+                          const recTypeIcon = getResourceTypeIcon(rec.key);
                           return (
-                          <div key={i} className="advisor-decision-row">
-                              <span className="advisor-decision-resource">
-                                {icon && <img src={`Media/Game/Resources/${icon}.svg`} className="advisor-resource-icon" alt="" />}
-                                {/* zone badge for decision rows (no SVG) */}
-                                {(() => {
-                                  const stage = findResourceStage(d.key);
-                                  return stage ? (
-                                    useGameIcons ? (
-                                      <img src={getZoneIconPath(stage) as string} className="advisor-zone-icon" title={stage} alt="" />
-                                    ) : (
-                                      <span className={`advisor-zone-badge advisor-zone-${(stage || '').toLowerCase()}`} title={stage} />
-                                    )
-                                  ) : null;
-                                })()}
-                                {getResourceLabel(d.key)}
+                            <div key={rec.key} className="advisor-rec-row">
+                              <span className="advisor-rec-dir" style={{ color: getDirectionColor(rec.direction) }}>
+                                {getDirectionSymbol(rec.direction)}
                               </span>
-                            <span className="advisor-decision-change">{`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}</span>
-                            <span className="advisor-decision-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>{d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}</span>
-                            <span className="advisor-decision-summary">{d.summary}</span>
-                          </div>
-                        )})}
+                              {recIcon && <img src={recIcon} className="advisor-resource-icon" alt="" />}
+                              <span className="advisor-rec-name">{getResourceLabel(rec.key)}</span>
+                              <span className="advisor-rec-rate">{`${rec.currentRate}\u00a0%`}</span>
+                              <span className="advisor-rec-conf" style={{ color: getConfidenceColor(rec.confidence) }}>
+                                {`${(rec.confidence * 100).toFixed(0)}\u00a0%`}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                     <div ref={leftTrackRef} className="advisor-scrollbar-track" aria-hidden>
                       <div ref={leftThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${leftThumbTop}px`, height: `${leftThumbHeight}px` }} />
                     </div>
-                  </div>
-                ) : (
-                  <div className="advisor-empty">No recent decisions.</div>
+                  </>
                 )}
               </div>
+            </div>
 
-              <div className="advisor-overview-right">
-                {recommendations.length > 0 ? (
-                  <div className="advisor-section">
-                    <div className="advisor-section-title">Recommendations</div>
-                    <div className="advisor-rec-headers">
-                      <span className="advisor-rec-dir">Dir</span>
-                      <span className="advisor-rec-name">Resource</span>
-                      <span className="advisor-rec-rate">Rate</span>
-                      <span className="advisor-rec-conf">Confidence</span>
-                      <span className="advisor-rec-reason">Reason</span>
-                    </div>
-                    <div className="advisor-scroll-box advisor-rec-box" ref={rightBodyRef} onScroll={updateRightScrollbar}>
-                      <div className="advisor-rec-list">
-                        {recommendations.map((rec) => {
-                          const icon = findResourceIcon(rec.key);
+            {/* Right — Recent Decisions */}
+            <div className="advisor-overview-col">
+              <div className="advisor-section-title">Recent Decisions ({decisions.length})</div>
+              <div className="advisor-col-content-wrap" style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+                {decisions.length === 0 ? (
+                  <div className="advisor-empty">No decisions logged yet.</div>
+                ) : (
+                  <>
+                    <div ref={rightBodyRef} className="advisor-overview-scroll" onScroll={updateRight}>
+                      <div className="advisor-decision-list">
+                        {[...decisions].reverse().map((d, i) => {
+                          const decisionIcon = getResourceIconSrc(d.key);
                           return (
-                          <div key={rec.key} className="advisor-rec-row">
-                            <span className="advisor-rec-dir" style={{ color: getDirectionColor(rec.direction) }}>{getDirectionSymbol(rec.direction)}</span>
-                            <span className="advisor-rec-name">
-                              {icon && <img src={`Media/Game/Resources/${icon}.svg`} className="advisor-resource-icon" alt="" />}
-                              {(() => {
-                                const stage = findResourceStage(rec.key);
-                                return stage ? (
-                                  useGameIcons ? (
-                                    <img src={getZoneIconPath(stage) as string} className="advisor-zone-icon-small" title={stage} alt="" />
-                                  ) : (
-                                    <span className={`advisor-zone-badge advisor-zone-${(stage || '').toLowerCase()}`} title={stage} />
-                                  )
-                                ) : null;
-                              })()}
-                              {getResourceLabel(rec.key)}
-                            </span>
-                            <span className="advisor-rec-rate">{`${rec.currentRate}\u00a0%`}</span>
-                            <span className="advisor-rec-conf" style={{ color: getConfidenceColor(rec.confidence) }}>{`${(rec.confidence * 100).toFixed(0)}\u00a0%`}</span>
-                            <span className="advisor-rec-reason">{rec.reason}</span>
-                          </div>
-                        )})}
+                            <div key={i} className="advisor-decision-row">
+                              {decisionIcon && <img src={decisionIcon} className="advisor-resource-icon" alt="" />}
+                              <span className="advisor-decision-resource">{getResourceLabel(d.key)}</span>
+                              <span className="advisor-decision-change">
+                                {`${d.oldRate}\u00a0%`} {'→'} {`${d.newRate}\u00a0%`}
+                              </span>
+                              <span className="advisor-decision-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
+                                {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                     <div ref={rightTrackRef} className="advisor-scrollbar-track" aria-hidden>
                       <div ref={rightThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${rightThumbTop}px`, height: `${rightThumbHeight}px` }} />
                     </div>
-                  </div>
-                ) : (
-                  <div className="advisor-empty">No recommendations yet.</div>
+                  </>
                 )}
               </div>
             </div>
           </div>
+        </div>
 
-        <div className="advisor-profiles" style={{ display: activeTab === 'profiles' ? undefined : 'none' }}>
-            {sortedProfiles.length === 0 && (
-              <div className="advisor-empty">No learning profiles yet. Data will appear after tax adjustments are observed.</div>
-            )}
-
-            <div className="advisor-scroll-box" ref={profilesBodyRef} onScroll={updateProfilesScrollbar}>
-              <div className="advisor-profile-list">
-                {displayedProfiles.map((p) => (
-                  <ProfileRow key={p.key} p={p} useGameIcons={useGameIcons} />
-                ))}
-              </div>
-            </div>
-            <div ref={profilesTrackRef} className="advisor-scrollbar-track" aria-hidden>
-              <div ref={profilesThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${profilesThumbTop}px`, height: `${profilesThumbHeight}px` }} />
+        {/* ———— PROFILES TAB ———— */}
+        <div className="advisor-tab-pane" style={{ display: activeTab === 'profiles' ? undefined : 'none', position: 'relative' }}>
+          {sortedProfiles.length === 0 && (
+            <div className="advisor-empty">No learning profiles yet. Data will appear after tax adjustments are observed.</div>
+          )}
+          <div ref={profilesBodyRef} className="advisor-tab-scroll" onScroll={updateProfiles} style={{ paddingRight: '18rem' }}>
+            <div className="advisor-profile-list">
+              {sortedProfiles.map((p) => (
+                <ProfileRow key={p.key} p={p} />
+              ))}
             </div>
           </div>
+          <div ref={profilesTrackRef} className="advisor-scrollbar-track" aria-hidden>
+            <div ref={profilesThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${profilesThumbTop}px`, height: `${profilesThumbHeight}px` }} />
+          </div>
+        </div>
 
-
-        <div className="advisor-log" style={{ display: activeTab === 'log' ? undefined : 'none' }}>
-            {decisions.length === 0 && (
-              <div className="advisor-empty">No decisions logged yet.</div>
-            )}
-            <div className="advisor-log-headers">
-              <span className="advisor-log-resource">Resource</span>
-              <span className="advisor-log-change">Change</span>
-              <span className="advisor-log-outcome">Outcome</span>
-              <span className="advisor-log-conf">Confidence</span>
-            </div>
-            <div className="advisor-scroll-box" ref={logBodyRef} onScroll={updateLogScrollbar}>
-              <div className="advisor-log-list">
-                {[...decisions].reverse().map((d, i) => {
-                  const icon = findResourceIcon(d.key);
-                  return (
+        {/* ———— LOG TAB ———— */}
+        <div className="advisor-tab-pane" style={{ display: activeTab === 'log' ? undefined : 'none', position: 'relative' }}>
+          {decisions.length === 0 && (
+            <div className="advisor-empty">No decisions logged yet.</div>
+          )}
+          <div ref={logBodyRef} className="advisor-tab-scroll" onScroll={updateLog} style={{ paddingRight: '18rem' }}>
+            <div className="advisor-log-list">
+              {[...decisions].reverse().map((d, i) => {
+                const logTypeIcon = getResourceTypeIcon(d.key);
+                const logIcon = getResourceIconSrc(d.key);
+                return (
                   <div key={i} className="advisor-log-row">
                     <div className="advisor-log-header">
-                      <span className="advisor-log-resource">
-                        {icon && <img src={`Media/Game/Resources/${icon}.svg`} className="advisor-resource-icon" alt="" />}
-                        {(() => {
-                                  const stage = findResourceStage(d.key);
-                          return stage ? (
-                            useGameIcons ? (
-                              <img src={getZoneIconPath(stage) as string} className="advisor-zone-icon" title={stage} alt="" />
-                            ) : (
-                              <span className={`advisor-zone-badge advisor-zone-${(stage || '').toLowerCase()}`} title={stage} />
-                            )
-                          ) : null;
-                        })()}
-                        {getResourceLabel(d.key)}
-                      </span>
-                      <span className="advisor-log-change">{`${d.oldRate}\u00a0%`} {'\u2192'} {`${d.newRate}\u00a0%`}</span>
+                      {logIcon && <img src={logIcon} className="advisor-log-icon" alt="" />}
+                      <span className="advisor-log-resource">{getResourceLabel(d.key)}</span>
+                      <span className="advisor-log-change">{`${d.oldRate}\u00a0%`} {'→'} {`${d.newRate}\u00a0%`}</span>
                       <span className="advisor-log-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
                         {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
                       </span>
@@ -852,13 +657,15 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                     </div>
                     {d.summary && <div className="advisor-log-summary">{d.summary}</div>}
                   </div>
-                )})}
-              </div>
-            </div>
-            <div ref={logTrackRef} className="advisor-scrollbar-track" aria-hidden>
-              <div ref={logThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${logThumbTop}px`, height: `${logThumbHeight}px` }} />
+                );
+              })}
             </div>
           </div>
+          <div ref={logTrackRef} className="advisor-scrollbar-track" aria-hidden>
+            <div ref={logThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${logThumbTop}px`, height: `${logThumbHeight}px` }} />
+          </div>
+        </div>
+
       </div>
     </div>
   );

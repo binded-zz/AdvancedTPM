@@ -1,0 +1,4 @@
+Completed fixing JSON syntax errors for services and residential data.
+- Reverted Advisor Panel modification that broke the header.
+- Created CityInfoPanel.tsx to hold city overview metrics.
+- Registered City Info tab in AdvancedTPMWindow.tsx.

@@ -1,4 +1,4 @@
-﻿using Colossal.Logging;
+using Colossal.Logging;
 using Colossal.IO.AssetDatabase;
 using Game;
 using Game.Modding;
@@ -63,6 +63,10 @@ namespace AdvancedTPM
             updateSystem.UpdateAt<AutoTaxSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<CompanyBrowserSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<AdaptiveLearningSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<ResidentialBrowserSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<ServicesBrowserSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<DistrictBrowserSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<AdvancedTPM.Systems.DistrictHappinessAggregationSystem>(SystemUpdatePhase.GameSimulation);
 
             log.Info($"{Name} loaded successfully");
 

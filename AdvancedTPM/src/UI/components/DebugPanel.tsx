@@ -1,5 +1,4 @@
-import React from 'react';
-import { trigger } from 'cs2/api';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface DebugPanelProps {
   debugEnabled: boolean;
@@ -8,60 +7,79 @@ interface DebugPanelProps {
   onToggleDebug: (enabled: boolean) => void;
   onToggleTips: (enabled: boolean) => void;
   onTogglePanel: () => void;
+  debugFileContents?: string;
   signaturePrefabs?: string;
   signatureCompanies?: string;
   signatureCacheStatus?: string;
+  residentialData?: string;
+  servicesData?: string;
+  debugX?: number;
+  debugY?: number;
+  debugW?: number;
+  debugH?: number;
 }
 
-const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAction, onToggleDebug, onToggleTips, onTogglePanel, signaturePrefabs, signatureCompanies, signatureCacheStatus }) => {
-  const containerStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 110,
-    right: 30,
-    width: 320,
-    background: 'rgba(6,10,18,0.88)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    color: '#ffffff',
-    padding: 12,
-    borderRadius: 6,
-    boxShadow: '0 6px 18px rgba(0,0,0,0.6)',
-    fontFamily: 'inherit',
-    zIndex: 9999,
-  };
+const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAction, onToggleDebug, onToggleTips, onTogglePanel, debugX = 0, debugY = 110, debugW = 280 }) => {
+  const [pos, setPos] = useState<{x:number;y:number}>(() => {
+    try {
+      const raw = localStorage.getItem('atpm.debug.pos');
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (typeof p.x === 'number' && typeof p.y === 'number') return { x: p.x, y: p.y };
+      }
+    } catch {}
+    return { x: debugX || 0, y: debugY || 110 };
+  });
 
-  const headerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 };
-  const buttonPrimary: React.CSSProperties = { marginRight: 8, background: '#2563eb', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 4, cursor: 'pointer' };
-  const buttonClose: React.CSSProperties = { background: '#374151', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: 4, cursor: 'pointer' };
-  const labelStyle: React.CSSProperties = { display: 'block', marginBottom: 8, color: '#e6eef8', fontSize: 13 };
-  const lastActionStyle: React.CSSProperties = { fontSize: 12, color: '#cfe3ff', opacity: 0.95 };
-  const boxStyle: React.CSSProperties = { maxHeight: 80, overflow: 'auto', fontSize: 12, background: 'rgba(255,255,255,0.03)', padding: 8, borderRadius: 4, marginBottom: 6, border: '1px solid rgba(255,255,255,0.03)' };
+  const drag = useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0 });
+
+  useEffect(() => {
+    const mm = (e: MouseEvent) => {
+      if (!drag.current.active) return;
+      const nx = Math.max(0, drag.current.ox + (e.clientX - drag.current.sx));
+      const ny = Math.max(0, drag.current.oy + (e.clientY - drag.current.sy));
+      setPos({ x: nx, y: ny });
+    };
+    const mu = () => {
+      if (!drag.current.active) return;
+      drag.current.active = false;
+      try { localStorage.setItem('atpm.debug.pos', JSON.stringify(pos)); } catch {}
+    };
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+    return () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
+  }, [pos]);
 
   return (
-    <div style={containerStyle}>
-      <div style={headerStyle}>
-        <strong style={{ fontSize: 14 }}>TPM Debug</strong>
-        <div>
-          <button onClick={() => { try { trigger('taxProduction', 'refreshSignatureCache', '1'); } catch {} }} style={buttonPrimary}>Refresh Sig Cache</button>
-          <button onClick={onTogglePanel} style={buttonClose}>✕</button>
-        </div>
+    <div style={{ position: 'absolute', top: pos.y, right: 'auto', left: pos.x, width: debugW || 280, background: 'rgba(16,20,28,0.98)', border: '1px solid rgba(255,255,255,0.2)', color: '#dce6f2', borderRadius: 6, overflow: 'hidden' }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8rem', background: 'rgba(35,46,64,0.95)', cursor: 'move' }}
+        onMouseDown={(e) => { drag.current = { active: true, sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y }; }}
+      >
+        <strong>TPM Debug</strong>
+        <button onClick={onTogglePanel} style={{ background: 'transparent', border: '1rem solid rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer' }}>X</button>
       </div>
-      <label style={labelStyle}>
-        <input type="checkbox" checked={debugEnabled} onChange={(e) => onToggleDebug(e.target.checked)} /> <span style={{ marginLeft: 8 }}>Enable debug logs</span>
-      </label>
-      <label style={labelStyle}>
-        <input type="checkbox" checked={showTips} onChange={(e) => onToggleTips(e.target.checked)} /> <span style={{ marginLeft: 8 }}>Show in-window tips</span>
-      </label>
-      <div style={lastActionStyle}>Last action: {lastAction}</div>
-      {debugEnabled && (
-        <div style={{ marginTop: 8, fontSize: 12 }}>
-          <div style={{ fontWeight: 700, marginBottom: 4, color: '#e8f1ff' }}>Signature Prefabs</div>
-          <div style={boxStyle}>{signaturePrefabs || '—'}</div>
-          <div style={{ fontWeight: 700, marginBottom: 4, color: '#e8f1ff' }}>Signature Companies (keys)</div>
-          <div style={boxStyle}>{signatureCompanies || '—'}</div>
-          <div style={{ fontWeight: 700, marginBottom: 4, color: '#e8f1ff' }}>Signature Cache Status</div>
-          <div style={{ ...boxStyle, maxHeight: 40 }}>{signatureCacheStatus || '—'}</div>
+      <div style={{ padding: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span>Debug logs</span>
+          <button
+            onClick={() => onToggleDebug(!debugEnabled)}
+            style={{ padding: '3rem 10rem', borderRadius: 3, border: '1rem solid rgba(255,255,255,0.2)', cursor: 'pointer', background: debugEnabled ? 'rgba(139,219,70,0.2)' : 'rgba(224,80,80,0.2)', color: '#fff' }}
+          >
+            {debugEnabled ? 'Enabled' : 'Disabled'}
+          </button>
         </div>
-      )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span>In-window tips</span>
+          <button
+            onClick={() => onToggleTips(!showTips)}
+            style={{ padding: '3rem 10rem', borderRadius: 3, border: '1rem solid rgba(255,255,255,0.2)', cursor: 'pointer', background: showTips ? 'rgba(139,219,70,0.2)' : 'rgba(224,80,80,0.2)', color: '#fff' }}
+          >
+            {showTips ? 'Enabled' : 'Disabled'}
+          </button>
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.8 }}>Last action: {lastAction}</div>
+      </div>
     </div>
   );
 };

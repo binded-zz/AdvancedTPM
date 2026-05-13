@@ -1,0 +1,862 @@
+/* == Districts Panel — Structure & Layout == */
+.dp-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Table Header */
+/* Table Header */
+.dp-header {
+  display: flex;
+  align-items: center;
+  padding: 6rem 10rem;
+  background: rgba(18, 28, 42, 0.95);
+  border-bottom: 2rem solid rgba(93, 128, 170, 0.3);
+  font-size: 11rem;
+  font-weight: 700;
+  color: rgba(200, 220, 240, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.5rem;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 100;
+}
+
+
+.dp-header-settings {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30rem;
+  height: 30rem;
+  border-radius: 4rem;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dp-header-settings:hover {
+  opacity: 1;
+  background: rgba(80, 184, 233, 0.15);
+}
+
+.dp-settings-menu {
+  position: absolute;
+  top: 45rem;
+  right: 0rem;
+  width: 280rem;
+  background: rgba(18, 28, 42, 0.98);
+  border: 1rem solid rgba(80, 184, 233, 0.4);
+  border-radius: 6rem;
+  padding: 15rem;
+  z-index: 2000;
+  box-shadow: 0 8rem 24rem rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8rem);
+  pointer-events: auto;
+}
+
+.dp-settings-title {
+  font-size: 14rem;
+  font-weight: 800;
+  color: #50b8e9;
+  margin-bottom: 12rem;
+  text-transform: uppercase;
+  letter-spacing: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dp-settings-group {
+  margin-bottom: 15rem;
+}
+
+.dp-settings-label {
+  font-size: 11rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  margin-bottom: 8rem;
+}
+
+.dp-settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6rem 0;
+  font-size: 13rem;
+  color: #fff;
+}
+
+.dp-settings-toggle {
+  width: 34rem;
+  height: 18rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9rem;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dp-settings-toggle.active {
+  background: #50b8e9;
+}
+
+.dp-settings-toggle-dot {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  width: 14rem;
+  height: 14rem;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.dp-settings-toggle.active .dp-settings-toggle-dot {
+  transform: translateX(16rem);
+}
+
+.dp-dashboard-card {
+  flex: 0 0 420rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 5rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+  min-height: 180rem;
+}
+
+.dp-dashboard-card.summary {
+  flex: 0 0 205rem;
+  min-height: 80rem;
+  background: rgba(80, 184, 233, 0.05);
+}
+
+.dp-dashboard-card.summary .dp-card-header {
+  padding: 4rem 10rem;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dp-dashboard-card.summary .dp-card-content {
+  padding: 10rem 15rem;
+}
+
+.dp-settings-reset {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1rem solid rgba(255, 255, 255, 0.1);
+  border-radius: 4rem;
+  color: #fff;
+  padding: 8rem;
+  font-size: 12rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dp-settings-reset:hover {
+  background: rgba(229, 115, 115, 0.2);
+  border-color: #e57373;
+  color: #e57373;
+}
+
+
+/* Table Body */
+.dp-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  max-height: 100%;
+  background: rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(80, 184, 233, 0.5) rgba(0, 0, 0, 0.3);
+}
+
+.dp-body::-webkit-scrollbar {
+  width: 8rem;
+}
+
+.dp-body::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.dp-body::-webkit-scrollbar-thumb {
+  background: rgba(80, 184, 233, 0.5);
+  border-radius: 4rem;
+}
+
+/* Columns */
+.dp-col-exp {
+  width: 24rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dp-col-name {
+  width: 200rem;
+  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 10rem;
+  display: flex;
+  align-items: center;
+}
+
+.dp-col-count {
+  width: 80rem;
+  text-align: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-col-total {
+  width: 60rem;
+  text-align: center;
+  font-weight: 700;
+  color: #50b8e9;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-col-policies {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-left: 12rem;
+}
+
+.dp-col-go {
+  width: 50rem;
+  text-align: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Row */
+.dp-row {
+  display: flex;
+  align-items: stretch;
+  padding: 4rem 10rem;
+  border-bottom: 1rem solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dp-row:hover {
+  background: rgba(80, 184, 233, 0.1);
+}
+
+.dp-row-city {
+  background: rgba(80, 184, 233, 0.12);
+  border-bottom: 2rem solid rgba(80, 184, 233, 0.3);
+}
+
+.dp-row-city:hover {
+  background: rgba(80, 184, 233, 0.18);
+}
+
+.dp-row-expanded {
+  background: rgba(80, 184, 233, 0.05) !important;
+  border-left: 2rem solid #50b8e9;
+}
+
+/* Rename UI — only in expanded section */
+.dp-rename-wrap {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.dp-rename-wrap>* {
+  margin-right: 4rem;
+}
+
+.dp-rename-wrap>*:last-child {
+  margin-right: 0;
+}
+
+.dp-rename-input {
+  flex: 1;
+  background: rgba(15, 24, 37, 0.95);
+  border: 1rem solid #50b8e9;
+  border-radius: 3rem;
+  color: #fff;
+  padding: 4rem 8rem;
+  font-size: 14rem;
+}
+
+.dp-rename-btn {
+  background: #2a5a8a;
+  border: none;
+  border-radius: 3rem;
+  color: #fff;
+  padding: 4rem 10rem;
+  font-size: 12rem;
+  cursor: pointer;
+}
+
+.dp-edit-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1rem solid rgba(255, 255, 255, 0.1);
+  border-radius: 4rem;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 2rem 6rem;
+  font-size: 9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5rem;
+  cursor: pointer;
+  margin-left: 10rem;
+  transition: all 0.2s;
+}
+
+.dp-edit-btn:hover {
+  background: rgba(80, 184, 233, 0.15);
+  border-color: rgba(80, 184, 233, 0.5);
+  color: #50b8e9;
+}
+
+.dp-arrow {
+  display: block;
+  font-size: 8rem;
+  color: rgba(255, 255, 255, 0.3);
+  transition: transform 0.2s, color 0.2s;
+}
+
+.dp-row-expanded .dp-arrow {
+  color: #50b8e9;
+}
+
+/* Row-level policy icons (compact in the row) */
+.dp-inline-policies-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 2rem 0;
+  width: 100%;
+}
+
+.dp-row-policy-icon {
+  margin-right: 4rem;
+  margin-bottom: 4rem;
+  width: 30rem;
+  height: 30rem;
+  border-radius: 4rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1rem solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.1s;
+  flex-shrink: 0;
+}
+
+.dp-row-policy-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.dp-row-policy-icon.active {
+  background: rgba(139, 219, 70, 0.2);
+  border-color: #8bdb46;
+}
+
+.dp-policy-img-small {
+  width: 24rem;
+  height: 24rem;
+}
+
+.dp-policy-text-small {
+  font-size: 9rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Sortable Headers */
+.dp-sortable {
+  cursor: pointer;
+  transition: color 0.15s;
+  position: relative;
+}
+
+.dp-sortable:hover {
+  color: #fff;
+}
+
+.dp-sort-indicator {
+  color: #50b8e9;
+  font-size: 8rem;
+  margin-left: 2rem;
+}
+
+/* GO Button */
+.dp-go-btn {
+  background: rgba(80, 184, 233, 0.15);
+  border: 1rem solid rgba(80, 184, 233, 0.4);
+  border-radius: 3rem;
+  color: #50b8e9;
+  padding: 2rem 6rem;
+  font-size: 10rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dp-go-btn:hover {
+  background: rgba(80, 184, 233, 0.3);
+  color: #fff;
+}
+
+/* Expanded Area */
+.dp-expanded-row {
+  padding: 20rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 2rem solid rgba(80, 184, 233, 0.1);
+  position: relative;
+  overflow: visible;
+}
+
+.dp-expanded-name-row {
+  display: flex;
+  align-items: center;
+  padding: 0 0 8rem 0;
+  border-bottom: 1rem solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 8rem;
+}
+
+.dp-expanded-name {
+  font-size: 16rem;
+  font-weight: 800;
+  color: #fff;
+  margin-right: 10rem;
+}
+
+.dp-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.dp-details>* {
+  margin-bottom: 10rem;
+}
+
+.dp-details>*:last-child {
+  margin-bottom: 0;
+}
+
+.dp-detail-section {
+  display: flex;
+  align-items: flex-start;
+}
+
+.dp-detail-section>.dp-detail-label {
+  margin-right: 12rem;
+}
+
+.dp-detail-label {
+  font-size: 13rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  min-width: 100rem;
+  margin-top: 4rem;
+}
+
+/* ========= STAT CARDS ========= */
+.dp-stats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 4rem 0 8rem;
+  border-bottom: 1rem solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 8rem;
+  gap: 0;
+}
+
+.dp-dashboard-grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 10rem -8rem 0;
+  align-items: flex-start;
+}
+
+.dp-dashboard-card {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(145deg, rgba(25, 35, 50, 0.8), rgba(15, 20, 30, 0.9));
+  border: 1rem solid rgba(80, 184, 233, 0.15);
+  border-radius: 10rem;
+  padding: 16rem;
+  transition: all 0.25s ease;
+  position: relative;
+  box-shadow: 0 4rem 15rem rgba(0, 0, 0, 0.3);
+  flex: 0 0 420rem;
+  margin: 8rem;
+  min-height: 120rem;
+}
+
+.dp-dashboard-card.summary {
+  flex: 0 0 420rem;
+  min-height: 80rem;
+}
+
+.dp-dashboard-card:hover {
+  border-color: rgba(80, 184, 233, 0.5);
+  transform: translateY(-2rem);
+  box-shadow: 0 6rem 20rem rgba(0, 0, 0, 0.6);
+}
+
+.dp-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10rem;
+  padding-bottom: 8rem;
+  border-bottom: 1rem solid rgba(255, 255, 255, 0.08);
+}
+
+.dp-card-title {
+  display: flex;
+  align-items: center;
+  font-size: 13rem;
+  font-weight: 900;
+  color: #50b8e9;
+  text-transform: uppercase;
+  letter-spacing: 1rem;
+}
+
+.dp-card-drag-handle {
+  cursor: grab;
+  padding: 4rem;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+  display: grid;
+  grid-template-columns: repeat(2, 4rem);
+  gap: 3rem;
+  margin-left: 8rem;
+}
+
+.dp-drag-dot {
+  width: 3rem;
+  height: 3rem;
+  background: #50b8e9;
+  border-radius: 50%;
+}
+
+.dp-card-move-btn {
+  width: 18rem;
+  height: 18rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(80, 184, 233, 0.1);
+  border: 1px solid rgba(80, 184, 233, 0.3);
+  border-radius: 4rem;
+  color: #50b8e9;
+  font-size: 10rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  pointer-events: auto;
+}
+
+.dp-card-move-btn:hover {
+  background: rgba(80, 184, 233, 0.3);
+  border-color: #50b8e9;
+  opacity: 1;
+}
+
+.dp-card-drag-handle:hover {
+  opacity: 1;
+}
+
+.dp-card-content {
+  flex: 1;
+}
+
+/* Raw Data styles */
+.dp-raw-key {
+  font-family: monospace;
+  font-size: 9rem;
+  color: #50b8e9;
+  opacity: 0.6;
+  margin-left: 4rem;
+  font-weight: 400;
+}
+
+/* Compact Mode adjustments */
+.dp-dashboard-grid.compact .dp-dashboard-card {
+  flex: 0 0 210rem;
+  padding: 8rem;
+}
+
+.dp-dashboard-grid.compact .dp-card-header {
+  margin-bottom: 6rem;
+  padding-bottom: 4rem;
+}
+
+.dp-stats-grid.dp-side-by-side {
+  flex-wrap: nowrap;
+  gap: 10rem;
+}
+
+.dp-stat-card {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1rem solid rgba(255, 255, 255, 0.08);
+  border-radius: 6rem;
+  padding: 10rem 16rem;
+  margin-right: 10rem;
+  margin-bottom: 8rem;
+  min-width: 130rem;
+  flex-shrink: 0;
+}
+
+.dp-stat-icon-wrap {
+  margin-right: 12rem;
+  flex-shrink: 0;
+}
+
+.dp-stat-icon {
+  width: 32rem;
+  height: 32rem;
+  opacity: 0.85;
+}
+
+.dp-stat-label {
+  font-size: 13rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5rem;
+  margin-bottom: 3rem;
+}
+
+.dp-stat-value {
+  font-size: 18rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.95);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+
+.dp-stat-pct {
+  font-size: 12rem;
+  color: #50b8e9;
+  margin-left: 4rem;
+  font-weight: 400;
+}
+
+/* Currency icon inside stat values */
+.dp-currency-icon {
+  width: 16rem;
+  height: 16rem;
+  margin-right: 3rem;
+}
+
+/* ========= HAPPINESS CARD ========= */
+.dp-happiness-status {
+  display: flex;
+  align-items: center;
+}
+
+.dp-happiness-text {
+  font-size: 16rem;
+  font-weight: 700;
+}
+
+.dp-happiness-pct {
+  font-size: 13rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
+  margin-left: 6rem;
+}
+
+/* ========= EXPANDED POLICY ICONS ========= */
+.dp-inline-policies {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.dp-inline-policies>* {
+  margin-right: 8rem;
+  margin-bottom: 8rem;
+}
+
+.dp-inline-policy-icon {
+  width: 42rem;
+  height: 42rem;
+  border-radius: 6rem;
+  background-color: rgba(255, 255, 255, 0.06);
+  border: 1rem solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  opacity: 0.6;
+}
+
+.dp-inline-policy-icon:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  opacity: 0.9;
+}
+
+.dp-inline-policy-icon.active {
+  background-color: rgba(139, 219, 70, 0.2);
+  border: 1.5rem solid #8bdb46;
+  opacity: 1;
+  box-shadow: 0 0 10rem rgba(139, 219, 70, 0.3);
+}
+
+.dp-policy-img {
+  width: 30rem;
+  height: 30rem;
+}
+
+.dp-policy-text {
+  font-size: 12rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Custom Tooltip for Happiness */
+.dp-stat-card-tooltip {
+  position: relative;
+}
+.dp-stat-card-tooltip .dp-tooltip-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 280rem;
+  background: rgba(18, 28, 42, 0.98);
+  border: 1rem solid rgba(80, 184, 233, 0.4);
+  padding: 12rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12rem;
+  line-height: 1.4;
+  z-index: 100;
+  white-space: normal;
+  border-radius: 4rem;
+  box-shadow: 0 4rem 10rem rgba(0,0,0,0.5);
+  margin-top: 5rem;
+}
+.dp-stat-card-tooltip:hover .dp-tooltip-content,
+.dp-stat-card-tooltip.dp-tooltip-locked .dp-tooltip-content {
+  display: block;
+}
+.dp-tooltip-locked {
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1rem rgba(80,184,233,0.6);
+}
+
+.dp-stat-card-wide {
+  min-width: 250rem;
+  flex: 1;
+}
+
+/* Tab Navigation */
+.tab-buttons {
+    display: flex;
+    background: rgba(18, 28, 42, 0.98);
+    border-bottom: 2rem solid rgba(80, 184, 233, 0.4);
+    padding: 4rem 12rem;
+}
+
+.tab-buttons > * {
+    margin-right: 12rem;
+}
+
+.tab-buttons > *:last-child {
+    margin-right: 0;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12rem;
+    font-weight: 800;
+    padding: 8rem 0;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1rem;
+    border-bottom: 2rem solid transparent;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    color: #fff;
+}
+
+.tab-btn.active {
+    color: #50b8e9;
+    border-bottom-color: #50b8e9;
+}
+
+.tab-btn.debug-toggle {
+    color: #ffaa00;
+}
+
+.tab-btn.debug-toggle.active {
+    color: #ffcc00;
+    border-bottom-color: #ffcc00;
+}
+
+/* Population Card Redesign */
+.dp-stat-card-pop {
+    width: 340rem !important;
+    min-width: 340rem !important;
+    align-items: flex-start;
+    flex-shrink: 0 !important;
+}
+
+.dp-pop-subgrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4rem 15rem;
+    margin-top: 10rem;
+    padding-top: 8rem;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    width: 100%;
+}
+
+.dp-pop-subitem {
+    width: 150rem;
+    font-size: 11rem;
+    color: rgba(255,255,255,0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dp-pop-subitem span {
+    font-weight: 700;
+    margin-right: 4rem;
+}
+
+

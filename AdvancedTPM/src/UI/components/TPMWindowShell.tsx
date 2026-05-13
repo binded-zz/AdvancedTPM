@@ -16,9 +16,9 @@ const safeNum = (v: number, fallback: number): number => (Number.isFinite(v) ? v
 
 const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, collapsed = false, collapsedHeight = 74, onSaveRect, children }) => {
   const [rect, setRect] = useState({ x: safeNum(x, 140), y: safeNum(y, 150), width: safeNum(width, 520), height: safeNum(height, 420) });
-  const [activeMode, setActiveMode] = useState<'none' | 'drag' | 'resize'>('none');
+  const [activeMode, setActiveMode] = useState<'none' | 'drag' | 'resize-right' | 'resize-left'>('none');
   const dragRef = useRef<{ active: boolean; startX: number; startY: number; ox: number; oy: number }>({ active: false, startX: 0, startY: 0, ox: x, oy: y });
-  const resizeRef = useRef<{ active: boolean; startX: number; startY: number; ow: number; oh: number }>({ active: false, startX: 0, startY: 0, ow: width, oh: height });
+  const resizeRef = useRef<{ active: boolean; startX: number; startY: number; ox: number; ow: number; oh: number }>({ active: false, startX: 0, startY: 0, ox: x, ow: width, oh: height });
 
   useEffect(() => {
     setRect({ x: safeNum(x, 140), y: safeNum(y, 150), width: safeNum(width, 520), height: safeNum(height, 420) });
@@ -32,10 +32,19 @@ const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, co
       const dy = clientY - dragRef.current.startY;
       setRect((r) => ({ ...r, x: Math.max(20, dragRef.current.ox + dx), y: Math.max(20, dragRef.current.oy + dy) }));
     }
-    if (resizeRef.current.active) {
+    if (resizeRef.current.active && activeMode === 'resize-right') {
       const dx = clientX - resizeRef.current.startX;
       const dy = clientY - resizeRef.current.startY;
       setRect((r) => ({ ...r, width: Math.max(360, resizeRef.current.ow + dx), height: Math.max(240, resizeRef.current.oh + dy) }));
+    }
+    if (resizeRef.current.active && activeMode === 'resize-left') {
+      const dx = clientX - resizeRef.current.startX;
+      const dy = clientY - resizeRef.current.startY;
+      const nextWidth = Math.max(360, resizeRef.current.ow - dx);
+      const maxDelta = resizeRef.current.ow - 360;
+      const clampedDx = Math.max(-10000, Math.min(maxDelta, dx));
+      const nextX = Math.max(20, resizeRef.current.ox + clampedDx);
+      setRect((r) => ({ ...r, x: nextX, width: nextWidth, height: Math.max(240, resizeRef.current.oh + dy) }));
     }
   };
 
@@ -92,8 +101,15 @@ const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, co
       <div
         style={{ position: 'absolute', right: 0, bottom: 0, width: 18, height: 18, cursor: 'nwse-resize', background: 'rgba(255,255,255,0.35)', borderTopLeftRadius: 3 }}
         onMouseDown={(e) => {
-          resizeRef.current = { active: true, startX: e.clientX, startY: e.clientY, ow: rect.width, oh: rect.height };
-          setActiveMode('resize');
+          resizeRef.current = { active: true, startX: e.clientX, startY: e.clientY, ox: rect.x, ow: rect.width, oh: rect.height };
+          setActiveMode('resize-right');
+        }}
+      />
+      <div
+        style={{ position: 'absolute', left: 0, bottom: 0, width: 18, height: 18, cursor: 'nesw-resize', background: 'rgba(255,255,255,0.35)', borderTopRightRadius: 3 }}
+        onMouseDown={(e) => {
+          resizeRef.current = { active: true, startX: e.clientX, startY: e.clientY, ox: rect.x, ow: rect.width, oh: rect.height };
+          setActiveMode('resize-left');
         }}
       />
     </div>
