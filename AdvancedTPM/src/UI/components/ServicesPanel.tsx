@@ -91,10 +91,12 @@ const parseServiceSummaries = (payload: string): ServiceSummary[] => {
 const focusEntityKey = (entityKey: string) => {
   try {
     const parts = String(entityKey || '').split(',');
-    trigger('camera', 'focusEntity', {
+    const entity = {
       index: Number(parts[0]) || 0,
       version: Number(parts[1]) || 0,
-    });
+    };
+    trigger('camera', 'focusEntity', entity);
+    trigger('selectedInfo', 'selectEntity', entity);
   } catch {}
 };
 

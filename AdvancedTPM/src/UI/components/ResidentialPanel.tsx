@@ -685,7 +685,9 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                                 const parts = b.entityKey.split(',');
                                 const idx = Number(parts[0]) || 0;
                                 const ver = Number(parts[1]) || 0;
-                                trigger('camera', 'focusEntity', { index: idx, version: ver });
+                                const entity = { index: idx, version: ver };
+                                trigger('camera', 'focusEntity', entity);
+                                trigger('selectedInfo', 'selectEntity', entity);
                               } catch {}
                             }}
                             title="Focus camera on this building"

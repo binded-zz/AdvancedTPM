@@ -25,8 +25,8 @@ namespace AdvancedTPM
         private CitySystem _citySystem;
         private NameSystem _nameSystem;
         private PrefabSystem _prefabSystem;
-        private Game.UI.InGame.SignatureBuildingUISystem _signatureSystem;
-        private FieldInfo _signatureQueryField;
+        private Game.UI.InGame.SignatureBuildingUISystem _signatureSystem = null;
+        private FieldInfo _signatureQueryField = null;
         private readonly HashSet<int> _signaturePrefabIndices = new HashSet<int>();
         private EntityQuery _residentialBuildingQuery;
         private int _updateCounter;
@@ -34,7 +34,7 @@ namespace AdvancedTPM
         protected override void OnCreate()
         {
             base.OnCreate();
-            Mod.log.Info("ResidentialBrowserSystem OnCreate started");
+            Mod.log?.Info("ResidentialBrowserSystem OnCreate started");
             try { _countResidentialPropertySystem = World.GetOrCreateSystemManaged<CountResidentialPropertySystem>(); } catch { }
             try { _countHouseholdDataSystem = World.GetOrCreateSystemManaged<CountHouseholdDataSystem>(); } catch { }
             try { _citySystem = World.GetOrCreateSystemManaged<CitySystem>(); } catch { }
@@ -65,30 +65,30 @@ namespace AdvancedTPM
                     }
                 });
             }
-            catch (Exception ex) { Mod.log.Warn($"ResidentialBrowserSystem Query Error: {ex.Message}"); }
+            catch (Exception ex) { Mod.log?.Warn($"ResidentialBrowserSystem Query Error: {ex.Message}"); }
 
             AddBinding(_residentialBrowserData = new ValueBinding<string>("taxProduction", "residentialBrowserData", ""));
             AddBinding(_residentialBuildingsData = new ValueBinding<string>("taxProduction", "residentialBuildingsData", ""));
             AddBinding(_residentialSignatureBuildingsData = new ValueBinding<string>("taxProduction", "residentialSignatureBuildingsData", ""));
-            Mod.log.Info("ResidentialBrowserSystem OnCreate finished");
+            Mod.log?.Info("ResidentialBrowserSystem OnCreate finished");
         }
 
         private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("ResidentialBrowserSystem Heartbeat");
+            if (m_FrameCounter++ % 600 == 0 && Mod.log != null) Mod.log?.Info("ResidentialBrowserSystem Heartbeat");
             if (Mod.Settings == null) return;
             
             _updateCounter++;
             if (_updateCounter < 480) return; // ~8 seconds
             _updateCounter = 0;
             
-            Mod.log.Info("ResidentialBrowserSystem OnUpdate triggered");
+            if (Mod.log != null) Mod.log?.Info("ResidentialBrowserSystem OnUpdate triggered");
             try
             {
                 UpdateResidentialData();
             }
-            catch (Exception ex) { Mod.log.Warn($"ResidentialBrowserSystem UpdateResidentialData Error: {ex.Message}"); }
+            catch (Exception ex) { Mod.log?.Warn($"ResidentialBrowserSystem UpdateResidentialData Error: {ex.Message}"); }
         }
 
         private void UpdateResidentialData()
@@ -155,7 +155,7 @@ namespace AdvancedTPM
                 homelessHouseholds, movedInHouseholds);
 
             _residentialBrowserData.Update(payload);
-            try { Mod.log.Info($"ResidentialBrowserSystem: summary payload len={payload?.Length ?? 0} totalUnits={lowTotal+medTotal+highTotal} occupied={lowOccupied+medOccupied+highOccupied}"); } catch { }
+            try { Mod.log?.Info($"ResidentialBrowserSystem: summary payload len={payload?.Length ?? 0} totalUnits={lowTotal+medTotal+highTotal} occupied={lowOccupied+medOccupied+highOccupied}"); } catch { }
             // Dump payload to ModsData for easy capture when debugging
             try
             {
@@ -166,10 +166,10 @@ namespace AdvancedTPM
                     if (!System.IO.Directory.Exists(md)) System.IO.Directory.CreateDirectory(md);
                     var outp = System.IO.Path.Combine(md, "residential_summary_payload.json");
                     System.IO.File.WriteAllText(outp, payload ?? "", System.Text.Encoding.UTF8);
-                    try { Mod.log.Info($"Wrote residential summary payload to {outp}"); } catch { }
+                    try { Mod.log?.Info($"Wrote residential summary payload to {outp}"); } catch { }
                 }
             }
-            catch (Exception ex) { try { Mod.log.Warn($"Failed to write residential summary payload: {ex.Message}"); } catch { } }
+            catch (Exception ex) { try { Mod.log?.Warn($"Failed to write residential summary payload: {ex.Message}"); } catch { } }
 
             // Per-building data: entityKey|address|density|level|occupied|capacity|theme|assetPack|isSignature
             UpdatePerBuildingData();
@@ -282,7 +282,7 @@ namespace AdvancedTPM
             finally { entities.Dispose(); }
 
             _residentialBuildingsData.Update(string.Join(";", parts));
-            try { if (Mod.log != null) Mod.log.Info($"ResidentialBrowserSystem: buildings payload count={parts.Count}"); } catch { }
+            try { if (Mod.log != null) Mod.log?.Info($"ResidentialBrowserSystem: buildings payload count={parts.Count}"); } catch { }
             try
             {
                 var md = AdvancedTPM.Utilities.FilePaths.GetModsDataFolder();
@@ -294,7 +294,7 @@ namespace AdvancedTPM
                     try { Mod.log.Info($"Wrote residential buildings payload to {outp}"); } catch { }
                 }
             }
-            catch (Exception ex) { try { Mod.log.Warn($"Failed to write residential buildings payload: {ex.Message}"); } catch { } }
+            catch (Exception ex) { try { Mod.log?.Warn($"Failed to write residential buildings payload: {ex.Message}"); } catch { } }
         }
 
         private void RefreshSignatureCache()
@@ -312,7 +312,6 @@ namespace AdvancedTPM
                 {
                     foreach (var ent in entities)
                     {
-                        string districtName = "City";
                         try
                         {
                             if (EntityManager.HasComponent<PrefabRef>(ent))
@@ -433,7 +432,7 @@ namespace AdvancedTPM
 
                 _residentialSignatureBuildingsData.Update(string.Join(";", signatureBuildings));
             }
-            catch (Exception ex) { try { Mod.log.Warn($"ResidentialBrowserSystem UpdateSignatureResidentialBuildings Error: {ex.Message}"); } catch { } }
+            catch (Exception ex) { try { Mod.log?.Warn($"ResidentialBrowserSystem UpdateSignatureResidentialBuildings Error: {ex.Message}"); } catch { } }
         }
     }
 }

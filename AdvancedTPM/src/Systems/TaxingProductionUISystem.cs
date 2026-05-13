@@ -27,6 +27,8 @@ namespace AdvancedTPM
         private ValueBinding<int> _advancedWindowY;
         private ValueBinding<int> _advancedWindowWidth;
         private ValueBinding<int> _advancedWindowHeight;
+        private ValueBinding<bool> _showTopLeftButton;
+        private ValueBinding<bool> _showUMMButton;
         private ValueBinding<string> _resourceRowsData;
 
         private CountCompanyDataSystem _countCompanyDataSystem;
@@ -314,6 +316,8 @@ namespace AdvancedTPM
             AddBinding(_advancedWindowY = new ValueBinding<int>("taxProduction", "advancedWindowY", settings?.AdvancedWindowY ?? 150));
             AddBinding(_advancedWindowWidth = new ValueBinding<int>("taxProduction", "advancedWindowWidth", settings?.AdvancedWindowWidth ?? 520));
             AddBinding(_advancedWindowHeight = new ValueBinding<int>("taxProduction", "advancedWindowHeight", settings?.AdvancedWindowHeight ?? 420));
+            AddBinding(_showTopLeftButton = new ValueBinding<bool>("taxProduction", "showTopLeftButton", settings?.ShowTopLeftButton ?? true));
+            AddBinding(_showUMMButton = new ValueBinding<bool>("taxProduction", "showUMMButton", settings?.ShowUMMButton ?? true));
             AddBinding(_resourceRowsData = new ValueBinding<string>("taxProduction", "resourceRowsData", SerializeRows()));
 
             AddBinding(new TriggerBinding("taxProduction", "toggleAdvancedWindow", ToggleAdvancedWindow));
@@ -342,6 +346,16 @@ namespace AdvancedTPM
             if (_showTips.value != settings.ShowTips)
             {
                 _showTips.Update(settings.ShowTips);
+            }
+
+            if (_showTopLeftButton.value != settings.ShowTopLeftButton)
+            {
+                _showTopLeftButton.Update(settings.ShowTopLeftButton);
+            }
+
+            if (_showUMMButton.value != settings.ShowUMMButton)
+            {
+                _showUMMButton.Update(settings.ShowUMMButton);
             }
 
             // Load actual game tax rates once the TaxSystem is available

@@ -112,7 +112,7 @@ namespace AdvancedTPM.Systems
     [UpdateAfter(typeof(CitizenHappinessSystem))]
     public partial class DistrictHappinessAggregationSystem : GameSystemBase
     {
-        private EntityQuery m_BuildingQuery;
+        private EntityQuery m_CitizenQuery;
         private CitySystem m_CitySystem;
         private SimulationSystem m_SimulationSystem;
 
@@ -120,18 +120,15 @@ namespace AdvancedTPM.Systems
 
         protected override void OnCreate()
         {
-            Mod.log.Info("DistrictHappinessAggregationSystem.OnCreate");
             base.OnCreate();
-
-            m_BuildingQuery = GetEntityQuery(new EntityQueryDesc
+            m_CitizenQuery = GetEntityQuery(new EntityQueryDesc
             {
-                All = new[] { ComponentType.ReadOnly<Building>(), ComponentType.ReadOnly<PrefabRef>(), ComponentType.ReadOnly<CurrentDistrict>() },
+                All = new[] { ComponentType.ReadOnly<Citizen>() },
                 None = new[] { ComponentType.ReadOnly<Deleted>(), ComponentType.ReadOnly<Temp>() }
             });
 
             m_HappinessMap = new NativeParallelHashMap<Entity, DistrictHappinessData>(100, Allocator.Persistent);
-
-            RequireForUpdate(m_BuildingQuery);
+            RequireForUpdate(m_CitizenQuery);
         }
 
         protected override void OnDestroy()
@@ -140,72 +137,58 @@ namespace AdvancedTPM.Systems
             base.OnDestroy();
         }
 
-        /// <summary>
-        /// Lightweight job that aggregates citizen wellbeing per district.
-        /// Only reads Renter buffers, HouseholdCitizen buffers, and Citizen components.
-        /// No pollution, parameter, or singleton data needed.
-        /// </summary>
+        [BurstCompile]
         private struct AggregateHappinessJob : IJobChunk
         {
-            public EntityTypeHandle m_EntityHandle;
-            [ReadOnly] public ComponentTypeHandle<CurrentDistrict> m_CurrentDistrictHandle;
-
-            [ReadOnly] public BufferLookup<Renter> m_RenterFromEntity;
-            [ReadOnly] public ComponentLookup<Citizen> m_CitizenFromEntity;
-            [ReadOnly] public BufferLookup<HouseholdCitizen> m_HouseholdCitizenFromEntity;
-
-            public Entity m_City;
+            [ReadOnly] public EntityTypeHandle m_EntityHandle;
+            [ReadOnly] public ComponentTypeHandle<Citizen> m_CitizenHandle;
+            [ReadOnly] public ComponentLookup<CurrentDistrict> m_CurrentDistrictLookup;
+            [ReadOnly] public ComponentLookup<HouseholdMember> m_HouseholdMemberLookup;
 
             public NativeStream.Writer m_DeltaWriter;
 
             public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in Unity.Burst.Intrinsics.v128 chunkEnabledMask)
             {
-                if (m_City == Entity.Null) return;
-
                 var entities = chunk.GetNativeArray(m_EntityHandle);
-                var currentDistricts = chunk.GetNativeArray(ref m_CurrentDistrictHandle);
-                bool hasDistrict = currentDistricts.Length > 0;
+                var citizens = chunk.GetNativeArray(ref m_CitizenHandle);
 
                 m_DeltaWriter.BeginForEachIndex(unfilteredChunkIndex);
 
                 for (int i = 0; i < entities.Length; i++)
                 {
-                    Entity entity = entities[i];
-                    Entity district = hasDistrict ? currentDistricts[i].m_District : Entity.Null;
+                    Entity cEnt = entities[i];
+                    Entity district = Entity.Null;
+                    if (m_CurrentDistrictLookup.TryGetComponent(cEnt, out var cd)) district = cd.m_District;
 
-                    // Aggregate wellbeing and happiness
-                    int totalWellbeing = 0;
-                    int totalHappiness = 0;
-                    int citizenCount = 0;
-                    if (m_RenterFromEntity.HasBuffer(entity))
+                    Citizen citizen = citizens[i];
+                    DistrictHappinessData data = default;
+
+                    // NOTE: Indices 0-25 map to CitizenHappinessSystem.HappinessFactor enum values.
+                    // We do NOT write fake wellbeing/happiness totals here — they don't correspond
+                    // to any factor index and caused wrong labels (e.g., wellbeing shown as "Reliable internet service").
+
+                    /*
+                    // Aggregate factors from household
+                    if (m_HouseholdMemberLookup.TryGetComponent(cEnt, out var member))
                     {
-                        var renters = m_RenterFromEntity[entity];
-                        for (int r = 0; r < renters.Length; r++)
+                        if (m_HappinessFactorLookup.HasBuffer(member.m_Household))
                         {
-                            if (m_HouseholdCitizenFromEntity.HasBuffer(renters[r].m_Renter))
+                            var factors = m_HappinessFactorLookup[member.m_Household];
+                            for (int f = 0; f < factors.Length; f++)
                             {
-                                var citizens = m_HouseholdCitizenFromEntity[renters[r].m_Renter];
-                                for (int c = 0; c < citizens.Length; c++)
+                                var factor = factors[f];
+                                // We store factors starting at index 2 (0=wellbeing, 1=happiness)
+                                int idx = (int)factor.m_Factor + 2;
+                                if (idx < 30)
                                 {
-                                    if (m_CitizenFromEntity.HasComponent(citizens[c].m_Citizen))
-                                    {
-                                        var citData = m_CitizenFromEntity[citizens[c].m_Citizen];
-                                        totalWellbeing += citData.m_WellBeing;
-                                        totalHappiness += citData.Happiness;
-                                        citizenCount++;
-                                    }
+                                    data.Add(idx, new int2(1, factor.m_Value));
                                 }
                             }
                         }
                     }
-                    
-                    if (citizenCount > 0)
-                    {
-                        DistrictHappinessData delta = default;
-                        delta.Add(0, new int2(citizenCount, totalWellbeing)); // Index 0: Wellbeing
-                        delta.Add(1, new int2(citizenCount, totalHappiness)); // Index 1: Happiness
-                        m_DeltaWriter.Write(new DistrictHappinessDelta { district = district, data = delta });
-                    }
+                    */
+
+                    m_DeltaWriter.Write(new DistrictHappinessDelta { district = district, data = data });
                 }
                 m_DeltaWriter.EndForEachIndex();
             }
@@ -224,15 +207,14 @@ namespace AdvancedTPM.Systems
                     while (m_DeltaReader.RemainingItemCount > 0)
                     {
                         var delta = m_DeltaReader.Read<DistrictHappinessDelta>();
-                        var key = delta.district;
-                        if (m_HappinessMap.TryGetValue(key, out var existing))
+                        if (m_HappinessMap.TryGetValue(delta.district, out var existing))
                         {
                             existing.Add(delta.data);
-                            m_HappinessMap[key] = existing;
+                            m_HappinessMap[delta.district] = existing;
                         }
                         else
                         {
-                            m_HappinessMap.TryAdd(key, delta.data);
+                            m_HappinessMap.TryAdd(delta.district, delta.data);
                         }
                     }
                     m_DeltaReader.EndForEachIndex();
@@ -240,36 +222,28 @@ namespace AdvancedTPM.Systems
             }
         }
 
-        private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            // Wait for simulation to stabilize before running
             if (m_SimulationSystem == null) m_SimulationSystem = World.GetExistingSystemManaged<SimulationSystem>();
-            if (m_SimulationSystem == null || m_SimulationSystem.frameIndex < 1000) return;
-            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("DistrictHappinessAggregationSystem Heartbeat");
-
             if (m_CitySystem == null) m_CitySystem = World.GetExistingSystemManaged<CitySystem>();
-            if (m_CitySystem == null || m_CitySystem.City == Entity.Null) return;
-
+            
             if (m_HappinessMap.IsCreated) m_HappinessMap.Clear();
 
-            int chunkCount = m_BuildingQuery.CalculateChunkCount();
+            int chunkCount = m_CitizenQuery.CalculateChunkCount();
             if (chunkCount == 0) return;
 
             var nativeStream = new NativeStream(chunkCount, Allocator.TempJob);
 
             var job = new AggregateHappinessJob
             {
-                m_EntityHandle = GetEntityTypeHandle(),
-                m_CurrentDistrictHandle = GetComponentTypeHandle<CurrentDistrict>(true),
-                m_RenterFromEntity = GetBufferLookup<Renter>(true),
-                m_CitizenFromEntity = GetComponentLookup<Citizen>(true),
-                m_HouseholdCitizenFromEntity = GetBufferLookup<HouseholdCitizen>(true),
-                m_City = m_CitySystem.City,
+                m_EntityHandle = SystemAPI.GetEntityTypeHandle(),
+                m_CitizenHandle = SystemAPI.GetComponentTypeHandle<Citizen>(true),
+                m_CurrentDistrictLookup = SystemAPI.GetComponentLookup<CurrentDistrict>(true),
+                m_HouseholdMemberLookup = SystemAPI.GetComponentLookup<HouseholdMember>(true),
                 m_DeltaWriter = nativeStream.AsWriter()
             };
 
-            var jobHandle = job.Schedule(m_BuildingQuery, Dependency);
+            var jobHandle = job.ScheduleParallel(m_CitizenQuery, Dependency);
 
             var accumJob = new AccumulateHappinessJob
             {

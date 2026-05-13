@@ -65,7 +65,6 @@ namespace AdvancedTPM
             updateSystem.UpdateAt<ServicesBrowserSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<DistrictBrowserSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<AdvancedTPM.Systems.DistrictHappinessAggregationSystem>(SystemUpdatePhase.GameSimulation);
-            updateSystem.UpdateAt<ModDebugSystem>(SystemUpdatePhase.UIUpdate);
 
             log.Info($"{Name} loaded successfully");
 

@@ -592,6 +592,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
   const focusEntity = (c: CompanyVm) => {
     const entity: Entity = { index: c.entityIndex, version: c.entityVersion };
     trigger('camera', 'focusEntity', entity);
+    trigger('selectedInfo', 'selectEntity', entity);
   };
 
   const sortIndicator = (field: SortField) =>

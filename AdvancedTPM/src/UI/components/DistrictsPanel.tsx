@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { parseCompanies } from './CompanyBrowser';
 import apiSafe from '../../mods/apiSafe';
+import { gameHappinessFactors$, type GameFactor } from '../../mods/bindings';
 import './DistrictsPanel.css';
 
 interface Props {
@@ -26,11 +27,12 @@ interface DistrictRow {
   residents: number; children: number; teens: number; adults: number; seniors: number;
   eduUneducated: number; eduPoorlyEducated: number; eduEducated: number; eduWellEducated: number; eduHighlyEducated: number;
   workerUneducated?: number; workerPoorlyEducated?: number; workerEducated?: number; workerWellEducated?: number; workerHighlyEducated?: number;
+  workerUneducatedMax?: number; workerPoorlyEducatedMax?: number; workerEducatedMax?: number; workerWellEducatedMax?: number; workerHighlyEducatedMax?: number;
   localServices: number;
   assignedServices: number;
   profitability: number;
-  dogs: number; upkeep: number; resourceCost: number; feesPaid: number;
-  sick: number; students: number; totalCrime: number; homeless: number;
+  pets: number; upkeep: number; resourceCost: number; feesPaid: number;
+  sick: number; students: number; totalCrime: number; homeless: number; tourists: number;
   happinessFactors: number[][];
   
   // InfoLoom
@@ -59,7 +61,35 @@ interface DistrictRow {
   uniEligible?: number;
   serviceMask?: number;
   area?: number;
+  deceased?: number;
+  movingAway?: number;
+  // Authoritative city-wide stats from CountHouseholdDataSystem
+  gameAllCitizens?: number;
+  gameTourists?: number;
+  gameCommuters?: number;
+  gameMovingAway?: number;
+  gameEmployees?: number;
 }
+
+
+interface DashboardCardConfig {
+  id: string;
+  visible: boolean;
+  order: number;
+  title: string;
+  icon: string;
+}
+
+const DEFAULT_LAYOUT: DashboardCardConfig[] = [
+  { id: 'worker', visible: true, order: 0, title: 'Education Levels', icon: 'Workers.svg' },
+  { id: 'property', visible: true, order: 1, title: 'Properties', icon: 'Zoning.svg' },
+  { id: 'demographic', visible: true, order: 2, title: 'Demographics', icon: 'Population.svg' },
+  { id: 'household', visible: true, order: 3, title: 'Households', icon: 'Household.svg' },
+  { id: 'school', visible: true, order: 4, title: 'School Data', icon: 'Education.svg' },
+  { id: 'health', visible: true, order: 5, title: 'Health & Value', icon: 'Healthcare.svg' },
+  { id: 'happiness', visible: true, order: 6, title: 'Happiness Factors', icon: 'Citizen.svg' },
+  { id: 'policies', visible: true, order: 7, title: 'Policies', icon: 'Zoning.svg' },
+];
 
 const ICON = 'Media/Game/Icons/';
 const CUR = `${ICON}Economy.svg`;
@@ -76,21 +106,41 @@ const happinessInfo = (h: number) => {
   return { label: 'Miserable', color: '#e05050' };
 };
 
-const HAPPINESS_FACTORS = [
-  "Reliable internet service", "High crime risk", "Air pollution", "Spacious homes", "Reliable electricity", 
-  "Reliable healthcare coverage", "Ground pollution", "High noise pollution", "Reliable water supply", 
-  "Water pollution", "Reliable sewage backup", "Garbage buildup", "Abundance of entertainment", 
-  "Walking distance to school", "Reliable mail service", "Welfare", "Abundance of leisure time", 
-  "Fair taxes", "Proximity effects", "Consumption", "Traffic jams", "Recent deaths", "Homelessness", 
-  "Electricity fee", "Water fee", "Small homes", "Unemployment", "Poor social security", 
-  "Service upgrades", "Wealth"
-];
+const HAPPINESS_FACTORS: Record<number, string> = {
+  0:  "Reliable internet service",  // Telecom
+  1:  "High crime risk",             // Crime
+  2:  "Air pollution",               // AirPollution
+  3:  "Apartment size",              // Apartment
+  4:  "Reliable electricity",        // Electricity
+  5:  "Reliable healthcare coverage",// Healthcare
+  6:  "Ground pollution",            // GroundPollution
+  7:  "High noise pollution",        // NoisePollution
+  8:  "Reliable water supply",       // Water
+  9:  "Water pollution",             // WaterPollution
+  10: "Reliable sewage backup",      // Sewage
+  11: "Garbage buildup",             // Garbage
+  12: "Abundance of entertainment",  // Entertainment
+  13: "Education coverage",          // Education
+  14: "Reliable mail service",       // Mail
+  15: "Welfare",                     // Welfare
+  16: "Abundance of leisure time",   // Leisure
+  17: "High taxes",                  // Tax
+  18: "Proximity effects",           // Buildings
+  19: "Consumption",                 // Consumption
+  20: "Traffic jams",                // TrafficPenalty
+  21: "Recent deaths",               // DeathPenalty
+  22: "Homelessness",                // Homelessness
+  23: "Electricity fee",             // ElectricityFee
+  24: "Water fee",                   // WaterFee
+  25: "Unemployment",                // Unemployment
+};
 
 const wealthLabel = (w: number) => {
-  if (w >= 10000) return 'Wealthy';
-  if (w >= 5000) return 'Comfortable';
-  if (w >= 1000) return 'Moderate';
-  return 'Poor';
+  if (w >= 15000) return { label: 'Wealthy', color: '#8bdb46' };
+  if (w >= 5000) return { label: 'Comfortable', color: '#b8d946' };
+  if (w >= 1000) return { label: 'Moderate', color: '#fff176' };
+  if (w >= 0) return { label: 'Poor', color: '#ffb74d' };
+  return { label: 'Wretched', color: '#e57373' };
 };
 
 const getServicesFromMask = (mask: number) => {
@@ -111,9 +161,12 @@ const calcAvail = (cap: number, enrolled: number) => {
   return { text: `${val > 0 ? '+' : ''}${val.toFixed(0)}%`, color: val >= 10 ? '#8bdb46' : (val > 0 ? '#b8d946' : '#e57373') };
 };
 
-const StatRow = ({ label, val, style }: { label: string; val: string | number; style?: React.CSSProperties }) => (
+const StatRow = ({ label, val, style, rawKey, showRaw }: { label: string; val: string | number; style?: React.CSSProperties; rawKey?: string; showRaw?: boolean }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12rem', fontSize: '13rem', padding: '1rem 0', color: 'rgba(255,255,255,0.85)', ...style }}>
-    <span style={{ opacity: 0.7 }}>{label}</span>
+    <span style={{ opacity: 0.7 }}>
+      {label}
+      {showRaw && rawKey && <span className="dp-raw-key">({rawKey})</span>}
+    </span>
     <span style={{ fontWeight: 600 }}>{val}</span>
   </div>
 );
@@ -132,8 +185,85 @@ export const DistrictsPanel: React.FC<Props> = ({
   const [editingName, setEditingName] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [lockedTooltip, setLockedTooltip] = useState<string | null>(null);
   const [sortField, setSortField] = useState<DistrictSortField>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const dragSource = useRef<string | null>(null);
+
+  const handleMove = (id: string, dir: number, swapWithId?: string) => {
+    setDashboardLayout(prev => {
+      const newList = [...prev];
+      const sIdx = newList.findIndex(c => c.id === id);
+      
+      if (swapWithId) {
+        const tIdx = newList.findIndex(c => c.id === swapWithId);
+        const tempOrder = newList[sIdx].order;
+        newList[sIdx].order = newList[tIdx].order;
+        newList[tIdx].order = tempOrder;
+        return newList;
+      }
+
+      if (dir === -100) {
+        // Move to absolute top
+        const sorted = [...prev].sort((a,b) => a.order - b.order);
+        newList[sIdx].order = sorted[0].order - 1;
+        return newList;
+      }
+
+      if (dir === 100) {
+        // Move to absolute bottom
+        const sorted = [...prev].sort((a,b) => a.order - b.order);
+        newList[sIdx].order = sorted[sorted.length - 1].order + 1;
+        return newList;
+      }
+
+      const sorted = [...prev].sort((a, b) => a.order - b.order);
+      const curPos = sorted.findIndex(c => c.id === id);
+      const targetPos = curPos + dir;
+      if (targetPos < 0 || targetPos >= sorted.length) return prev;
+
+      const tIdx = newList.findIndex(c => c.id === sorted[targetPos].id);
+      const tempOrder = newList[sIdx].order;
+      newList[sIdx].order = newList[tIdx].order;
+      newList[tIdx].order = tempOrder;
+      return newList;
+    });
+  };
+
+  // Dashboard State
+  const [dashboardLayout, setDashboardLayout] = useState<DashboardCardConfig[]>(() => {
+    try {
+      const saved = localStorage.getItem('advtpm_district_layout');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Merge logic: Take defaults, but override with saved state for matching IDs
+          return DEFAULT_LAYOUT.map(def => {
+            const savedCard = parsed.find(p => p.id === def.id);
+            return savedCard ? { ...def, ...savedCard } : def;
+          });
+        }
+      }
+    } catch {}
+    return DEFAULT_LAYOUT;
+  });
+  const [showRawData, setShowRawData] = useState(() => localStorage.getItem('advtpm_show_raw') === 'true');
+  const [compactMode, setCompactMode] = useState(() => localStorage.getItem('advtpm_compact') === 'true');
+  const [showSettings, setShowSettings] = useState(false);
+
+  React.useEffect(() => { localStorage.setItem('advtpm_district_layout', JSON.stringify(dashboardLayout)); }, [dashboardLayout]);
+  React.useEffect(() => { localStorage.setItem('advtpm_show_raw', showRawData.toString()); }, [showRawData]);
+  React.useEffect(() => { localStorage.setItem('advtpm_compact', compactMode.toString()); }, [compactMode]);
+
+  React.useEffect(() => {
+    const handleGlobalMouseUp = () => { dragSource.current = null; };
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, []);
+
+  // Game's authoritative city-wide happiness factors (same as Demographics right panel)
+  const gameHappinessFactors = apiSafe.useValue<GameFactor[]>(gameHappinessFactors$) ?? [];
 
   const focusEntity = (ek: string) => {
     if (!ek) return;
@@ -148,14 +278,11 @@ export const DistrictsPanel: React.FC<Props> = ({
 
 
   const handleJump = (dk: string | null) => {
-    if (dk) {
-      if (dk !== 'city') {
-        const p = dk.split(',');
-        const idx = parseInt(p[0]) || 0;
-        const ver = parseInt(p[1]) || 0;
-        apiSafe.trigger('camera', 'focusEntity', { index: idx, version: ver });
-        apiSafe.trigger('selection', 'focusEntity', { index: idx, version: ver });
-      }
+    if (dk && dk !== 'city') {
+      const p = dk.split(',');
+      const entity = { index: parseInt(p[0]) || 0, version: parseInt(p[1]) || 0 };
+      apiSafe.trigger('camera', 'focusEntity', entity);
+      apiSafe.trigger('selectedInfo', 'selectEntity', entity);
     }
   };
 
@@ -170,8 +297,8 @@ export const DistrictsPanel: React.FC<Props> = ({
         activePolicies: [], isCity: k === 'City', cityName: k, households: 0, householdCap: 0, workers: 0, maxWorkers: 0, 
         avgWealth: 0, avgIncome: 0, avgRent: 0, avgHappiness: 0, residents: 0, children: 0, teens: 0, adults: 0, seniors: 0, 
         eduUneducated: 0, eduPoorlyEducated: 0, eduEducated: 0, eduWellEducated: 0, eduHighlyEducated: 0, 
-        localServices: 0, assignedServices: 0, profitability: 0, dogs: 0, upkeep: 0, resourceCost: 0, feesPaid: 0, 
-        sick: 0, students: 0, totalCrime: 0, homeless: 0, happinessFactors: [],
+        localServices: 0, assignedServices: 0, profitability: 0, pets: 0, upkeep: 0, resourceCost: 0, feesPaid: 0, 
+        sick: 0, students: 0, totalCrime: 0, homeless: 0, tourists: 0, happinessFactors: [],
         elemCapacity: 0, elemEnrolled: 0, hsCapacity: 0, hsEnrolled: 0, collegeCapacity: 0, collegeEnrolled: 0, uniCapacity: 0, uniEnrolled: 0,
         elemEligible: 0, hsEligible: 0, collegeEligible: 0, uniEligible: 0
       });
@@ -192,14 +319,21 @@ export const DistrictsPanel: React.FC<Props> = ({
       d.resTotal = (a.resProp || 0) + (a.mixedProp || 0);
       d.services = a.svc || 0; d.businesses = a.biz || 0;
       d.residents = a.residents || 0;
+      d.tourists = a.tourists || 0;
       d.children = a.children || 0; d.teens = a.teens || 0; d.adults = a.adults || 0; d.seniors = a.seniors || 0;
       d.eduUneducated = a.eduUneducated || 0; d.eduPoorlyEducated = a.eduPoorlyEducated || 0;
       d.eduEducated = a.eduEducated || 0; d.eduWellEducated = a.eduWellEducated || 0; d.eduHighlyEducated = a.eduHighlyEducated || 0;
       d.localServices = a.localServices || 0;
       d.assignedServices = a.assignedServices || 0;
       d.profitability = a.profitability || 0;
-      d.dogs = a.dogs || 0; d.upkeep = a.upkeep || 0; d.resourceCost = a.resourceCost || 0; d.feesPaid = a.feesPaid || 0;
+      d.pets = a.pets || 0; d.upkeep = a.upkeep || 0; d.resourceCost = a.resourceCost || 0; d.feesPaid = a.feesPaid || 0;
       d.sick = a.sick || 0; d.students = a.students || 0; d.totalCrime = a.totalCrime || 0; d.homeless = a.homeless || 0;
+      d.deceased = a.deceased || 0; d.movingAway = a.movingAway || 0;
+      d.gameAllCitizens = a.gameAllCitizens || 0;
+      d.gameTourists = a.gameTourists || 0;
+      d.gameCommuters = a.gameCommuters || 0;
+      d.gameMovingAway = a.gameMovingAway || 0;
+      d.gameEmployees = a.gameEmployees || 0;
       d.happinessFactors = a.happinessFactors || [];
       
       d.propertyCount = a.propertyCount || 0;
@@ -219,6 +353,11 @@ export const DistrictsPanel: React.FC<Props> = ({
       d.workerEducated = a.workerEducated || 0;
       d.workerWellEducated = a.workerWellEducated || 0;
       d.workerHighlyEducated = a.workerHighlyEducated || 0;
+      d.workerUneducatedMax = a.workerUneducatedMax || 0;
+      d.workerPoorlyEducatedMax = a.workerPoorlyEducatedMax || 0;
+      d.workerEducatedMax = a.workerEducatedMax || 0;
+      d.workerWellEducatedMax = a.workerWellEducatedMax || 0;
+      d.workerHighlyEducatedMax = a.workerHighlyEducatedMax || 0;
       d.elemCapacity = a.elemCapacity || 0;
       d.hsCapacity = a.hsCapacity || 0;
       d.collegeCapacity = a.collegeCapacity || 0;
@@ -341,28 +480,73 @@ export const DistrictsPanel: React.FC<Props> = ({
 
   return (
     <div className="dp-container">
-      <div className="tab-buttons">
-          <button className={`tab-btn ${activeTab === 'Residential' ? 'active' : ''}`} onClick={() => apiSafe.trigger('taxProduction', 'setActiveTab', 'Residential')}>RESIDENTIAL</button>
-          <button className={`tab-btn ${activeTab === 'Services' ? 'active' : ''}`} onClick={() => apiSafe.trigger('taxProduction', 'setActiveTab', 'Services')}>SERVICES</button>
-          <button className={`tab-btn ${activeTab === 'Companies' ? 'active' : ''}`} onClick={() => apiSafe.trigger('taxProduction', 'setActiveTab', 'Companies')}>COMPANIES</button>
-          <button className={`tab-btn ${activeTab === 'Districts' ? 'active' : ''}`} onClick={() => apiSafe.trigger('taxProduction', 'setActiveTab', 'Districts')}>DISTRICTS</button>
-          <button className={`tab-btn debug-toggle ${showDebug ? 'active' : ''}`} onClick={onToggleDebug}>DEBUG</button>
-      </div>
+      <div className="tab-buttons" style={{ position: 'relative', height: '40rem', background: 'transparent', borderBottom: 'none' }}>
+          <button className={`adv-settings-btn ${showSettings ? 'adv-settings-btn-active' : ''}`} 
+                  onClick={() => setShowSettings(!showSettings)} 
+                  style={{ position: 'absolute', right: '19rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.05)' }} 
+                  title="Layout Settings">
+            <svg className="adv-settings-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/>
+            </svg>
+          </button>
+            {showSettings && (
+              <div className="dp-settings-menu">
+                <div className="dp-settings-title">
+                  <span>Layout Settings</span>
+                  <span style={{ cursor: 'pointer', opacity: 0.5 }} onClick={() => setShowSettings(false)}>X</span>
+                </div>
+                <div className="dp-settings-group">
+                  <div className="dp-settings-label">Global Options</div>
+                  <div className="dp-settings-item">
+                    <span>Compact Mode</span>
+                    <div className={`dp-settings-toggle ${compactMode ? 'active' : ''}`} onClick={() => setCompactMode(!compactMode)}>
+                      <div className="dp-settings-toggle-dot" />
+                    </div>
+                  </div>
+                  <div className="dp-settings-item">
+                    <span>Show Raw Data (Keys)</span>
+                    <div className={`dp-settings-toggle ${showRawData ? 'active' : ''}`} onClick={() => setShowRawData(!showRawData)}>
+                      <div className="dp-settings-toggle-dot" />
+                    </div>
+                  </div>
+                </div>
+                <div className="dp-settings-group">
+                  <div className="dp-settings-label">Card Visibility</div>
+                  {dashboardLayout.sort((a,b) => a.order - b.order).map(card => (
+                    <div key={card.id} className="dp-settings-item">
+                      <span>{card.title}</span>
+                      <div className={`dp-settings-toggle ${card.visible ? 'active' : ''}`} onClick={() => {
+                        setDashboardLayout(prev => prev.map(c => c.id === card.id ? { ...c, visible: !c.visible } : c));
+                      }}>
+                        <div className="dp-settings-toggle-dot" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button className="dp-settings-reset" onClick={() => {
+                  setDashboardLayout(DEFAULT_LAYOUT);
+                  setCompactMode(false);
+                  setShowRawData(false);
+                  localStorage.removeItem('advtpm_district_layout');
+                }}>RESET TO DEFAULT</button>
+              </div>
+            )}
+          </div>
       <div className="dp-header">
-        <div className="dp-col-exp" />
-        <SortHdr field="name" label="District Name" className="dp-col-name" />
-        <SortHdr field="residential" label="Res (Pure)" className="dp-col-count" />
-        <SortHdr field="mixed" label="Mixed" className="dp-col-count" />
-        <SortHdr field="resTotal" label="Res Total" className="dp-col-count" />
-        <SortHdr field="services" label="Svc Bldgs" className="dp-col-count" />
-        <SortHdr field="businesses" label="Biz Bldgs" className="dp-col-count" />
-        <SortHdr field="residents" label="Residents" className="dp-col-count" />
-        <SortHdr field="workers" label="Employees" className="dp-col-count" />
-        <SortHdr field="policies" label="Policies" className="dp-col-policies" />
+        <div className="dp-col-exp"></div>
+        <div className="dp-col-name" onClick={() => handleSort('name')}>District Name {sortField === 'name' && (sortDir === 'asc' ? 'A' : 'V')}</div>
+        <div className="dp-col-count" onClick={() => handleSort('residential')}>Res (Pure)</div>
+        <div className="dp-col-count" onClick={() => handleSort('mixed')}>Mixed</div>
+        <div className="dp-col-count" onClick={() => handleSort('resTotal')}>Res Total</div>
+        <div className="dp-col-count" onClick={() => handleSort('services')}>Svc Bldgs</div>
+        <div className="dp-col-count" onClick={() => handleSort('businesses')}>Biz Bldgs</div>
+        <div className="dp-col-count" onClick={() => handleSort('residents')}>Residents</div>
+        <div className="dp-col-count" onClick={() => handleSort('workers')}>Employees</div>
+        <div className="dp-col-policies" onClick={() => handleSort('policies')}>Policies</div>
         <div className="dp-col-go">Go</div>
       </div>
       <div className="dp-body-wrapper" style={{ flex: 1, position: 'relative', display: 'flex', overflow: 'hidden' }}>
-        <div className="dp-body" ref={scrollRef} onScroll={updateScroll} style={{ flex: 1, overflowY: 'scroll', overflowX: 'hidden' }}>
+        <div className="dp-body" ref={scrollRef} onScroll={updateScroll} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           {rows.map(r => {
           const hI = happinessInfo(r.avgHappiness);
           const isExp = expandedRow === r.name;
@@ -400,7 +584,7 @@ export const DistrictsPanel: React.FC<Props> = ({
                   </div>
                 </div>
                 <div className="dp-col-go">
-                  {r.entityKey && <button className="dp-go-btn" onClick={e => { e.stopPropagation(); handleJump(r.entityKey!); }}>GO</button>}
+                  {r.entityKey && !r.isCity && <button className="dp-go-btn" onClick={e => { e.stopPropagation(); handleJump(r.entityKey!); }}>GO</button>}
                 </div>
               </div>
 
@@ -426,303 +610,240 @@ export const DistrictsPanel: React.FC<Props> = ({
                     )}
                   </div>
 
-                  {/* Row 1: Core Summary (Properties, Level, Size, Pop, Density) */}
-                  <div className="dp-stats-grid">
-                    <div className="dp-stat-card dp-stat-card-tooltip">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Zoning.svg`} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Properties</div>
-                        <div className="dp-stat-value">{fmt((r.resProp || 0) + (r.comProp || 0) + (r.indProp || 0) + (r.offProp || 0) + (r.storProp || 0) + (r.mixedProp || 0))}</div>
-                      </div>
-                      <div className="dp-tooltip-content" style={{ width: 'max-content', minWidth: '180rem' }}>
-                        <div style={{ marginBottom: '6rem', fontWeight: 700, color: '#50b8e9', fontSize: '14rem' }}>Property Breakdown</div>
-                        <StatRow label="Res (Pure)" val={fmt(r.resProp || 0)} />
-                        {(r.mixedProp || 0) > 0 && <StatRow label="Mixed Housing" val={fmt(r.mixedProp || 0)} style={{ paddingLeft: '15rem', opacity: 0.9, fontSize: '13rem' }} />}
-                        <StatRow label="Total Res" val={fmt((r.resProp || 0) + (r.mixedProp || 0))} style={{ fontWeight: 'bold', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '2rem', paddingTop: '2rem' }} />
-                        <div style={{ height: '4rem' }} />
-                        <StatRow label="Commercial" val={fmt(r.comProp || 0)} />
-                        <StatRow label="Industrial" val={fmt(r.indProp || 0)} />
-                        <StatRow label="Office" val={fmt(r.offProp || 0)} />
-                        <StatRow label="Storage" val={fmt(r.storProp || 0)} />
+                  {/* City-Wide Authoritative Stats (from CountHouseholdDataSystem) */}
+                  {r.isCity && (r.gameAllCitizens || 0) > 0 && (
+                    <div style={{ margin: '0 0 15rem', padding: '10rem 15rem', background: 'rgba(80,184,233,0.08)', border: '1px solid rgba(80,184,233,0.2)', borderRadius: '6rem' }}>
+                      <div style={{ fontSize: '11rem', color: '#50b8e9', marginBottom: '8rem', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' }}>City-Wide Snapshot <span style={{ opacity: 0.5, fontWeight: 400 }}>(Game Authoritative)</span></div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                        <StatRow label="All Citizens" val={fmt(r.gameAllCitizens || 0)} showRaw={showRawData} rawKey="gameAllCitizens" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                        <StatRow label="Residents" val={fmt(r.residents)} showRaw={showRawData} rawKey="residents" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', color: '#8bdb46', width: '180rem' }} />
+                        <StatRow label="Employees" val={fmt(r.gameEmployees || 0)} showRaw={showRawData} rawKey="gameEmployees" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                        <StatRow label="Students" val={fmt(r.students || 0)} showRaw={showRawData} rawKey="students" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                        <StatRow label="Moving Away" val={fmt(r.gameMovingAway || 0)} showRaw={showRawData} rawKey="gameMovingAway" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                        <StatRow label="Homeless" val={fmt(r.homeless || 0)} showRaw={showRawData} rawKey="homeless" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                        <StatRow label="Tourists" val={fmt(r.gameTourists || 0)} showRaw={showRawData} rawKey="gameTourists" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                        <StatRow label="Commuters" val={fmt(r.gameCommuters || 0)} showRaw={showRawData} rawKey="gameCommuters" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
                       </div>
                     </div>
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Upkeep.svg`} className="dp-stat-icon" alt="" /></div>
+                  )}
+
+                  {/* District Summary Bar */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '15rem', padding: '10rem 15rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginRight: '30rem', padding: '6rem 0' }}>
+                      <img src={`${ICON}Population.svg`} style={{ width: '28rem', opacity: 0.3, marginRight: '10rem' }} alt="" />
                       <div>
-                        <div className="dp-stat-label">Avg Level</div>
-                        <div className="dp-stat-value">{(r.buildingLevelSamples ? (r.buildingLevelSum! / r.buildingLevelSamples).toFixed(1) : 0)}</div>
+                        <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase' }}>Population</div>
+                        <div style={{ fontSize: '16rem', fontWeight: 900 }}>{fmt(r.residents)}</div>
+                        {r.pets > 0 && <div style={{ fontSize: '9rem', color: '#ffb74d' }}>Pets: {fmt(r.pets)}</div>}
                       </div>
                     </div>
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Districts.svg`} className="dp-stat-icon" alt="" /></div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginRight: '30rem', padding: '6rem 0' }}>
+                      <img src={`${ICON}WorkplaceAvailability.svg`} style={{ width: '28rem', opacity: 0.3, marginRight: '10rem' }} alt="" />
                       <div>
-                        <div className="dp-stat-label">Size</div>
-                        <div className="dp-stat-value">{r.area ? (r.area / 1000000).toFixed(1) : 0} km²</div>
+                        <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase' }}>Avg Level</div>
+                        <div style={{ fontSize: '16rem', fontWeight: 900 }}>{r.buildingLevelSamples ? (r.buildingLevelSum! / r.buildingLevelSamples).toFixed(1) : '0.0'}</div>
                       </div>
                     </div>
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Population.svg`} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Population</div>
-                        <div className="dp-stat-value">{fmt(r.residents)}</div>
-                        <div style={{ display: 'flex', gap: '8rem', marginTop: '2rem' }}>
-                          {r.dogs > 0 && <div style={{ fontSize: '13rem', color: '#ffb74d' }}>Pets: {fmt(r.dogs)}</div>}
-                          {r.homeless > 0 && <div style={{ fontSize: '13rem', color: '#e57373' }}>Homeless: {fmt(r.homeless)}</div>}
-                        </div>
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginRight: '20rem', padding: '6rem 0' }}>
+                      <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>HAPPY</div>
+                      <div style={{ fontSize: '13rem', fontWeight: 800, color: happinessInfo(r.avgHappiness).color }}>{happinessInfo(r.avgHappiness).label} {Math.round(r.avgHappiness)}%</div>
                     </div>
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Population.svg`} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Density</div>
-                        <div className="dp-stat-value">{r.area && r.area > 0 ? fmt(Math.round(r.residents / (r.area / 1000000))) : 0} /km²</div>
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginRight: '20rem', padding: '6rem 0' }}>
+                      <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>WEALTH</div>
+                      <div style={{ fontSize: '13rem', fontWeight: 800, color: wealthLabel(r.avgWealth).color }}>{wealthLabel(r.avgWealth).label}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginRight: '20rem', padding: '6rem 0' }}>
+                      <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>INCOME</div>
+                      <div style={{ fontSize: '13rem', fontWeight: 800 }}>{fmt(r.avgIncome)}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '6rem 0' }}>
+                      <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>RENT</div>
+                      <div style={{ fontSize: '13rem', fontWeight: 800 }}>{fmt(r.avgRent)}</div>
                     </div>
                   </div>
 
-                  <div className="dp-stats-grid">
-                    <div className="dp-stat-card dp-stat-card-tooltip">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Citizen.svg`} className="dp-stat-icon" alt="" style={{ filter: `drop-shadow(0 0 3rem ${hI.color})` }} /></div>
-                      <div>
-                        <div className="dp-stat-label">{r.isCity ? 'Authoritative Happiness' : 'District Happiness'}</div>
-                        <div className="dp-happiness-status">
-                          <span className="dp-happiness-text" style={{ color: hI.color }}>{hI.label}</span>
-                          <span className="dp-happiness-pct">{r.avgHappiness}%</span>
-                        </div>
-                      </div>
-                      <div className="dp-tooltip-content">
-                        <div style={{ marginBottom: '6rem', fontWeight: 700, color: hI.color, fontSize: '14rem' }}>{hI.label}</div>
-                        <div>Aggregated wellbeing from all district residents.</div>
-                        <div style={{ marginTop: '6rem', fontSize: '11rem', color: 'rgba(255,255,255,0.6)' }}>
-                          This metric reflects the authoritative internal simulation state (Wellbeing component).
-                        </div>
-                      </div>
-                    </div>
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={CUR} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Avg Wealth</div>
-                        <div className="dp-stat-value" style={{ color: '#8bdb46' }}>
-                          {wealthLabel(r.avgWealth)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={CUR} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Avg Income</div>
-                        <div className="dp-stat-value"><img src={CUR} className="dp-currency-icon" alt="" />{fmt(r.avgIncome)}</div>
-                      </div>
-                    </div>
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={CUR} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Avg Rent</div>
-                        <div className="dp-stat-value"><img src={CUR} className="dp-currency-icon" alt="" />{fmt(r.avgRent)}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="dp-stats-grid dp-side-by-side">
-                    <div className="dp-stat-card dp-stat-card-wide" style={{ flex: 1, minWidth: '0' }}>
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Population.svg`} className="dp-stat-icon" alt="" /></div>
-                      <div style={{ flex: 1 }}>
-                        <div className="dp-stat-label">Demographics</div>
-                        <MiniBar items={[
-                          { label: 'Children', value: r.children, color: '#64b5f6' },
-                          { label: 'Teens', value: r.teens, color: '#4dd0e1' },
-                          { label: 'Adults', value: r.adults, color: '#81c784' },
-                          { label: 'Seniors', value: r.seniors, color: '#ffb74d' },
-                        ]} />
-                        <div style={{ marginTop: '4rem', fontSize: '11rem', color: 'rgba(255,255,255,0.4)' }}>
-                          Sustainability Ratio: {(r.seniors > 0 ? (r.workers / r.seniors).toFixed(1) : '∞')} (Workers/Pensioners)
-                        </div>
-                      </div>
-                    </div>
-                    <div className="dp-stat-card dp-stat-card-wide" style={{ flex: 1, minWidth: '0' }}>
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Education.svg`} className="dp-stat-icon" alt="" /></div>
-                      <div style={{ flex: 1 }}>
-                        <div className="dp-stat-label">Education</div>
-                        <MiniBar items={[
-                          { label: 'Uneducated', value: r.eduUneducated, color: '#e57373' },
-                          { label: 'Poorly Educated', value: r.eduPoorlyEducated, color: '#ffb74d' },
-                          { label: 'Educated', value: r.eduEducated, color: '#fff176' },
-                          { label: 'Well Educated', value: r.eduWellEducated, color: '#81c784' },
-                          { label: 'Highly Educated', value: r.eduHighlyEducated, color: '#64b5f6' },
-                        ]} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="dp-stats-grid">
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Household.svg`} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Households</div>
-                        <div className="dp-stat-value">{fmt(r.households)} / {fmt(r.householdCap)}</div>
-                      </div>
-                    </div>
-                    <div className="dp-stat-card dp-stat-card-tooltip">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Workers.svg`} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Employees</div>
-                        <div className="dp-stat-value">{fmt(r.workers)} / {fmt(r.maxWorkers)}</div>
-                      </div>
-                      <div className="dp-tooltip-content" style={{ width: 'auto', minWidth: '220rem' }}>
-                        <div style={{ marginBottom: '6rem', fontWeight: 700, color: '#50b8e9', fontSize: '14rem' }}>Employee Demographics</div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}><span>Uneducated:</span><span>{fmt(r.workerUneducated || 0)}</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}><span>Poorly Educated:</span><span>{fmt(r.workerPoorlyEducated || 0)}</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}><span>Educated:</span><span>{fmt(r.workerEducated || 0)}</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}><span>Well Educated:</span><span>{fmt(r.workerWellEducated || 0)}</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6rem' }}><span>Highly Educated:</span><span>{fmt(r.workerHighlyEducated || 0)}</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffb74d', fontWeight: 'bold' }}><span>Open Positions:</span><span>{fmt(Math.max(0, (r.maxWorkers || 0) - (r.workers || 0)))}</span></div>
-                        <div style={{ marginTop: '8rem', fontSize: '11rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.3 }}>
-                          The maximum number of employees in a building is determined by the building's type, size, and zone density.<br/><br/>
-                          Open workplaces get filled whenever there are citizens with matching education.
-                        </div>
-                      </div>
-                    </div>
-                    {/* Local Services */}
-                    <div className="dp-stat-card dp-stat-card-tooltip">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Services.svg`} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Services</div>
-                        <div className="dp-stat-value">
-                          <span title="Service buildings inside this district">{fmt(r.services)} Local</span> / <span title="Total services available (local + assigned from outside)" style={{color: '#50b8e9'}}>{fmt(r.services + r.localServices)} Total</span>
-                        </div>
-                      </div>
-                      <div className="dp-tooltip-content" style={{ width: 'auto', minWidth: '160rem' }}>
-                        <div style={{ marginBottom: '6rem', fontWeight: 700, color: '#50b8e9', fontSize: '14rem' }}>Available Services</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem', fontSize: '13rem', color: 'rgba(255,255,255,0.9)' }}>
-                          {r.serviceMask ? getServicesFromMask(r.serviceMask).map(s => <div key={s}>{s}</div>) : 'None'}
-                        </div>
-                      </div>
-                    </div>
-                    {/* Upkeep */}
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={CUR} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Upkeep</div>
-                        <div className="dp-stat-value"><img src={CUR} className="dp-currency-icon" alt="" />{fmt(r.upkeep)}</div>
-                      </div>
-                    </div>
-                    {/* Resource Cost */}
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={CUR} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Resource Cost</div>
-                        <div className="dp-stat-value"><img src={CUR} className="dp-currency-icon" alt="" />{fmt(r.resourceCost)}</div>
-                      </div>
-                    </div>
-                    {/* Fees Paid */}
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={CUR} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Fees Paid</div>
-                        <div className="dp-stat-value"><img src={CUR} className="dp-currency-icon" alt="" />{fmt(r.feesPaid)}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Row 4.5: Health & Land Value */}
-                  <div className="dp-stats-grid">
-                    {/* Health & Safety */}
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={`${ICON}Healthcare.svg`} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Health/Safety</div>
-                        <div className="dp-stat-value" style={{ color: r.sick > 0 ? '#e57373' : '#81c784' }}>
-                          {r.sick > 0 ? `${fmt(r.sick)} Sick` : 'Healthy'}
-                        </div>
-                        {r.totalCrime > 0 && <div style={{ fontSize: '13rem', color: '#ffb74d', marginTop: '2rem' }}>Crime: {fmt(Math.round(r.totalCrime / 100))}</div>}
-                      </div>
-                    </div>
-                    {/* Land Value */}
-                    <div className="dp-stat-card">
-                      <div className="dp-stat-icon-wrap"><img src={CUR} className="dp-stat-icon" alt="" /></div>
-                      <div>
-                        <div className="dp-stat-label">Land Value</div>
-                        <div className="dp-stat-value"><img src={CUR} className="dp-currency-icon" alt="" />{r.landValueSamples ? fmt(r.totalLandValue! / r.landValueSamples) : 0}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Row 5: School Data */}
-                  <div className="dp-stats-grid">
-                    <div className="dp-stat-card dp-stat-card-wide" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '14rem 18rem', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', flex: 1 }}>
-                      <div className="dp-stat-label" style={{ marginBottom: '10rem', color: '#fff' }}>School Data</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', fontSize: '14rem' }}>
-                        <div style={{ display: 'flex', marginBottom: '6rem', color: 'rgba(255,255,255,0.6)', fontWeight: 'bold', width: '100%' }}>
-                          <div style={{ width: '120rem', flexShrink: 0 }}>Level</div>
-                          <div style={{ width: '90rem', textAlign: 'right', flexShrink: 0 }}>Enrolled</div>
-                          <div style={{ width: '90rem', textAlign: 'right', flexShrink: 0 }}>Capacity</div>
-                          <div style={{ width: '90rem', textAlign: 'right', flexShrink: 0 }}>Eligible</div>
-                          <div style={{ width: '100rem', textAlign: 'right', flexShrink: 0 }}>Availability</div>
-                        </div>
-                        {[
-                          { label: 'Elementary', cap: r.elemCapacity, enr: r.elemEnrolled, elig: r.elemEligible },
-                          { label: 'High School', cap: r.hsCapacity, enr: r.hsEnrolled, elig: r.hsEligible },
-                          { label: 'College', cap: r.collegeCapacity, enr: r.collegeEnrolled, elig: r.collegeEligible },
-                          { label: 'University', cap: r.uniCapacity, enr: r.uniEnrolled, elig: r.uniEligible }
-                        ].filter(s => (s.cap || 0) > 0 || (s.enr || 0) > 0 || (s.elig || 0) > 0)
-                        .map((s, i) => (
-                          <div key={i} style={{ display: 'flex', marginBottom: '4rem', width: '100%' }}>
-                            <div style={{ width: '120rem', flexShrink: 0 }}>{s.label}</div>
-                            <div style={{ width: '90rem', textAlign: 'right', flexShrink: 0, color: (s.enr || 0) > (s.cap || 0) && (s.cap || 0) > 0 ? '#e57373' : '#fff' }}>{fmt(s.enr || 0)}</div>
-                            <div style={{ width: '90rem', textAlign: 'right', flexShrink: 0 }}>{fmt(s.cap || 0)}</div>
-                            <div style={{ width: '90rem', textAlign: 'right', flexShrink: 0, color: '#50b8e9' }}>{fmt(s.elig || 0)}</div>
-                            <div style={{ width: '100rem', textAlign: 'right', flexShrink: 0, color: calcAvail(s.cap || 0, s.enr || 0).color }}>{calcAvail(s.cap || 0, s.enr || 0).text}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Row 6: Happiness Breakdown */}
-                  <div className="dp-stats-grid">
-                    <div className="dp-stat-card dp-stat-card-wide" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '14rem 18rem', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', flex: 1 }}>
-                      <div className="dp-stat-label" style={{ marginBottom: '10rem', color: '#fff' }}>Happiness Factors</div>
-                      {r.happinessFactors && r.happinessFactors.length > 0 ? (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', width: '100%', fontSize: '14rem' }}>
-                          {r.happinessFactors.map(f => ({ factor: f[0], val: f[1] > 0 ? Math.round(f[2] / f[1]) : 0 }))
-                            .filter(item => item.val !== 0)
-                            .sort((a,b) => Math.abs(b.val) - Math.abs(a.val))
-                            .map((item, idx) => {
-                              const val = item.val;
-                              const isPos = val > 0;
-                              const color = isPos ? '#8bdb46' : '#e57373';
-                              const label = HAPPINESS_FACTORS[item.factor] || `Factor ${item.factor}`;
-                              return (
-                                <div key={item.factor} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '3rem 8rem', borderRadius: '4rem', width: '31%', marginRight: idx % 3 !== 2 ? '3%' : '0', marginBottom: '5rem' }}>
-                                  <span style={{ color: 'rgba(255,255,255,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={label}>{label}</span>
-                                  <span style={{ color, fontWeight: 700 }}>{isPos ? '+' : ''}{val}</span>
+                  <div className={`dp-dashboard-grid ${compactMode ? 'compact' : ''}`}>
+                    {dashboardLayout.sort((a,b) => a.order - b.order).map(card => {
+                      if (!card.visible) return null;
+                      
+                      const renderContent = () => {
+                        switch (card.id) {
+                          case 'worker':
+                            return (
+                              <div style={{ padding: '4rem 0' }}>
+                                <MiniBar items={[
+                                  { label: 'Uneducated', value: r.workerUneducated || 0, color: '#e57373' },
+                                  { label: 'Poorly Educated', value: r.workerPoorlyEducated || 0, color: '#ffb74d' },
+                                  { label: 'Educated', value: r.workerEducated || 0, color: '#81c784' },
+                                  { label: 'Well Educated', value: r.workerWellEducated || 0, color: '#4dd0e1' },
+                                  { label: 'Highly Educated', value: r.workerHighlyEducated || 0, color: '#64b5f6' },
+                                ]} />
+                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
+                                  <StatRow label="Employees" val={`${fmt(r.workers)} / ${fmt(r.maxWorkers)}`} rawKey="workers" showRaw={showRawData} style={{ fontWeight: 'bold', color: '#50b8e9' }} />
                                 </div>
-                              );
-                            })}
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '14rem', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>Calculating factors...</div>
-                      )}
-                    </div>
-                  </div>
+                              </div>
+                            );
+                          case 'property':
+                            return (
+                              <>
+                                <StatRow label="Res (Pure)" val={fmt(r.resProp || 0)} rawKey="resProp" showRaw={showRawData} />
+                                <StatRow label="Mixed Housing" val={fmt(r.mixedProp || 0)} rawKey="mixedProp" showRaw={showRawData} />
+                                <StatRow label="Commercial" val={fmt(r.comProp || 0)} rawKey="comProp" showRaw={showRawData} />
+                                <StatRow label="Industrial" val={fmt(r.indProp || 0)} rawKey="indProp" showRaw={showRawData} />
+                                <StatRow label="Office" val={fmt(r.offProp || 0)} rawKey="offProp" showRaw={showRawData} />
+                                <StatRow label="Storage" val={fmt(r.storProp || 0)} rawKey="storProp" showRaw={showRawData} />
+                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
+                                  <StatRow label="Total Properties" val={fmt((r.resProp || 0) + (r.comProp || 0) + (r.indProp || 0) + (r.offProp || 0) + (r.storProp || 0) + (r.mixedProp || 0))} style={{ fontWeight: 'bold', color: '#8bdb46' }} />
+                                </div>
+                              </>
+                            );
+                          case 'demographic':
+                            return (
+                              <>
+                                <div style={{ marginBottom: '10rem' }}>
+                                  <div className="dp-settings-label" style={{ marginBottom: '4rem' }}>Age Groups</div>
+                                  <MiniBar items={[
+                                    { label: 'Children', value: r.children || 0, color: '#64b5f6' },
+                                    { label: 'Teens', value: r.teens || 0, color: '#4dd0e1' },
+                                    { label: 'Adults', value: r.adults || 0, color: '#81c784' },
+                                    { label: 'Seniors', value: r.seniors || 0, color: '#ffb74d' },
+                                  ]} />
+                                </div>
+                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8rem' }}>
+                                  <StatRow label="Residents" val={fmt(r.residents)} rawKey="residents" showRaw={showRawData} />
+                                  <StatRow label="Students" val={fmt(r.students)} rawKey="students" showRaw={showRawData} />
+                                  <StatRow label="Tourists" val={fmt(r.tourists)} rawKey="tourists" showRaw={showRawData} />
+                                  <StatRow label="Homeless" val={fmt(r.homeless)} rawKey="homeless" showRaw={showRawData} />
+                                </div>
+                              </>
+                            );
+                          case 'household':
+                            return (
+                              <>
+                                <StatRow label="Current" val={fmt(r.households)} rawKey="households" showRaw={showRawData} />
+                                <StatRow label="Capacity" val={fmt(r.householdCap)} rawKey="householdCap" showRaw={showRawData} />
+                                <div style={{ height: '12rem', background: 'rgba(255,255,255,0.05)', borderRadius: '3rem', marginTop: '10rem', overflow: 'hidden' }}>
+                                  <div style={{ width: `${Math.min(100, (r.households / (r.householdCap || 1)) * 100)}%`, height: '100%', background: '#50b8e9' }} />
+                                </div>
+                                <div style={{ marginTop: '10rem' }}>
+                                  <StatRow label="Avg Wealth" val={wealthLabel(r.avgWealth).label} rawKey="avgWealth" showRaw={showRawData} style={{ color: wealthLabel(r.avgWealth).color }} />
+                                  <StatRow label="Avg Income" val={fmt(r.avgIncome)} rawKey="avgIncome" showRaw={showRawData} />
+                                  <StatRow label="Avg Rent" val={fmt(r.avgRent)} rawKey="avgRent" showRaw={showRawData} />
+                                </div>
+                              </>
+                            );
+                          case 'school':
+                            return (
+                              <div style={{ fontSize: '12rem' }}>
+                                <div style={{ display: 'flex', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', marginBottom: '8rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4rem' }}>
+                                  <div style={{ flex: 2.5 }}>Level</div>
+                                  <div style={{ flex: 1, textAlign: 'right' }}>Enrolled</div>
+                                  <div style={{ flex: 1, textAlign: 'right' }}>Capacity</div>
+                                  <div style={{ flex: 1.2, textAlign: 'right' }}>Availability</div>
+                                </div>
+                                {[
+                                  { label: 'Elementary', cap: r.elemCapacity, enr: r.elemEnrolled },
+                                  { label: 'High School', cap: r.hsCapacity, enr: r.hsEnrolled },
+                                  { label: 'College', cap: r.collegeCapacity, enr: r.collegeEnrolled },
+                                  { label: 'University', cap: r.uniCapacity, enr: r.uniEnrolled }
+                                ].map((s, i) => (
+                                  <div key={i} style={{ display: 'flex', padding: '6rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)', alignItems: 'center' }}>
+                                    <div style={{ flex: 2.5, fontWeight: 'bold', color: 'rgba(255,255,255,0.8)' }}>{s.label}</div>
+                                    <div style={{ flex: 1, textAlign: 'right' }}>{fmt(s.enr || 0)}</div>
+                                    <div style={{ flex: 1, textAlign: 'right' }}>{fmt(s.cap || 0)}</div>
+                                    <div style={{ flex: 1.2, textAlign: 'right', fontWeight: 'bold', color: calcAvail(s.cap || 0, s.enr || 0).color }}>{calcAvail(s.cap || 0, s.enr || 0).text}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          case 'health':
+                            return (
+                              <>
+                                <StatRow label="Health/Safety" val={r.sick > 0 ? `${fmt(r.sick)} Sick` : 'Healthy'} rawKey="sick" showRaw={showRawData} style={{ color: r.sick > 0 ? '#e57373' : '#81c784' }} />
+                                <StatRow label="Crime Risk" val={fmt(Math.round(r.totalCrime / 100))} rawKey="totalCrime" showRaw={showRawData} style={{ color: r.totalCrime > 1000 ? '#ffb74d' : 'inherit' }} />
+                                <StatRow label="Land Value" val={r.landValueSamples ? fmt(r.totalLandValue! / r.landValueSamples) : 0} rawKey="totalLandValue" showRaw={showRawData} />
+                                <StatRow label="Avg Level" val={(r.buildingLevelSamples ? (r.buildingLevelSum! / r.buildingLevelSamples).toFixed(1) : 0)} rawKey="buildingLevelSum" showRaw={showRawData} />
+                              </>
+                            );
+                          case 'happiness':
+                            const factors = r.isCity ? gameHappinessFactors : (r.happinessFactors || []);
+                            return (
+                              <div style={{ maxHeight: compactMode ? '120rem' : '200rem', overflowY: 'auto', fontSize: '12rem' }}>
+                                <div style={{ marginBottom: '6rem', color: happinessInfo(r.avgHappiness).color, fontWeight: 'bold' }}>
+                                  {r.isCity ? 'City' : 'District'} Happiness: {r.avgHappiness}%
+                                </div>
+                                {factors.length > 0 ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4rem' }}>
+                                    {(r.isCity ? [...gameHappinessFactors].sort((a,b) => Math.abs(b.weight) - Math.abs(a.weight)) : 
+                                      r.happinessFactors.map(f => ({ factor: f[0], weight: f[1] > 0 ? Math.round(f[2] / f[1]) : 0 })).filter(f => f.weight !== 0).sort((a,b) => Math.abs(b.weight) - Math.abs(a.weight))
+                                    ).map((f: any, idx) => {
+                                      const label = r.isCity ? (f.factor || '').split('.').pop()!.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : (HAPPINESS_FACTORS[f.factor] ?? `Factor ${f.factor}`);
+                                      return (
+                                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '2rem 6rem', borderRadius: '3rem' }}>
+                                          <span style={{ opacity: 0.8 }}>{label}</span>
+                                          <span style={{ color: f.weight >= 0 ? '#8bdb46' : '#e57373', fontWeight: 700 }}>{f.weight >= 0 ? '+' : ''}{f.weight}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : <div style={{ opacity: 0.4, fontStyle: 'italic' }}>Calculating...</div>}
+                              </div>
+                            );
+                          case 'policies':
+                            return (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6rem' }}>
+                                {policyPrefabs.map(pol => {
+                                  if (r.isCity && !pol.isCity) return null;
+                                  if (!r.isCity && !pol.isDistrict) return null;
+                                  const on = r.activePolicies.includes(pol.entityKey);
+                                  return (
+                                    <div key={pol.entityKey} className={`dp-inline-policy-icon ${on ? 'active' : ''}`} title={pol.name}
+                                      onClick={e => { e.stopPropagation(); r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}>
+                                      {pol.icon ? <img src={pol.icon} className="dp-policy-img" alt="" /> : <span className="dp-policy-text">{pol.name.substring(0, 2).toUpperCase()}</span>}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          default: return null;
+                        }
+                      };
 
-                  <div className="dp-details">
-                    <div className="dp-detail-section">
-                      <span className="dp-detail-label">Policies:</span>
-                      <div className="dp-inline-policies">
-                        {policyPrefabs.map(pol => {
-                          if (r.isCity && !pol.isCity) return null;
-                          if (!r.isCity && !pol.isDistrict) return null;
-                          const on = r.activePolicies.includes(pol.entityKey);
-                          return (
-                            <div key={pol.entityKey} className={`dp-inline-policy-icon ${on ? 'active' : ''}`} title={pol.name}
-                              onClick={e => { e.stopPropagation(); r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}>
-                              {pol.icon ? <img src={pol.icon} className="dp-policy-img" alt="" /> : <span className="dp-policy-text">{pol.name.substring(0, 2).toUpperCase()}</span>}
+                      return (
+                        <div key={card.id} className="dp-dashboard-card" draggable
+                          onDragStart={() => { dragSource.current = card.id; }}
+                          onDragOver={(e) => e.preventDefault()}
+                          onMouseEnter={() => {
+                            if (!dragSource.current || dragSource.current === card.id) return;
+                            setDashboardLayout(prev => {
+                              const newList = [...prev];
+                              const sIdx = newList.findIndex(c => c.id === dragSource.current);
+                              const tIdx = newList.findIndex(c => c.id === card.id);
+                              const tempOrder = newList[sIdx].order;
+                              newList[sIdx].order = newList[tIdx].order;
+                              newList[tIdx].order = tempOrder;
+                              return newList;
+                            });
+                          }}
+                          onDragEnd={() => { dragSource.current = null; }}>
+                          <div className="dp-card-header">
+                            <div className="dp-card-title">
+                              <img src={`${ICON}${card.icon}`} style={{ width: '28rem', height: '28rem', marginRight: '10rem', opacity: 0.9 }} alt="" />
+                              {card.title}
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                            <div style={{ display: 'flex', alignItems: 'center', pointerEvents: 'auto' }}>
+                              <div className="dp-card-move-btn" onClick={() => handleMove(card.id, -1)} title="Move Left/Up">&lt;</div>
+                              <div className="dp-card-move-btn" onClick={() => handleMove(card.id, 1)} title="Move Right/Down">&gt;</div>
+                              <div className="dp-card-move-btn" style={{ marginLeft: '10rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, -100)} title="Move to Top">TOP</div>
+                              <div className="dp-card-move-btn" style={{ marginLeft: '4rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, 100)} title="Move to Bottom">BTM</div>
+                            </div>
+                          </div>
+                          <div className="dp-card-content">
+                            {renderContent()}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

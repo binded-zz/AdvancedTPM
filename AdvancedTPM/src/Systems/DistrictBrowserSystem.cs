@@ -20,6 +20,9 @@ using Unity.Jobs;
 using Unity.Burst;
 using Unity.Mathematics;
 using Game.Triggers;
+using Game.Agents;
+using Game.Zones;
+using Game.Objects;
 
 namespace AdvancedTPM
 {
@@ -29,19 +32,26 @@ namespace AdvancedTPM
         private ValueBinding<string> _districtPoliciesData;
 
         private EntityQuery _districtQuery;
-        private EntityQuery _cityQuery;
         private EntityQuery _policyPrefabQuery;
         private EntityQuery _buildingQuery;
+        private EntityQuery _citizenQuery;
+        private EntityQuery _petQuery;
+        private EntityQuery _householdQuery;
         private EntityQuery _economyParameterQuery;
+        private EntityQuery _educationParameterQuery;
 
         private NameSystem _nameSystem;
         private PrefabSystem _prefabSystem;
-        private PoliciesUISystem _policiesUISystem;
         private CitySystem _citySystem;
+        private SimulationSystem m_SimulationSystem;
+        private TaxSystem _taxSystem;
+        private CountHouseholdDataSystem _countHouseholdDataSystem;
+        private CityConfigurationSystem _cityConfigurationSystem;
+        private MapMetadataSystem _mapMetadataSystem;
         private Game.EndFrameBarrier _endFrameBarrier;
         private EntityArchetype _policyEventArchetype;
 
-        private int _updateCounter;
+        private long _lastRealtimeUpdateTicks;
 
         public struct DistrictStats
         {
@@ -55,12 +65,10 @@ namespace AdvancedTPM
             public long totalWealth;
             public long totalIncome;
             public long totalRent;
-            public int householdsWithWealth;
-            public int householdsWithIncome;
-            public int householdsWithRent;
-            public long totalHappiness;
+            public int totalHappiness;
             public int citizenCount;
             public int residents;
+            public int tourists;
             public int children;
             public int teens;
             public int adults;
@@ -92,6 +100,28 @@ namespace AdvancedTPM
             public long upkeep;
             public long resources;
             public long fees;
+            public double area;
+            public int elemCapacity;
+            public int elemEnrolled;
+            public float elemEligible;
+            public int hsCapacity;
+            public int hsEnrolled;
+            public float hsEligible;
+            public int collegeCapacity;
+            public int collegeEnrolled;
+            public float collegeEligible;
+            public int uniCapacity;
+            public int uniEnrolled;
+            public float uniEligible;
+            public int workerUneducatedMax;
+            public int workerPoorlyEducatedMax;
+            public int workerEducatedMax;
+            public int workerWellEducatedMax;
+            public int workerHighlyEducatedMax;
+            public int pets;
+            public int deceased;
+            public int students;
+            public int movingAway;
 
             public void Add(DistrictStats other)
             {
@@ -105,12 +135,10 @@ namespace AdvancedTPM
                 totalWealth += other.totalWealth;
                 totalIncome += other.totalIncome;
                 totalRent += other.totalRent;
-                householdsWithWealth += other.householdsWithWealth;
-                householdsWithIncome += other.householdsWithIncome;
-                householdsWithRent += other.householdsWithRent;
                 totalHappiness += other.totalHappiness;
                 citizenCount += other.citizenCount;
                 residents += other.residents;
+                tourists += other.tourists;
                 children += other.children;
                 teens += other.teens;
                 adults += other.adults;
@@ -127,6 +155,23 @@ namespace AdvancedTPM
                 workerEducated += other.workerEducated;
                 workerWellEducated += other.workerWellEducated;
                 workerHighlyEducated += other.workerHighlyEducated;
+                workerUneducatedMax += other.workerUneducatedMax;
+                workerPoorlyEducatedMax += other.workerPoorlyEducatedMax;
+                workerEducatedMax += other.workerEducatedMax;
+                workerWellEducatedMax += other.workerWellEducatedMax;
+                workerHighlyEducatedMax += other.workerHighlyEducatedMax;
+                elemCapacity += other.elemCapacity;
+                hsCapacity += other.hsCapacity;
+                collegeCapacity += other.collegeCapacity;
+                uniCapacity += other.uniCapacity;
+                elemEnrolled += other.elemEnrolled;
+                hsEnrolled += other.hsEnrolled;
+                collegeEnrolled += other.collegeEnrolled;
+                uniEnrolled += other.uniEnrolled;
+                elemEligible += other.elemEligible;
+                hsEligible += other.hsEligible;
+                collegeEligible += other.collegeEligible;
+                uniEligible += other.uniEligible;
                 propertyCount += other.propertyCount;
                 resProp += other.resProp;
                 comProp += other.comProp;
@@ -142,6 +187,11 @@ namespace AdvancedTPM
                 upkeep += other.upkeep;
                 resources += other.resources;
                 fees += other.fees;
+                area += other.area;
+                pets += other.pets;
+                deceased += other.deceased;
+                students += other.students;
+                movingAway += other.movingAway;
             }
         }
 
@@ -157,7 +207,6 @@ namespace AdvancedTPM
             [ReadOnly] public EntityTypeHandle m_EntityHandle;
             [ReadOnly] public ComponentTypeHandle<PrefabRef> m_PrefabRefHandle;
             [ReadOnly] public ComponentTypeHandle<CurrentDistrict> m_CurrentDistrictHandle;
-
             [ReadOnly] public ComponentLookup<ResidentialProperty> m_ResidentialPropertyLookup;
             [ReadOnly] public ComponentLookup<BuildingPropertyData> m_BuildingPropertyDataLookup;
             [ReadOnly] public BufferLookup<Renter> m_RenterLookup;
@@ -168,15 +217,17 @@ namespace AdvancedTPM
             [ReadOnly] public BufferLookup<Resources> m_ResourcesLookup;
             [ReadOnly] public ComponentLookup<PropertyRenter> m_PropertyRenterLookup;
             [ReadOnly] public ComponentLookup<WorkProvider> m_WorkProviderLookup;
+            [ReadOnly] public ComponentLookup<Game.Net.LandValue> m_LandValueLookup;
+            [ReadOnly] public ComponentLookup<Building> m_BuildingLookup;
+            [ReadOnly] public ComponentLookup<WorkplaceData> m_WorkplaceDataLookup;
             [ReadOnly] public BufferLookup<Employee> m_EmployeeLookup;
             [ReadOnly] public ComponentLookup<Worker> m_WorkerLookup;
-            [ReadOnly] public ComponentLookup<Game.Buildings.CommercialProperty> m_CommercialPropertyLookup;
-            [ReadOnly] public ComponentLookup<Game.Buildings.OfficeProperty> m_OfficePropertyLookup;
-            [ReadOnly] public ComponentLookup<Game.Buildings.IndustrialProperty> m_IndustrialPropertyLookup;
+            [ReadOnly] public ComponentLookup<PrefabRef> m_PrefabRefLookup;
+            [ReadOnly] public ComponentLookup<CommercialProperty> m_CommercialPropertyLookup;
+            [ReadOnly] public ComponentLookup<OfficeProperty> m_OfficePropertyLookup;
+            [ReadOnly] public ComponentLookup<IndustrialProperty> m_IndustrialPropertyLookup;
             [ReadOnly] public ComponentLookup<Game.Companies.StorageCompany> m_StorageCompanyLookup;
             [ReadOnly] public ComponentLookup<SpawnableBuildingData> m_SpawnableLookup;
-            [ReadOnly] public ComponentLookup<Game.Net.LandValue> m_LandValueLookup;
-
             [ReadOnly] public ComponentLookup<Game.Buildings.ServiceUpgrade> m_ServiceUpgradeLookup;
             [ReadOnly] public ComponentLookup<Game.Buildings.Hospital> m_HospitalLookup;
             [ReadOnly] public ComponentLookup<Game.Buildings.School> m_SchoolLookup;
@@ -185,11 +236,15 @@ namespace AdvancedTPM
             [ReadOnly] public ComponentLookup<Game.Buildings.Park> m_ParkLookup;
             [ReadOnly] public ComponentLookup<Game.Buildings.DeathcareFacility> m_DeathcareFacilityLookup;
             [ReadOnly] public ComponentLookup<Game.Buildings.GarbageFacility> m_GarbageFacilityLookup;
-            [ReadOnly] public BufferLookup<Game.Areas.ServiceDistrict> m_ServiceDistrictLookup;
-            
+            [ReadOnly] public ComponentLookup<Game.Prefabs.SchoolData> m_SchoolDataLookup;
+            [ReadOnly] public BufferLookup<Game.Buildings.Student> m_StudentLookup;
+            [ReadOnly] public ComponentLookup<Abandoned> m_AbandonedLookup;
+            [ReadOnly] public ComponentLookup<Destroyed> m_DestroyedLookup;
+            [ReadOnly] public ComponentLookup<UnderConstruction> m_UnderConstructionLookup;
+            [ReadOnly] public BufferLookup<InstalledUpgrade> m_InstalledUpgradeLookup;
+            [ReadOnly] public ComponentLookup<Geometry> m_GeometryLookup;
             [ReadOnly] public EconomyParameterData m_EconomyParameters;
             [ReadOnly] public NativeArray<int> m_TaxRates;
-
             public NativeStream.Writer m_Stream;
 
             public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in Unity.Burst.Intrinsics.v128 chunkEnabledMask)
@@ -204,19 +259,45 @@ namespace AdvancedTPM
                 {
                     Entity bEnt = entities[i];
                     Entity prEnt = prefabs[i].m_Prefab;
-                    Entity district = districts[i].m_District; 
+                    Entity district = districts[i].m_District;
+                    if (m_AbandonedLookup.HasComponent(bEnt) || m_DestroyedLookup.HasComponent(bEnt) || m_UnderConstructionLookup.HasComponent(bEnt) || m_ParkLookup.HasComponent(prEnt)) continue;
 
                     DistrictStats stats = default;
 
-                    bool isRes = m_ResidentialPropertyLookup.HasComponent(bEnt) || m_ResidentialPropertyLookup.HasComponent(prEnt);
+                    bool hasResidentialSlots = m_BuildingPropertyDataLookup.TryGetComponent(prEnt, out var resPropData) && resPropData.m_ResidentialProperties > 0;
+                    bool isRes = m_ResidentialPropertyLookup.HasComponent(bEnt) || m_ResidentialPropertyLookup.HasComponent(prEnt) || hasResidentialSlots;
+
+                    // Renter Fallback for mixed-use: If any renter is a Household, it's a residential/mixed building.
+                    if (!isRes && m_RenterLookup.TryGetBuffer(bEnt, out var renterCheck))
+                    {
+                        for (int r = 0; r < renterCheck.Length; r++)
+                        {
+                            if (m_HouseholdLookup.HasComponent(renterCheck[r].m_Renter)) { isRes = true; break; }
+                        }
+                    }
+
                     bool isCom = m_CommercialPropertyLookup.HasComponent(bEnt) || m_CommercialPropertyLookup.HasComponent(prEnt);
                     bool isOff = m_OfficePropertyLookup.HasComponent(bEnt) || m_OfficePropertyLookup.HasComponent(prEnt);
                     bool isInd = m_IndustrialPropertyLookup.HasComponent(bEnt) || m_IndustrialPropertyLookup.HasComponent(prEnt);
                     bool isStor = m_StorageCompanyLookup.HasComponent(bEnt) || m_StorageCompanyLookup.HasComponent(prEnt);
-                    bool isSvc = m_ServiceUpgradeLookup.HasComponent(bEnt) || m_HospitalLookup.HasComponent(bEnt) || m_SchoolLookup.HasComponent(bEnt) || m_PoliceStationLookup.HasComponent(bEnt) || m_FireStationLookup.HasComponent(bEnt) || m_ParkLookup.HasComponent(bEnt) || m_DeathcareFacilityLookup.HasComponent(bEnt) || m_GarbageFacilityLookup.HasComponent(bEnt);
+
+                    // Check renters for storage companies
+                    if (!isStor && m_RenterLookup.TryGetBuffer(bEnt, out var bRenters))
+                    {
+                        for (int r = 0; r < bRenters.Length; r++)
+                        {
+                            if (m_StorageCompanyLookup.HasComponent(bRenters[r].m_Renter))
+                            {
+                                isStor = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    bool isSvc = m_ServiceUpgradeLookup.HasComponent(bEnt) || m_HospitalLookup.HasComponent(bEnt) || m_SchoolLookup.HasComponent(bEnt) || m_PoliceStationLookup.HasComponent(bEnt) || m_FireStationLookup.HasComponent(bEnt) || m_ParkLookup.HasComponent(prEnt) || m_DeathcareFacilityLookup.HasComponent(bEnt) || m_GarbageFacilityLookup.HasComponent(bEnt);
                     
                     if (isSvc) stats.svc++;
-                    
+
                     if (isRes)
                     {
                         stats.res++;
@@ -224,118 +305,114 @@ namespace AdvancedTPM
                         {
                             stats.householdCap += propData.m_ResidentialProperties;
                         }
-                        if (m_RenterLookup.TryGetBuffer(bEnt, out var renters))
+                    }
+
+                    // Count pure business properties only (exclude mixed-use residential buildings).
+                    if (!isRes)
+                    {
+                        bool isBusinessProperty = false;
+                        if (isStor)
                         {
-                            for (int r = 0; r < renters.Length; r++)
+                            stats.storProp++;
+                            isBusinessProperty = true;
+                        }
+                        else if (isCom)
+                        {
+                            stats.comProp++;
+                            isBusinessProperty = true;
+                        }
+                        else if (isOff)
+                        {
+                            stats.offProp++;
+                            isBusinessProperty = true;
+                        }
+                        else if (isInd)
+                        {
+                            stats.indProp++;
+                            isBusinessProperty = true;
+                        }
+
+                        if (isBusinessProperty && !isSvc) stats.biz++;
+                    }
+
+                    if (isRes)
+                    {
+                        if (isCom || isOff || isInd || isStor) stats.mixedProp++;
+                        else stats.resProp++;
+                    }
+
+                    // Household processing moved to UpdateHouseholdStatsJob to fix the In-Transit gap
+
+                    // SACRED EMPLOYEE LOGIC (DO NOT TOUCH)
+                    NativeList<Entity> workplaceEntities = new NativeList<Entity>(16, Allocator.Temp);
+                    if (m_WorkProviderLookup.HasComponent(bEnt)) workplaceEntities.Add(bEnt);
+                    if (m_RenterLookup.TryGetBuffer(bEnt, out var workRenters))
+                    {
+                        for (int r = 0; r < workRenters.Length; r++)
+                        {
+                            if (m_WorkProviderLookup.HasComponent(workRenters[r].m_Renter)) workplaceEntities.Add(workRenters[r].m_Renter);
+                        }
+                    }
+                    if (m_InstalledUpgradeLookup.TryGetBuffer(bEnt, out var upgrades))
+                    {
+                        for (int u = 0; u < upgrades.Length; u++)
+                        {
+                            Entity upgradeEnt = upgrades[u].m_Upgrade;
+                            if (m_WorkProviderLookup.HasComponent(upgradeEnt)) workplaceEntities.Add(upgradeEnt);
+                            if (m_RenterLookup.TryGetBuffer(upgradeEnt, out var upgRenters))
                             {
-                                Entity household = renters[r].m_Renter;
-                                if (m_HouseholdLookup.TryGetComponent(household, out var householdData))
+                                for (int r = 0; r < upgRenters.Length; r++)
                                 {
-                                    stats.households++;
-                                    
-                                    if (m_ResourcesLookup.TryGetBuffer(household, out var resources))
-                                    {
-                                        int wealth = EconomyUtils.GetHouseholdTotalWealth(householdData, resources);
-                                        stats.totalWealth += wealth;
-                                        stats.householdsWithWealth++;
-                                    }
-
-                                    if (m_HouseholdCitizenLookup.TryGetBuffer(household, out var citizens))
-                                    {
-                                        int income = EconomyUtils.GetHouseholdIncome(citizens, ref m_WorkerLookup, ref m_CitizenLookup, ref m_HealthProblemLookup, ref m_EconomyParameters, m_TaxRates);
-                                        stats.totalIncome += income;
-                                        stats.householdsWithIncome++;
-                                        
-                                        for (int c = 0; c < citizens.Length; c++)
-                                        {
-                                            if (m_CitizenLookup.TryGetComponent(citizens[c].m_Citizen, out var citizen))
-                                            {
-                                                if (!CitizenUtils.IsDead(citizens[c].m_Citizen, ref m_HealthProblemLookup))
-                                                {
-                                                    stats.totalHappiness += citizen.Happiness;
-                                                    stats.citizenCount++;
-                                                    stats.residents++;
-                                                    var age = citizen.GetAge();
-                                                    switch (age)
-                                                    {
-                                                        case CitizenAge.Child: stats.children++; break;
-                                                        case CitizenAge.Teen: stats.teens++; break;
-                                                        case CitizenAge.Adult: stats.adults++; break;
-                                                        case CitizenAge.Elderly: stats.seniors++; break;
-                                                    }
-                                                    var edu = citizen.GetEducationLevel();
-                                                    switch (edu)
-                                                    {
-                                                        case 0: stats.eduUneducated++; break;
-                                                        case 1: stats.eduPoorlyEducated++; break;
-                                                        case 2: stats.eduEducated++; break;
-                                                        case 3: stats.eduWellEducated++; break;
-                                                        case 4: stats.eduHighlyEducated++; break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                if (m_PropertyRenterLookup.TryGetComponent(household, out var propertyRenter))
-                                    {
-                                        stats.totalRent += propertyRenter.m_Rent;
-                                        stats.householdsWithRent++;
-                                    }
-                                else
-                                {
-                                    stats.homeless++;
-                                }
+                                    if (m_WorkProviderLookup.HasComponent(upgRenters[r].m_Renter)) workplaceEntities.Add(upgRenters[r].m_Renter);
                                 }
                             }
                         }
                     }
 
-                    Entity workEntity = bEnt;
-                    bool hasWork = false;
-                    if (m_WorkProviderLookup.HasComponent(bEnt))
+                    for (int wIdx = 0; wIdx < workplaceEntities.Length; wIdx++)
                     {
-                        hasWork = true;
-                    }
-                    else if (m_RenterLookup.TryGetBuffer(bEnt, out var renters))
-                    {
-                        for (int r = 0; r < renters.Length; r++)
+                        Entity workEntity = workplaceEntities[wIdx];
+                        Entity workPrefab = m_PrefabRefLookup.HasComponent(workEntity) ? m_PrefabRefLookup[workEntity].m_Prefab : Entity.Null;
+                        bool hasWorkplaceData = workPrefab != Entity.Null && m_WorkplaceDataLookup.HasComponent(workPrefab);
+
+                        if (m_WorkProviderLookup.TryGetComponent(workEntity, out var wp))
                         {
-                            if (m_WorkProviderLookup.HasComponent(renters[r].m_Renter))
+                            stats.maxWorkers += wp.m_MaxWorkers;
+
+                            if (hasWorkplaceData)
                             {
-                                workEntity = renters[r].m_Renter;
-                                hasWork = true;
-                                break;
+                                var wpd = m_WorkplaceDataLookup[workPrefab];
+                                int max = wp.m_MaxWorkers;
+                                int buildingLevel = m_SpawnableLookup.HasComponent(prEnt) ? m_SpawnableLookup[prEnt].m_Level : 1;
+                                var workplaces = EconomyUtils.CalculateNumberOfWorkplaces(max, wpd.m_Complexity, buildingLevel);
+                                stats.workerUneducatedMax += workplaces.m_Uneducated;
+                                stats.workerPoorlyEducatedMax += workplaces.m_PoorlyEducated;
+                                stats.workerEducatedMax += workplaces.m_Educated;
+                                stats.workerWellEducatedMax += workplaces.m_WellEducated;
+                                stats.workerHighlyEducatedMax += workplaces.m_HighlyEducated;
                             }
                         }
-                    }
-
-                    if (hasWork && m_WorkProviderLookup.TryGetComponent(workEntity, out var wp))
-                    {
-                        if (!isRes && !isSvc) stats.biz++; 
-                        stats.maxWorkers += wp.m_MaxWorkers;
-                        if (m_EmployeeLookup.TryGetBuffer(workEntity, out var employees))
+                        
+                        if (hasWorkplaceData && m_EmployeeLookup.TryGetBuffer(workEntity, out var employees))
                         {
                             stats.workers += employees.Length;
                             for (int e = 0; e < employees.Length; e++)
                             {
                                 Entity workerEnt = employees[e].m_Worker;
-                                if (m_CitizenLookup.TryGetComponent(workerEnt, out var workerCitizen))
+                                int workerEdu = m_WorkerLookup.TryGetComponent(workerEnt, out var workerData) ? (int)workerData.m_Level : (m_CitizenLookup.TryGetComponent(workerEnt, out var workerCitizen) ? workerCitizen.GetEducationLevel() : 0);
+                                switch (workerEdu)
                                 {
-                                    switch (workerCitizen.GetEducationLevel())
-                                    {
-                                        case 0: stats.workerUneducated++; break;
-                                        case 1: stats.workerPoorlyEducated++; break;
-                                        case 2: stats.workerEducated++; break;
-                                        case 3: stats.workerWellEducated++; break;
-                                        case 4: stats.workerHighlyEducated++; break;
-                                    }
+                                    case 0: stats.workerUneducated++; break;
+                                    case 1: stats.workerPoorlyEducated++; break;
+                                    case 2: stats.workerEducated++; break;
+                                    case 3: stats.workerWellEducated++; break;
+                                    case 4: stats.workerHighlyEducated++; break;
                                 }
                             }
                         }
                     }
+                    workplaceEntities.Dispose();
 
-                    // Compute service type mask for this building
                     if (isSvc)
                     {
                         int mask = 0;
@@ -349,54 +426,217 @@ namespace AdvancedTPM
                         stats.serviceMask |= mask;
                     }
 
-                    // Property type bookkeeping (clean, no double-counting)
-                    if (isCom) stats.comProp++;
-                    if (isOff) stats.offProp++;
-                    if (isInd) stats.indProp++;
-                    if (isStor) stats.storProp++;
-                    bool isMixed = isRes && (isCom || isOff || isInd || isStor);
-                    if (isMixed)           { stats.mixedProp++; stats.propertyCount++; }
-                    else if (isRes)        { stats.resProp++;   stats.propertyCount++; }
-                    else if (!isSvc && (isCom || isOff || isInd || isStor)) { stats.propertyCount++; }
-
                     if (m_SpawnableLookup.HasComponent(prEnt)) {
                         var sd = m_SpawnableLookup[prEnt];
                         stats.buildingLevelSum += sd.m_Level;
                         stats.buildingLevelSamples++;
-                        stats.upkeep += sd.m_Level * 8;
                     }
 
-                    if (m_LandValueLookup.HasComponent(bEnt)) {
-                        stats.totalLandValue += m_LandValueLookup[bEnt].m_LandValue;
+                    if (m_SchoolLookup.HasComponent(bEnt) && m_SchoolDataLookup.TryGetComponent(prEnt, out var schoolData))
+                    {
+                        int level = (int)schoolData.m_EducationLevel;
+                        if (m_InstalledUpgradeLookup.TryGetBuffer(bEnt, out var upgradesSchool))
+                        {
+                            UpgradeUtils.CombineStats(ref schoolData, upgradesSchool, ref m_PrefabRefLookup, ref m_SchoolDataLookup);
+                        }
+                        int cap = schoolData.m_StudentCapacity;
+                        int enrolled = m_StudentLookup.HasBuffer(bEnt) ? m_StudentLookup[bEnt].Length : 0;
+                        
+                        switch (level)
+                        {
+                            case 1: stats.elemCapacity += cap; stats.elemEnrolled += enrolled; break;
+                            case 2: stats.hsCapacity += cap; stats.hsEnrolled += enrolled; break;
+                            case 3: stats.collegeCapacity += cap; stats.collegeEnrolled += enrolled; break;
+                            case 4: stats.uniCapacity += cap; stats.uniEnrolled += enrolled; break;
+                        }
+                    }
+
+                    // Area and Land Value
+                    if (m_GeometryLookup.TryGetComponent(bEnt, out var geom)) stats.area += geom.m_SurfaceArea;
+                    // Game.Net.LandValue is on the road edge entity, not the building itself.
+                    if (m_BuildingLookup.TryGetComponent(bEnt, out var building) &&
+                        building.m_RoadEdge != Entity.Null &&
+                        m_LandValueLookup.TryGetComponent(building.m_RoadEdge, out var lv)) {
+                        stats.totalLandValue += lv.m_LandValue;
                         stats.landValueSamples++;
                     }
 
-                    if (stats.res != 0 || stats.biz != 0 || stats.svc != 0 || stats.households != 0 || stats.workers != 0)
+                    if (stats.res != 0 || stats.biz != 0 || stats.svc != 0 || stats.households != 0 || stats.workers != 0 || stats.upkeep != 0)
                     {
                         m_Stream.Write(new DistrictDelta { district = district, stats = stats });
                     }
+                }
+                m_Stream.EndForEachIndex();
+            }
+        }
 
-                    if (isSvc && m_ServiceDistrictLookup.TryGetBuffer(bEnt, out var opDistricts))
+        [BurstCompile]
+        private struct UpdateCitizenStatsJob : IJobChunk
+        {
+            [ReadOnly] public EntityTypeHandle m_EntityHandle;
+            [ReadOnly] public ComponentTypeHandle<Citizen> m_CitizenHandle;
+            [ReadOnly] public ComponentLookup<CurrentDistrict> m_CurrentDistrictLookup;
+            [ReadOnly] public ComponentLookup<HouseholdMember> m_HouseholdMemberLookup;
+            [ReadOnly] public ComponentLookup<Household> m_HouseholdLookup;
+            [ReadOnly] public ComponentLookup<PropertyRenter> m_PropertyRenterLookup;
+            [ReadOnly] public ComponentLookup<Deleted> m_DeletedLookup;
+            [ReadOnly] public ComponentLookup<Destroyed> m_DestroyedLookup;
+            [ReadOnly] public ComponentLookup<UnderConstruction> m_UnderConstructionLookup;
+            [ReadOnly] public ComponentLookup<MovingAway> m_MovingAwayLookup;
+            public NativeStream.Writer m_Stream;
+
+            public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in Unity.Burst.Intrinsics.v128 chunkEnabledMask)
+            {
+                var entities = chunk.GetNativeArray(m_EntityHandle);
+                var citizens = chunk.GetNativeArray(ref m_CitizenHandle);
+                m_Stream.BeginForEachIndex(unfilteredChunkIndex);
+
+                for (int i = 0; i < entities.Length; i++)
+                {
+                    Entity cEnt = entities[i];
+                    Citizen citizen = citizens[i];
+                    Entity district = Entity.Null;
+                    Entity household = m_HouseholdMemberLookup.TryGetComponent(cEnt, out var member) ? member.m_Household : Entity.Null;
+
+                    if (household != Entity.Null && m_HouseholdLookup.TryGetComponent(household, out var hh) && !m_DeletedLookup.HasComponent(household))
                     {
-                        // Compute service mask for cross-district contribution
-                        int svcMask = 0;
-                        if (m_HospitalLookup.HasComponent(bEnt)) svcMask |= (1 << 0);
-                        if (m_SchoolLookup.HasComponent(bEnt)) svcMask |= (1 << 1);
-                        if (m_PoliceStationLookup.HasComponent(bEnt)) svcMask |= (1 << 2);
-                        if (m_FireStationLookup.HasComponent(bEnt)) svcMask |= (1 << 3);
-                        if (m_ParkLookup.HasComponent(bEnt)) svcMask |= (1 << 4);
-                        if (m_DeathcareFacilityLookup.HasComponent(bEnt)) svcMask |= (1 << 5);
-                        if (m_GarbageFacilityLookup.HasComponent(bEnt)) svcMask |= (1 << 6);
-                        for (int j = 0; j < opDistricts.Length; j++)
+                        bool buildingValid = true;
+                        if (m_PropertyRenterLookup.TryGetComponent(household, out var pr)) 
                         {
-                            DistrictStats opStats = default;
-                            opStats.localServices = 1;
-                            opStats.serviceMask = svcMask;
-                            m_Stream.Write(new DistrictDelta { district = opDistricts[j].m_District, stats = opStats });
+                            if (m_CurrentDistrictLookup.TryGetComponent(pr.m_Property, out var cd)) district = cd.m_District;
+                            if (m_DestroyedLookup.HasComponent(pr.m_Property) || m_UnderConstructionLookup.HasComponent(pr.m_Property)) buildingValid = false;
+                        }
+                        else if (m_CurrentDistrictLookup.TryGetComponent(cEnt, out var citizenCd)) district = citizenCd.m_District;
+
+                        if (buildingValid) 
+                        {
+                            DistrictStats stats = default;
+                            bool isMovingAway = m_MovingAwayLookup.HasComponent(cEnt) || m_MovingAwayLookup.HasComponent(household);
+                            if (isMovingAway) stats.movingAway = 1;
+
+                            if ((hh.m_Flags & HouseholdFlags.Tourist) != 0)
+                            {
+                                stats.tourists = 1;
+                            }
+                            else
+                            {
+                                stats.residents = 1;
+                                stats.citizenCount = 1;
+                                stats.totalHappiness = citizen.Happiness;
+                                switch (citizen.GetAge())
+                                {
+                                    case CitizenAge.Child: stats.children = 1; break;
+                                    case CitizenAge.Teen: stats.teens = 1; break;
+                                    case CitizenAge.Adult: stats.adults = 1; break;
+                                    case CitizenAge.Elderly: stats.seniors = 1; break;
+                                }
+                                switch (citizen.GetEducationLevel())
+                                {
+                                    case 0: stats.eduUneducated = 1; break;
+                                    case 1: stats.eduPoorlyEducated = 1; break;
+                                    case 2: stats.eduEducated = 1; break;
+                                    case 3: stats.eduWellEducated = 1; break;
+                                    case 4: stats.eduHighlyEducated = 1; break;
+                                }
+                            }
+                            if (district != Entity.Null) m_Stream.Write(new DistrictDelta { district = district, stats = stats });
+                        }
+                    }
+                    // Limbo Fallback: catch residents not yet assigned to a household (The Cherry Brook Fix)
+                    else if (m_CurrentDistrictLookup.TryGetComponent(cEnt, out var citizenCd))
+                    {
+                        DistrictStats stats = default;
+                        stats.residents = 1;
+                        stats.adults = 1;
+                        m_Stream.Write(new DistrictDelta { district = citizenCd.m_District, stats = stats });
+                    }
+                }
+                m_Stream.EndForEachIndex();
+            }
+        }
+
+        [BurstCompile]
+        private struct UpdateHouseholdStatsJob : IJobChunk
+        {
+            [ReadOnly] public EntityTypeHandle m_EntityHandle;
+            [ReadOnly] public ComponentTypeHandle<Household> m_HouseholdHandle;
+            [ReadOnly] public ComponentLookup<PropertyRenter> m_PropertyRenterLookup;
+            [ReadOnly] public ComponentLookup<CurrentDistrict> m_CurrentDistrictLookup;
+            [ReadOnly] public ComponentLookup<Building> m_BuildingLookup;
+            [ReadOnly] public ComponentLookup<Destroyed> m_DestroyedLookup;
+            [ReadOnly] public ComponentLookup<UnderConstruction> m_UnderConstructionLookup;
+            [ReadOnly] public ComponentLookup<ResidentialProperty> m_ResidentialPropertyLookup;
+            [ReadOnly] public ComponentLookup<PrefabRef> m_PrefabRefLookup;
+            [ReadOnly] public BufferLookup<Resources> m_ResourcesLookup;
+            [ReadOnly] public BufferLookup<HouseholdCitizen> m_HouseholdCitizenLookup;
+            [ReadOnly] public ComponentLookup<Worker> m_WorkerLookup;
+            [ReadOnly] public ComponentLookup<Citizen> m_CitizenLookup;
+            [ReadOnly] public ComponentLookup<HealthProblem> m_HealthProblemLookup;
+            [ReadOnly] public EconomyParameterData m_EconomyParameters;
+            [ReadOnly] public NativeArray<int> m_TaxRates;
+            public NativeStream.Writer m_Stream;
+
+            public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in Unity.Burst.Intrinsics.v128 chunkEnabledMask)
+            {
+                var entities = chunk.GetNativeArray(m_EntityHandle);
+                var households = chunk.GetNativeArray(ref m_HouseholdHandle);
+                m_Stream.BeginForEachIndex(unfilteredChunkIndex);
+                for (int i = 0; i < entities.Length; i++)
+                {
+                    Entity householdEnt = entities[i];
+                    Household householdData = households[i];
+                    
+                    if (m_PropertyRenterLookup.TryGetComponent(householdEnt, out var occupiedProperty))
+                    {
+                        Entity rentedProperty = occupiedProperty.m_Property;
+                        if (rentedProperty != Entity.Null && m_BuildingLookup.HasComponent(rentedProperty) && m_CurrentDistrictLookup.TryGetComponent(rentedProperty, out var cd))
+                        {
+                            if (m_DestroyedLookup.HasComponent(rentedProperty) || m_UnderConstructionLookup.HasComponent(rentedProperty)) continue;
+
+                            DistrictStats stats = default;
+                            
+                            stats.households = 1;
+                            
+                            if (m_ResourcesLookup.TryGetBuffer(householdEnt, out var resources)) stats.totalWealth = EconomyUtils.GetHouseholdTotalWealth(householdData, resources);
+                            if (m_HouseholdCitizenLookup.TryGetBuffer(householdEnt, out var hCitizens)) stats.totalIncome = EconomyUtils.GetHouseholdIncome(hCitizens, ref m_WorkerLookup, ref m_CitizenLookup, ref m_HealthProblemLookup, ref m_EconomyParameters, m_TaxRates);
+                            stats.totalRent = occupiedProperty.m_Rent;
+                            
+                            m_Stream.Write(new DistrictDelta { district = cd.m_District, stats = stats });
                         }
                     }
                 }
+                m_Stream.EndForEachIndex();
+            }
+        }
 
+        [BurstCompile]
+        private struct UpdatePetStatsJob : IJobChunk
+        {
+            [ReadOnly] public EntityTypeHandle m_EntityHandle;
+            [ReadOnly] public ComponentTypeHandle<HouseholdPet> m_PetHandle;
+            [ReadOnly] public ComponentLookup<PropertyRenter> m_PropertyRenterLookup;
+            [ReadOnly] public ComponentLookup<CurrentDistrict> m_CurrentDistrictLookup;
+            public NativeStream.Writer m_Stream;
+
+            public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in Unity.Burst.Intrinsics.v128 chunkEnabledMask)
+            {
+                var entities = chunk.GetNativeArray(m_EntityHandle);
+                var pets = chunk.GetNativeArray(ref m_PetHandle);
+                m_Stream.BeginForEachIndex(unfilteredChunkIndex);
+                for (int i = 0; i < pets.Length; i++)
+                {
+                    Entity household = pets[i].m_Household;
+                    Entity district = Entity.Null;
+                    if (household != Entity.Null && m_PropertyRenterLookup.TryGetComponent(household, out var pr) && m_CurrentDistrictLookup.TryGetComponent(pr.m_Property, out var cd)) district = cd.m_District;
+                    else if (m_CurrentDistrictLookup.TryGetComponent(household, out var householdCd)) district = householdCd.m_District;
+
+                    if (district != Entity.Null)
+                    {
+                        DistrictStats stats = default;
+                        stats.pets = 1;
+                        m_Stream.Write(new DistrictDelta { district = district, stats = stats });
+                    }
+                }
                 m_Stream.EndForEachIndex();
             }
         }
@@ -406,7 +646,6 @@ namespace AdvancedTPM
         {
             [ReadOnly] public NativeStream.Reader m_Stream;
             public NativeParallelHashMap<Entity, DistrictStats> m_StatsMap;
-
             public void Execute()
             {
                 for (int i = 0; i < m_Stream.ForEachCount; i++)
@@ -415,15 +654,8 @@ namespace AdvancedTPM
                     while (m_Stream.RemainingItemCount > 0)
                     {
                         var delta = m_Stream.Read<DistrictDelta>();
-                        if (m_StatsMap.TryGetValue(delta.district, out var existing))
-                        {
-                            existing.Add(delta.stats);
-                            m_StatsMap[delta.district] = existing;
-                        }
-                        else
-                        {
-                            m_StatsMap.TryAdd(delta.district, delta.stats);
-                        }
+                        if (m_StatsMap.TryGetValue(delta.district, out var existing)) { existing.Add(delta.stats); m_StatsMap[delta.district] = existing; }
+                        else m_StatsMap.TryAdd(delta.district, delta.stats);
                     }
                     m_Stream.EndForEachIndex();
                 }
@@ -433,52 +665,26 @@ namespace AdvancedTPM
         protected override void OnCreate()
         {
             base.OnCreate();
-
             _nameSystem = World.GetOrCreateSystemManaged<NameSystem>();
             _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>();
-            _policiesUISystem = World.GetOrCreateSystemManaged<PoliciesUISystem>();
             _citySystem = World.GetOrCreateSystemManaged<CitySystem>();
+            _taxSystem = World.GetOrCreateSystemManaged<TaxSystem>();
+            _countHouseholdDataSystem = World.GetOrCreateSystemManaged<CountHouseholdDataSystem>();
+            _cityConfigurationSystem = World.GetOrCreateSystemManaged<CityConfigurationSystem>();
+            _mapMetadataSystem = World.GetOrCreateSystemManaged<MapMetadataSystem>();
             _endFrameBarrier = World.GetOrCreateSystemManaged<Game.EndFrameBarrier>();
             _policyEventArchetype = EntityManager.CreateArchetype(ComponentType.ReadWrite<Game.Common.Event>(), ComponentType.ReadWrite<Game.Policies.Modify>());
 
-            _districtQuery = GetEntityQuery(new EntityQueryDesc
-            {
-                All = new ComponentType[]
-                {
-                    ComponentType.ReadOnly<District>(),
-                    ComponentType.ReadOnly<PrefabRef>()
-                },
-                None = new ComponentType[]
-                {
-                    ComponentType.ReadOnly<Deleted>(),
-                    ComponentType.ReadOnly<Temp>()
-                }
-            });
+            _districtQuery = GetEntityQuery(ComponentType.ReadOnly<District>(), ComponentType.ReadOnly<PrefabRef>(), ComponentType.Exclude<Deleted>());
+            _buildingQuery = GetEntityQuery(ComponentType.ReadOnly<Building>(), ComponentType.ReadOnly<PrefabRef>(), ComponentType.ReadOnly<CurrentDistrict>(), ComponentType.Exclude<Deleted>());
 
-            _buildingQuery = GetEntityQuery(new EntityQueryDesc
-            {
-                All = new ComponentType[]
-                {
-                    ComponentType.ReadOnly<Building>(),
-                    ComponentType.ReadOnly<PrefabRef>(),
-                    ComponentType.ReadOnly<CurrentDistrict>()
-                },
-                None = new ComponentType[]
-                {
-                    ComponentType.ReadOnly<Deleted>(),
-                    ComponentType.ReadOnly<Temp>()
-                }
-            });
+            // Remove the hard HouseholdMember requirement to catch limbo citizens
+            _citizenQuery = GetEntityQuery(ComponentType.ReadOnly<Citizen>(), ComponentType.Exclude<Deleted>());
 
+            _petQuery = GetEntityQuery(ComponentType.ReadOnly<HouseholdPet>(), ComponentType.Exclude<Deleted>());
+            _householdQuery = GetEntityQuery(ComponentType.ReadOnly<Household>(), ComponentType.ReadOnly<PropertyRenter>(), ComponentType.Exclude<Deleted>());
             _economyParameterQuery = GetEntityQuery(ComponentType.ReadOnly<EconomyParameterData>());
-
-            _cityQuery = GetEntityQuery(new EntityQueryDesc
-            {
-                All = new ComponentType[]
-                {
-                    ComponentType.ReadOnly<City>(),
-                }
-            });
+            _educationParameterQuery = GetEntityQuery(ComponentType.ReadOnly<EducationParameterData>());
 
             _policyPrefabQuery = GetEntityQuery(new EntityQueryDesc
             {
@@ -498,110 +704,21 @@ namespace AdvancedTPM
 
             AddBinding(_districtBrowserData = new ValueBinding<string>("taxProduction", "districtBrowserData", "[]"));
             AddBinding(_districtPoliciesData = new ValueBinding<string>("taxProduction", "districtPoliciesData", "[]"));
-
             AddBinding(new TriggerBinding<string, string, bool>("taxProduction", "toggleDistrictPolicy", ToggleDistrictPolicy));
             AddBinding(new TriggerBinding<string, string>("taxProduction", "renameDistrict", RenameDistrict));
-
-            Mod.log.Info("DistrictBrowserSystem initialized");
-        }
-
-        private void ToggleDistrictPolicy(string districtKey, string policyPrefabKey, bool active)
-        {
-            try
-            {
-                Entity districtEntity = Entity.Null;
-                if (districtKey == "city")
-                {
-                    districtEntity = _citySystem.City;
-                }
-                else
-                {
-                    districtEntity = ParseEntityKey(districtKey);
-                }
-                
-                var policyEntity = ParseEntityKey(policyPrefabKey);
-                
-                if (districtEntity != Entity.Null && policyEntity != Entity.Null)
-                {
-                    // Read current adjustment value from the policy buffer
-                    float adjustment = 0f;
-                    bool foundInBuffer = false;
-                    if (EntityManager.HasBuffer<Game.Policies.Policy>(districtEntity))
-                    {
-                        var policies = EntityManager.GetBuffer<Game.Policies.Policy>(districtEntity, true);
-                        for (int i = 0; i < policies.Length; i++)
-                        {
-                            if (policies[i].m_Policy == policyEntity)
-                            {
-                                adjustment = policies[i].m_Adjustment;
-                                foundInBuffer = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    Mod.log.Info($"TogglePolicy DIRECT: entity={policyPrefabKey} target={districtKey} active={active} adj={adjustment} found={foundInBuffer}");
-
-                    // Create the policy modification event DIRECTLY, bypassing PoliciesUISystem
-                    // This matches exactly how the game's ModifyPolicy creates the event
-                    var ecb = _endFrameBarrier.CreateCommandBuffer();
-                    Entity evt = ecb.CreateEntity(_policyEventArchetype);
-                    ecb.SetComponent(evt, new Game.Policies.Modify(districtEntity, policyEntity, active, adjustment));
-                    
-                    Mod.log.Info($"TogglePolicy DIRECT: event created successfully");
-                    UpdateDistrictData();
-                }
-            }
-            catch (Exception ex)
-            {
-                Mod.log.Warn($"Error toggling policy: {ex.Message}\n{ex.StackTrace}");
-            }
-        }
-
-        private void RenameDistrict(string districtKey, string newName)
-        {
-            try
-            {
-                var districtEntity = ParseEntityKey(districtKey);
-                if (districtEntity != Entity.Null && _nameSystem != null)
-                {
-                    _nameSystem.SetCustomName(districtEntity, newName);
-                    UpdateDistrictData();
-                }
-            }
-            catch (Exception ex)
-            {
-                Mod.log.Warn($"Error renaming district: {ex.Message}");
-            }
-        }
-
-        private Entity ParseEntityKey(string key)
-        {
-            if (string.IsNullOrEmpty(key)) return Entity.Null;
-            var parts = key.Split(',');
-            if (parts.Length == 2 && int.TryParse(parts[0], out int index) && int.TryParse(parts[1], out int version))
-            {
-                return new Entity { Index = index, Version = version };
-            }
-            return Entity.Null;
         }
 
         protected override void OnUpdate()
         {
             base.OnUpdate();
-            if (_updateCounter++ % 30 == 0)
-            {
-                try
-                {
-                    Mod.log.Info($"DistrictBrowserSystem OnUpdate tick {_updateCounter}");
-                    UpdatePolicyPrefabs();
-                    UpdateDistrictData();
-                }
-                catch (Exception ex)
-                {
-                    Mod.log.Warn($"DistrictBrowserSystem Update error: {ex.Message}\n{ex.StackTrace}");
-                }
-            }
+            if (m_SimulationSystem == null) m_SimulationSystem = World.GetExistingSystemManaged<SimulationSystem>();
+            if (m_SimulationSystem == null || m_SimulationSystem.frameIndex < 1000) return;
+
+            long nowTicks = DateTime.UtcNow.Ticks;
+            if (nowTicks - _lastRealtimeUpdateTicks < TimeSpan.TicksPerSecond / 2) return;
+            _lastRealtimeUpdateTicks = nowTicks;
+            UpdatePolicyPrefabs();
+            UpdateDistrictData();
         }
 
         private string GetHappinessFactorsJson(Entity district)
@@ -628,7 +745,7 @@ namespace AdvancedTPM
             }
             catch (Exception ex)
             {
-                Mod.log.Warn($"Error getting happiness factors: {ex.Message}");
+                Mod.log?.Warn($"Error getting happiness factors: {ex.Message}");
             }
             return "[]";
         }
@@ -639,7 +756,6 @@ namespace AdvancedTPM
 
             var entities = _policyPrefabQuery.ToEntityArray(Allocator.Temp);
             var items = new List<string>();
-
             try
             {
                 for (int i = 0; i < entities.Length; i++)
@@ -657,14 +773,11 @@ namespace AdvancedTPM
                         }
                         catch { }
 
-                        if (string.IsNullOrEmpty(icon) && prefab.Has<UIObject>())
-                        {
-                            var ui = prefab.GetComponent<UIObject>();
-                            if (ui != null && !string.IsNullOrEmpty(ui.m_Icon)) icon = ui.m_Icon;
-                        }
-                        bool isCityPolicy = _prefabSystem.EntityManager.HasComponent<CityOptionData>(entity) || _prefabSystem.EntityManager.HasComponent<CityModifierData>(entity);
-                        bool isDistrictPolicy = _prefabSystem.EntityManager.HasComponent<DistrictOptionData>(entity) || _prefabSystem.EntityManager.HasComponent<DistrictModifierData>(entity);
-                        
+                        bool isCityPolicy = _prefabSystem.EntityManager.HasComponent<CityOptionData>(entity) ||
+                                            _prefabSystem.EntityManager.HasComponent<CityModifierData>(entity);
+                        bool isDistrictPolicy = _prefabSystem.EntityManager.HasComponent<DistrictOptionData>(entity) ||
+                                                _prefabSystem.EntityManager.HasComponent<DistrictModifierData>(entity);
+
                         items.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{name}\",\"icon\":\"{EscapeJson(icon)}\",\"isCity\":{isCityPolicy.ToString().ToLower()},\"isDistrict\":{isDistrictPolicy.ToString().ToLower()}}}");
                     }
                 }
@@ -680,17 +793,16 @@ namespace AdvancedTPM
         private void UpdateDistrictData()
         {
             var items = new List<string>();
-            var em = EntityManager;
-
             if (!_economyParameterQuery.TryGetSingleton<EconomyParameterData>(out var economyParameters)) return;
-            var taxSystem = World.GetOrCreateSystemManaged<TaxSystem>();
-            if (taxSystem == null) return;
-            var taxRates = taxSystem.GetTaxRates();
+            var taxRates = _taxSystem.GetTaxRates();
 
             var statsMap = new NativeParallelHashMap<Entity, DistrictStats>(100, Allocator.TempJob);
-            var stream = new NativeStream(_buildingQuery.CalculateChunkCount(), Allocator.TempJob);
-            
-            var updateJob = new UpdateDistrictDataJob
+            var s1 = new NativeStream(_buildingQuery.CalculateChunkCount(), Allocator.TempJob);
+            var s2 = new NativeStream(_citizenQuery.CalculateChunkCount(), Allocator.TempJob);
+            var s3 = new NativeStream(_petQuery.CalculateChunkCount(), Allocator.TempJob);
+            var s4 = new NativeStream(_householdQuery.CalculateChunkCount(), Allocator.TempJob);
+
+            var bJob = new UpdateDistrictDataJob
             {
                 m_EntityHandle = SystemAPI.GetEntityTypeHandle(),
                 m_PrefabRefHandle = SystemAPI.GetComponentTypeHandle<PrefabRef>(true),
@@ -705,8 +817,17 @@ namespace AdvancedTPM
                 m_ResourcesLookup = SystemAPI.GetBufferLookup<Resources>(true),
                 m_PropertyRenterLookup = SystemAPI.GetComponentLookup<PropertyRenter>(true),
                 m_WorkProviderLookup = SystemAPI.GetComponentLookup<WorkProvider>(true),
+                m_LandValueLookup = SystemAPI.GetComponentLookup<Game.Net.LandValue>(true),
+                m_BuildingLookup = SystemAPI.GetComponentLookup<Building>(true),
+                m_WorkplaceDataLookup = SystemAPI.GetComponentLookup<WorkplaceData>(true),
                 m_EmployeeLookup = SystemAPI.GetBufferLookup<Employee>(true),
                 m_WorkerLookup = SystemAPI.GetComponentLookup<Worker>(true),
+                m_PrefabRefLookup = SystemAPI.GetComponentLookup<PrefabRef>(true),
+                m_CommercialPropertyLookup = SystemAPI.GetComponentLookup<CommercialProperty>(true),
+                m_OfficePropertyLookup = SystemAPI.GetComponentLookup<OfficeProperty>(true),
+                m_IndustrialPropertyLookup = SystemAPI.GetComponentLookup<IndustrialProperty>(true),
+                m_StorageCompanyLookup = SystemAPI.GetComponentLookup<Game.Companies.StorageCompany>(true),
+                m_SpawnableLookup = SystemAPI.GetComponentLookup<SpawnableBuildingData>(true),
                 m_ServiceUpgradeLookup = SystemAPI.GetComponentLookup<Game.Buildings.ServiceUpgrade>(true),
                 m_HospitalLookup = SystemAPI.GetComponentLookup<Game.Buildings.Hospital>(true),
                 m_SchoolLookup = SystemAPI.GetComponentLookup<Game.Buildings.School>(true),
@@ -715,136 +836,181 @@ namespace AdvancedTPM
                 m_ParkLookup = SystemAPI.GetComponentLookup<Game.Buildings.Park>(true),
                 m_DeathcareFacilityLookup = SystemAPI.GetComponentLookup<Game.Buildings.DeathcareFacility>(true),
                 m_GarbageFacilityLookup = SystemAPI.GetComponentLookup<Game.Buildings.GarbageFacility>(true),
-                m_ServiceDistrictLookup = SystemAPI.GetBufferLookup<Game.Areas.ServiceDistrict>(true),
+                m_SchoolDataLookup = SystemAPI.GetComponentLookup<SchoolData>(true),
+                m_StudentLookup = SystemAPI.GetBufferLookup<Game.Buildings.Student>(true),
+                m_AbandonedLookup = SystemAPI.GetComponentLookup<Abandoned>(true),
+                m_DestroyedLookup = SystemAPI.GetComponentLookup<Destroyed>(true),
+                m_UnderConstructionLookup = SystemAPI.GetComponentLookup<UnderConstruction>(true),
+                m_InstalledUpgradeLookup = SystemAPI.GetBufferLookup<InstalledUpgrade>(true),
+                m_GeometryLookup = SystemAPI.GetComponentLookup<Geometry>(true),
                 m_EconomyParameters = economyParameters,
                 m_TaxRates = taxRates,
-                m_CommercialPropertyLookup = SystemAPI.GetComponentLookup<Game.Buildings.CommercialProperty>(true),
-                m_OfficePropertyLookup = SystemAPI.GetComponentLookup<Game.Buildings.OfficeProperty>(true),
-                m_IndustrialPropertyLookup = SystemAPI.GetComponentLookup<Game.Buildings.IndustrialProperty>(true),
-                m_StorageCompanyLookup = SystemAPI.GetComponentLookup<Game.Companies.StorageCompany>(true),
-                m_SpawnableLookup = SystemAPI.GetComponentLookup<SpawnableBuildingData>(true),
-                m_LandValueLookup = SystemAPI.GetComponentLookup<Game.Net.LandValue>(true),
-                m_Stream = stream.AsWriter()
+                m_Stream = s1.AsWriter()
             };
+            var cJob = new UpdateCitizenStatsJob { m_EntityHandle = SystemAPI.GetEntityTypeHandle(), m_CitizenHandle = SystemAPI.GetComponentTypeHandle<Citizen>(true), m_CurrentDistrictLookup = SystemAPI.GetComponentLookup<CurrentDistrict>(true), m_HouseholdMemberLookup = SystemAPI.GetComponentLookup<HouseholdMember>(true), m_HouseholdLookup = SystemAPI.GetComponentLookup<Household>(true), m_PropertyRenterLookup = SystemAPI.GetComponentLookup<PropertyRenter>(true), m_DeletedLookup = SystemAPI.GetComponentLookup<Deleted>(true), m_DestroyedLookup = SystemAPI.GetComponentLookup<Destroyed>(true), m_UnderConstructionLookup = SystemAPI.GetComponentLookup<UnderConstruction>(true), m_MovingAwayLookup = SystemAPI.GetComponentLookup<MovingAway>(true), m_Stream = s2.AsWriter() };
+            var pJob = new UpdatePetStatsJob { m_EntityHandle = SystemAPI.GetEntityTypeHandle(), m_PetHandle = SystemAPI.GetComponentTypeHandle<HouseholdPet>(true), m_PropertyRenterLookup = SystemAPI.GetComponentLookup<PropertyRenter>(true), m_CurrentDistrictLookup = SystemAPI.GetComponentLookup<CurrentDistrict>(true), m_Stream = s3.AsWriter() };
+            var hhJob = new UpdateHouseholdStatsJob { m_EntityHandle = SystemAPI.GetEntityTypeHandle(), m_HouseholdHandle = SystemAPI.GetComponentTypeHandle<Household>(true), m_PropertyRenterLookup = SystemAPI.GetComponentLookup<PropertyRenter>(true), m_CurrentDistrictLookup = SystemAPI.GetComponentLookup<CurrentDistrict>(true), m_BuildingLookup = SystemAPI.GetComponentLookup<Building>(true), m_DestroyedLookup = SystemAPI.GetComponentLookup<Destroyed>(true), m_UnderConstructionLookup = SystemAPI.GetComponentLookup<UnderConstruction>(true), m_ResidentialPropertyLookup = SystemAPI.GetComponentLookup<ResidentialProperty>(true), m_PrefabRefLookup = SystemAPI.GetComponentLookup<PrefabRef>(true), m_ResourcesLookup = SystemAPI.GetBufferLookup<Resources>(true), m_HouseholdCitizenLookup = SystemAPI.GetBufferLookup<HouseholdCitizen>(true), m_WorkerLookup = SystemAPI.GetComponentLookup<Worker>(true), m_CitizenLookup = SystemAPI.GetComponentLookup<Citizen>(true), m_HealthProblemLookup = SystemAPI.GetComponentLookup<HealthProblem>(true), m_EconomyParameters = economyParameters, m_TaxRates = taxRates, m_Stream = s4.AsWriter() };
 
-            var aggregateJob = new AggregateStatsJob
+            var h1 = JobHandle.CombineDependencies(bJob.ScheduleParallel(_buildingQuery, Dependency), cJob.ScheduleParallel(_citizenQuery, Dependency));
+            var h2 = JobHandle.CombineDependencies(pJob.ScheduleParallel(_petQuery, Dependency), hhJob.ScheduleParallel(_householdQuery, Dependency));
+            var h = JobHandle.CombineDependencies(h1, h2);
+            var aggHandle = new AggregateStatsJob { m_Stream = s4.AsReader(), m_StatsMap = statsMap }.Schedule(new AggregateStatsJob { m_Stream = s3.AsReader(), m_StatsMap = statsMap }.Schedule(new AggregateStatsJob { m_Stream = s2.AsReader(), m_StatsMap = statsMap }.Schedule(new AggregateStatsJob { m_Stream = s1.AsReader(), m_StatsMap = statsMap }.Schedule(h))));
+            aggHandle.Complete();
+            s1.Dispose(); s2.Dispose(); s3.Dispose(); s4.Dispose();
+
+            DistrictStats cityStats = default;
+            using (var kvp = statsMap.GetKeyValueArrays(Allocator.Temp)) { for (int i = 0; i < kvp.Keys.Length; i++) cityStats.Add(kvp.Values[i]); }
+
+            if (!_countHouseholdDataSystem.IsCountDataNotReady())
             {
-                m_Stream = stream.AsReader(),
-                m_StatsMap = statsMap
-            };
+                var cd = _countHouseholdDataSystem.GetHouseholdCountData();
+                // Override demographic counts using the global counter
+                cityStats.children = cd.m_ChildrenCount;
+                cityStats.teens = cd.m_TeenCount;
+                cityStats.adults = cd.m_AdultCount;
+                cityStats.seniors = cd.m_SeniorCount;
+                cityStats.eduUneducated = cd.m_UneducatedCount;
+                cityStats.eduPoorlyEducated = cd.m_PoorlyEducatedCount;
+                cityStats.eduEducated = cd.m_EducatedCount;
+                cityStats.eduWellEducated = cd.m_WellEducatedCount;
+                cityStats.eduHighlyEducated = cd.m_HighlyEducatedCount;
+                cityStats.tourists = cd.m_TouristCitizenCount;
+                cityStats.students = cd.m_StudentCount;
+                cityStats.homeless = cd.m_HomelessCitizenCount;
+            }
 
-            var handle = JobChunkExtensions.ScheduleParallel(updateJob, _buildingQuery, base.Dependency);
-            handle = aggregateJob.Schedule(handle);
-            handle.Complete();
-
-            // Aggregate city-wide (buildings with no district are keyed under Entity.Null)
-            DistrictStats cityStats = statsMap.TryGetValue(Entity.Null, out var cs) ? cs : default;
+            // RESTORE FULL PAYLOAD FOR CITY
             
-            // Add all other districts' stats to city stats to get total city data
-            using (var kvp = statsMap.GetKeyValueArrays(Allocator.Temp))
+            var cityPolicies = new List<string>();
+            if (_citySystem.City != Entity.Null && EntityManager.HasBuffer<Game.Policies.Policy>(_citySystem.City))
             {
-                for (int i = 0; i < kvp.Keys.Length; i++)
+                var policies = EntityManager.GetBuffer<Game.Policies.Policy>(_citySystem.City, true);
+                for (int i = 0; i < policies.Length; i++)
                 {
-                    if (kvp.Keys[i] != Entity.Null)
-                    {
-                        cityStats.Add(kvp.Values[i]);
-                    }
+                    if ((policies[i].m_Flags & Game.Policies.PolicyFlags.Active) != 0)
+                        cityPolicies.Add($"\"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}\"");
                 }
             }
-            // For city, localServices = 0 so display shows: svc Local / svc Total (no double-counting)
-            cityStats.localServices = 0;
+            string cityDisplayName = _cityConfigurationSystem?.cityName;
+            if (string.IsNullOrEmpty(cityDisplayName)) cityDisplayName = _mapMetadataSystem?.mapName;
+            if (string.IsNullOrEmpty(cityDisplayName)) cityDisplayName = "City";
 
-            // 1. Get City Row
-            if (_citySystem.City != Entity.Null)
+            double cityAvgWealth = cityStats.households > 0 ? (double)cityStats.totalWealth / cityStats.households : 0;
+            double cityAvgIncome = cityStats.households > 0 ? (double)cityStats.totalIncome / cityStats.households : 0;
+            double cityAvgRent = cityStats.households > 0 ? (double)cityStats.totalRent / cityStats.households : 0;
+            int cityAvgHappiness = cityStats.citizenCount > 0 ? (int)(cityStats.totalHappiness / cityStats.citizenCount) : 0;
+            int cityPureBusiness = cityStats.comProp + cityStats.offProp + cityStats.indProp + cityStats.storProp;
+            double avgBuildingLevelCity = cityStats.buildingLevelSamples > 0 ? (double)cityStats.buildingLevelSum / cityStats.buildingLevelSamples : 0;
+
+            string cityHappinessFactorsJson = GetHappinessFactorsJson(Entity.Null);
+
+            int gameAllCitizens = 0;
+            int gameCommuters = 0;
+            int gameMovingAwayHouseholds = 0;
+            int cityResidentsLive = cityStats.residents;
+
+            if (_countHouseholdDataSystem != null && !_countHouseholdDataSystem.IsCountDataNotReady())
             {
-                var cityEntity = _citySystem.City;
-                var key = "city";
+                var cd = _countHouseholdDataSystem.GetHouseholdCountData();
+                cityResidentsLive = cd.m_MovedInCitizenCount;
+                gameCommuters = cd.m_CommuterHouseholdCount;
+                gameMovingAwayHouseholds = cd.m_MovingAwayHouseholdCount;
+                gameAllCitizens = cd.m_MovedInCitizenCount + cd.m_TouristCitizenCount + cd.m_CommuterHouseholdCount + cd.m_MovingAwayHouseholdCount;
+            }
+            cityStats.residents = cityResidentsLive;
+            int cityPureRes = math.max(0, cityStats.res - cityStats.mixedProp);
+
+            items.Add($"{{\"entityKey\":\"city\",\"name\":\"City\",\"isCity\":true,\"cityName\":\"{EscapeJson(cityDisplayName)}\",\"policies\":[{string.Join(",", cityPolicies)}],\"res\":{cityStats.res},\"svc\":{cityStats.svc},\"biz\":{cityPureBusiness},\"households\":{cityStats.households},\"householdCap\":{cityStats.householdCap},\"workers\":{cityStats.workers},\"maxWorkers\":{cityStats.maxWorkers},\"avgWealth\":{cityAvgWealth},\"avgIncome\":{cityAvgIncome},\"avgRent\":{cityAvgRent},\"avgHappiness\":{cityAvgHappiness},\"residents\":{cityStats.residents},\"tourists\":{cityStats.tourists},\"children\":{cityStats.children},\"teens\":{cityStats.teens},\"adults\":{cityStats.adults},\"seniors\":{cityStats.seniors},\"eduUneducated\":{cityStats.eduUneducated},\"eduPoorlyEducated\":{cityStats.eduPoorlyEducated},\"eduEducated\":{cityStats.eduEducated},\"eduWellEducated\":{cityStats.eduWellEducated},\"eduHighlyEducated\":{cityStats.eduHighlyEducated},\"workerUneducated\":{cityStats.workerUneducated},\"workerPoorlyEducated\":{cityStats.workerPoorlyEducated},\"workerEducated\":{cityStats.workerEducated},\"workerWellEducated\":{cityStats.workerWellEducated},\"workerHighlyEducated\":{cityStats.workerHighlyEducated},\"workerUneducatedMax\":{cityStats.workerUneducatedMax},\"workerPoorlyEducatedMax\":{cityStats.workerPoorlyEducatedMax},\"workerEducatedMax\":{cityStats.workerEducatedMax},\"workerWellEducatedMax\":{cityStats.workerWellEducatedMax},\"workerHighlyEducatedMax\":{cityStats.workerHighlyEducatedMax},\"elemCapacity\":{cityStats.elemCapacity},\"hsCapacity\":{cityStats.hsCapacity},\"collegeCapacity\":{cityStats.collegeCapacity},\"uniCapacity\":{cityStats.uniCapacity},\"elemEnrolled\":{cityStats.elemEnrolled},\"hsEnrolled\":{cityStats.hsEnrolled},\"collegeEnrolled\":{cityStats.collegeEnrolled},\"uniEnrolled\":{cityStats.uniEnrolled},\"elemEligible\":{(int)math.ceil(cityStats.elemEligible)},\"hsEligible\":{(int)math.ceil(cityStats.hsEligible)},\"collegeEligible\":{(int)math.ceil(cityStats.collegeEligible)},\"uniEligible\":{(int)math.ceil(cityStats.uniEligible)},\"localServices\":{cityStats.localServices},\"serviceMask\":{cityStats.serviceMask},\"propertyCount\":{cityStats.propertyCount},\"resProp\":{cityPureRes},\"comProp\":{cityStats.comProp},\"indProp\":{cityStats.indProp},\"offProp\":{cityStats.offProp},\"storProp\":{cityStats.storProp},\"mixedProp\":{cityStats.mixedProp},\"pets\":{cityStats.pets},\"deceased\":{cityStats.deceased},\"students\":{cityStats.students},\"movingAway\":{gameMovingAwayHouseholds},\"avgBuildingLevel\":{avgBuildingLevelCity},\"buildingLevelSamples\":{cityStats.buildingLevelSamples},\"totalLandValue\":{cityStats.totalLandValue},\"landValueSamples\":{cityStats.landValueSamples},\"homeless\":{cityStats.homeless},\"upkeep\":{cityStats.upkeep},\"resourceCost\":{cityStats.resources},\"feesPaid\":{cityStats.fees},\"area\":{cityStats.area},\"happinessFactors\":{cityHappinessFactorsJson},\"gameAllCitizens\":{gameAllCitizens},\"gameTourists\":{cityStats.tourists},\"gameCommuters\":{gameCommuters},\"gameMovingAway\":{gameMovingAwayHouseholds},\"gameEmployees\":{cityStats.workers}}}");
+
+            // RESTORE FULL PAYLOAD FOR DISTRICTS
+            var entities = _districtQuery.ToEntityArray(Allocator.Temp);
+            foreach (var e in entities)
+            {
+                var s = statsMap.TryGetValue(e, out var st) ? st : default;
+                double dAvgWealth = s.households > 0 ? (double)s.totalWealth / s.households : 0;
+                double dAvgIncome = s.households > 0 ? (double)s.totalIncome / s.households : 0;
+                double dAvgRent = s.households > 0 ? (double)s.totalRent / s.households : 0;
+                int dAvgHappiness = s.citizenCount > 0 ? (int)(s.totalHappiness / s.citizenCount) : 0;
+                double dAvgBuildingLevel = s.buildingLevelSamples > 0 ? (double)s.buildingLevelSum / s.buildingLevelSamples : 0;
+                int dBiz = s.comProp + s.offProp + s.indProp + s.storProp;
+                int dPureRes = math.max(0, s.res - s.mixedProp);
+                string dHappinessFactorsJson = GetHappinessFactorsJson(e);
+
+                var key = $"{e.Index},{e.Version}";
                 var activePolicies = new List<string>();
-                string cityName = "City";
-                
-                try {
-                    var config = World.GetOrCreateSystemManaged<CityConfigurationSystem>();
-                    var mapMetadata = World.GetOrCreateSystemManaged<MapMetadataSystem>();
-                    cityName = config.cityName;
-                    if (string.IsNullOrEmpty(cityName)) cityName = mapMetadata.mapName;
-                    if (string.IsNullOrEmpty(cityName)) cityName = _nameSystem.GetRenderedLabelName(cityEntity);
-                } catch {}
-
-                if (em.HasBuffer<Game.Policies.Policy>(cityEntity))
+                if (EntityManager.HasBuffer<Game.Policies.Policy>(e))
                 {
-                    var policies = em.GetBuffer<Game.Policies.Policy>(cityEntity, true);
-                    foreach (var p in policies)
+                    var policies = EntityManager.GetBuffer<Game.Policies.Policy>(e, true);
+                    for (int i = 0; i < policies.Length; i++)
                     {
-                        if ((p.m_Flags & Game.Policies.PolicyFlags.Active) != 0)
-                        {
-                            activePolicies.Add($"\"{p.m_Policy.Index},{p.m_Policy.Version}\"");
-                        }
+                        if ((policies[i].m_Flags & Game.Policies.PolicyFlags.Active) != 0)
+                            activePolicies.Add($"\"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}\"");
                     }
                 }
-
-                double avgWealth = cityStats.householdsWithWealth > 0 ? (double)cityStats.totalWealth / cityStats.householdsWithWealth : 0;
-                double avgIncome = cityStats.householdsWithIncome > 0 ? (double)cityStats.totalIncome / cityStats.householdsWithIncome : 0;
-                double avgRent = cityStats.householdsWithRent > 0 ? (double)cityStats.totalRent / cityStats.householdsWithRent : 0;
-                int avgHappiness = cityStats.citizenCount > 0 ? (int)(cityStats.totalHappiness / cityStats.citizenCount) : 0;
-
-                var avgBuildingLevelCity = cityStats.buildingLevelSamples > 0 ? (double)cityStats.buildingLevelSum / cityStats.buildingLevelSamples : 0;
-                string happinessFactorsJson = GetHappinessFactorsJson(Entity.Null);
-                items.Add($"{{\"entityKey\":\"{key}\",\"name\":\"City\",\"isCity\":true,\"cityName\":\"{EscapeJson(cityName)}\",\"policies\":[{string.Join(",", activePolicies)}],\"res\":{cityStats.res},\"svc\":{cityStats.svc},\"biz\":{cityStats.biz},\"households\":{cityStats.households},\"householdCap\":{cityStats.householdCap},\"workers\":{cityStats.workers},\"maxWorkers\":{cityStats.maxWorkers},\"avgWealth\":{avgWealth},\"avgIncome\":{avgIncome},\"avgRent\":{avgRent},\"avgHappiness\":{avgHappiness},\"residents\":{cityStats.residents},\"children\":{cityStats.children},\"teens\":{cityStats.teens},\"adults\":{cityStats.adults},\"seniors\":{cityStats.seniors},\"eduUneducated\":{cityStats.eduUneducated},\"eduPoorlyEducated\":{cityStats.eduPoorlyEducated},\"eduEducated\":{cityStats.eduEducated},\"eduWellEducated\":{cityStats.eduWellEducated},\"eduHighlyEducated\":{cityStats.eduHighlyEducated},\"workerUneducated\":{cityStats.workerUneducated},\"workerPoorlyEducated\":{cityStats.workerPoorlyEducated},\"workerEducated\":{cityStats.workerEducated},\"workerWellEducated\":{cityStats.workerWellEducated},\"workerHighlyEducated\":{cityStats.workerHighlyEducated},\"localServices\":{cityStats.localServices},\"serviceMask\":{cityStats.serviceMask},\"propertyCount\":{cityStats.propertyCount},\"resProp\":{cityStats.resProp},\"comProp\":{cityStats.comProp},\"indProp\":{cityStats.indProp},\"offProp\":{cityStats.offProp},\"storProp\":{cityStats.storProp},\"mixedProp\":{cityStats.mixedProp},\"avgBuildingLevel\":{avgBuildingLevelCity},\"buildingLevelSamples\":{cityStats.buildingLevelSamples},\"totalLandValue\":{cityStats.totalLandValue},\"landValueSamples\":{cityStats.landValueSamples},\"homeless\":{cityStats.homeless},\"upkeep\":{cityStats.upkeep},\"resourceCost\":{cityStats.resources},\"feesPaid\":{cityStats.fees},\"happinessFactors\":{happinessFactorsJson}}}");
+                items.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{EscapeJson(_nameSystem.GetRenderedLabelName(e))}\",\"policies\":[{string.Join(",", activePolicies)}],\"res\":{s.res},\"svc\":{s.svc},\"biz\":{dBiz},\"households\":{s.households},\"householdCap\":{s.householdCap},\"workers\":{s.workers},\"maxWorkers\":{s.maxWorkers},\"avgWealth\":{dAvgWealth},\"avgIncome\":{dAvgIncome},\"avgRent\":{dAvgRent},\"avgHappiness\":{dAvgHappiness},\"residents\":{s.residents},\"tourists\":{s.tourists},\"children\":{s.children},\"teens\":{s.teens},\"adults\":{s.adults},\"seniors\":{s.seniors},\"eduUneducated\":{s.eduUneducated},\"eduPoorlyEducated\":{s.eduPoorlyEducated},\"eduEducated\":{s.eduEducated},\"eduWellEducated\":{s.eduWellEducated},\"eduHighlyEducated\":{s.eduHighlyEducated},\"workerUneducated\":{s.workerUneducated},\"workerPoorlyEducated\":{s.workerPoorlyEducated},\"workerEducated\":{s.workerEducated},\"workerWellEducated\":{s.workerWellEducated},\"workerHighlyEducated\":{s.workerHighlyEducated},\"workerUneducatedMax\":{s.workerUneducatedMax},\"workerPoorlyEducatedMax\":{s.workerPoorlyEducatedMax},\"workerEducatedMax\":{s.workerEducatedMax},\"workerWellEducatedMax\":{s.workerWellEducatedMax},\"workerHighlyEducatedMax\":{s.workerHighlyEducatedMax},\"elemCapacity\":{s.elemCapacity},\"hsCapacity\":{s.hsCapacity},\"collegeCapacity\":{s.collegeCapacity},\"uniCapacity\":{s.uniCapacity},\"elemEnrolled\":{s.elemEnrolled},\"hsEnrolled\":{s.hsEnrolled},\"collegeEnrolled\":{s.collegeEnrolled},\"uniEnrolled\":{s.uniEnrolled},\"elemEligible\":{(int)math.ceil(s.elemEligible)},\"hsEligible\":{(int)math.ceil(s.hsEligible)},\"collegeEligible\":{(int)math.ceil(s.collegeEligible)},\"uniEligible\":{(int)math.ceil(s.uniEligible)},\"localServices\":{s.localServices},\"serviceMask\":{s.serviceMask},\"propertyCount\":{s.propertyCount},\"resProp\":{dPureRes},\"comProp\":{s.comProp},\"indProp\":{s.indProp},\"offProp\":{s.offProp},\"storProp\":{s.storProp},\"mixedProp\":{s.mixedProp},\"pets\":{s.pets},\"deceased\":{s.deceased},\"students\":{s.students},\"movingAway\":{s.movingAway},\"avgBuildingLevel\":{dAvgBuildingLevel},\"buildingLevelSamples\":{s.buildingLevelSamples},\"totalLandValue\":{s.totalLandValue},\"landValueSamples\":{s.landValueSamples},\"homeless\":{s.homeless},\"upkeep\":{s.upkeep},\"resourceCost\":{s.resources},\"feesPaid\":{s.fees},\"area\":{s.area},\"happinessFactors\":{dHappinessFactorsJson}}}");
             }
-
-            // 2. Get District Rows
-            if (!_districtQuery.IsEmptyIgnoreFilter)
-            {
-                var entities = _districtQuery.ToEntityArray(Allocator.Temp);
-                try
-                {
-                    foreach (var entity in entities)
-                    {
-                        var name = _nameSystem.GetRenderedLabelName(entity) ?? "District";
-                        var key = $"{entity.Index},{entity.Version}";
-                        var activePolicies = new List<string>();
-
-                        if (em.HasBuffer<Game.Policies.Policy>(entity))
-                        {
-                            var policies = em.GetBuffer<Game.Policies.Policy>(entity, true);
-                            foreach (var p in policies)
-                            {
-                                if ((p.m_Flags & Game.Policies.PolicyFlags.Active) != 0)
-                                {
-                                    activePolicies.Add($"\"{p.m_Policy.Index},{p.m_Policy.Version}\"");
-                                }
-                            }
-                        }
-
-                        var stats = statsMap.TryGetValue(entity, out var s) ? s : default;
-                        
-                        double avgWealth = stats.householdsWithWealth > 0 ? (double)stats.totalWealth / stats.householdsWithWealth : 0;
-                        double avgIncome = stats.householdsWithIncome > 0 ? (double)stats.totalIncome / stats.householdsWithIncome : 0;
-                        double avgRent = stats.householdsWithRent > 0 ? (double)stats.totalRent / stats.householdsWithRent : 0;
-                        int avgHappiness = stats.citizenCount > 0 ? (int)(stats.totalHappiness / stats.citizenCount) : 0;
-                        
-                        var avgBuildingLevel = stats.buildingLevelSamples > 0 ? (double)stats.buildingLevelSum / stats.buildingLevelSamples : 0;
-                        string happinessFactorsJson = GetHappinessFactorsJson(entity);
-                        items.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{EscapeJson(name)}\",\"policies\":[{string.Join(",", activePolicies)}],\"res\":{stats.res},\"svc\":{stats.svc},\"biz\":{stats.biz},\"households\":{stats.households},\"householdCap\":{stats.householdCap},\"workers\":{stats.workers},\"maxWorkers\":{stats.maxWorkers},\"avgWealth\":{avgWealth},\"avgIncome\":{avgIncome},\"avgRent\":{avgRent},\"avgHappiness\":{avgHappiness},\"residents\":{stats.residents},\"children\":{stats.children},\"teens\":{stats.teens},\"adults\":{stats.adults},\"seniors\":{stats.seniors},\"eduUneducated\":{stats.eduUneducated},\"eduPoorlyEducated\":{stats.eduPoorlyEducated},\"eduEducated\":{stats.eduEducated},\"eduWellEducated\":{stats.eduWellEducated},\"eduHighlyEducated\":{stats.eduHighlyEducated},\"workerUneducated\":{stats.workerUneducated},\"workerPoorlyEducated\":{stats.workerPoorlyEducated},\"workerEducated\":{stats.workerEducated},\"workerWellEducated\":{stats.workerWellEducated},\"workerHighlyEducated\":{stats.workerHighlyEducated},\"localServices\":{stats.localServices},\"serviceMask\":{stats.serviceMask},\"propertyCount\":{stats.propertyCount},\"resProp\":{stats.resProp},\"comProp\":{stats.comProp},\"indProp\":{stats.indProp},\"offProp\":{stats.offProp},\"storProp\":{stats.storProp},\"mixedProp\":{stats.mixedProp},\"avgBuildingLevel\":{avgBuildingLevel},\"buildingLevelSamples\":{stats.buildingLevelSamples},\"totalLandValue\":{stats.totalLandValue},\"landValueSamples\":{stats.landValueSamples},\"homeless\":{stats.homeless},\"upkeep\":{stats.upkeep},\"resourceCost\":{stats.resources},\"feesPaid\":{stats.fees},\"happinessFactors\":{happinessFactorsJson}}}");
-                    }
-                }
-                finally { entities.Dispose(); }
-            }
-
-            stream.Dispose();
+            entities.Dispose();
+            _districtBrowserData.Update("[" + string.Join(",", items) + "]");
             statsMap.Dispose();
-            var payload = "[" + string.Join(",", items) + "]";
-            _districtBrowserData.Update(payload);
-            // Debug: persist district browser payload so we can compare against in-game values
-            try {
-                var modsData = AdvancedTPM.Utilities.FilePaths.GetModsDataFolder();
-                if (!string.IsNullOrEmpty(modsData)) {
-                    System.IO.Directory.CreateDirectory(modsData);
-                    var path = System.IO.Path.Combine(modsData, "district_browser_payload.json");
-                    System.IO.File.WriteAllText(path, payload);
-                    Mod.log.Info($"Wrote district browser payload ({items.Count} items) to {path}");
+        }
+
+        private void ToggleDistrictPolicy(string districtKey, string policyPrefabKey, bool active)
+        {
+            try
+            {
+                Entity districtEntity = districtKey == "city" ? _citySystem.City : ParseEntityKey(districtKey);
+                Entity policyEntity = ParseEntityKey(policyPrefabKey);
+                if (districtEntity == Entity.Null || policyEntity == Entity.Null) return;
+
+                float adjustment = 0f;
+                if (EntityManager.HasBuffer<Game.Policies.Policy>(districtEntity))
+                {
+                    var policies = EntityManager.GetBuffer<Game.Policies.Policy>(districtEntity, true);
+                    for (int i = 0; i < policies.Length; i++)
+                    {
+                        if (policies[i].m_Policy == policyEntity)
+                        {
+                            adjustment = policies[i].m_Adjustment;
+                            break;
+                        }
+                    }
                 }
-            } catch (System.Exception ex) { Mod.log.Info("Failed to write district browser payload: " + ex.Message); }
+
+                var ecb = _endFrameBarrier.CreateCommandBuffer();
+                Entity evt = ecb.CreateEntity(_policyEventArchetype);
+                ecb.SetComponent(evt, new Game.Policies.Modify(districtEntity, policyEntity, active, adjustment));
+                UpdateDistrictData();
+            }
+            catch (Exception ex)
+            {
+                Mod.log?.Warn($"Error toggling policy: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        private void RenameDistrict(string districtKey, string newName)
+        {
+            try
+            {
+                Entity districtEntity = ParseEntityKey(districtKey);
+                if (districtEntity == Entity.Null || _nameSystem == null) return;
+                _nameSystem.SetCustomName(districtEntity, newName);
+                UpdateDistrictData();
+            }
+            catch (Exception ex)
+            {
+                Mod.log?.Warn($"Error renaming district: {ex.Message}");
+            }
+        }
+
+        private Entity ParseEntityKey(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return Entity.Null;
+            var parts = key.Split(',');
+            if (parts.Length == 2 && int.TryParse(parts[0], out int index) && int.TryParse(parts[1], out int version))
+            {
+                return new Entity { Index = index, Version = version };
+            }
+            return Entity.Null;
         }
 
         private string EscapeJson(string s)
