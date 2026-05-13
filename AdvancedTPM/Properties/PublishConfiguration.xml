@@ -23,35 +23,58 @@ Advanced per-resource tax and production manager with an AI advisor and in-depth
 For full details, screenshots and installation steps please see the project README or edit the mod page on the hosting site.
   </LongDescription>
   <!--Thumbnail-->
-  <Thumbnail Value="Properties/Thumbnail.png" />
+  <Thumbnail Value="AdvancedTPM/Properties/thumbnail.png" />
   <!--Screenshot, can be set multiple times-->
-  <Screenshot Value="Properties/Screenshots/sc1.jpg" />
-  <Screenshot Value="Properties/Screenshots/sc2.jpg" />
-	<Screenshot Value="Properties/Screenshots/sc3.jpg" />
-	<Screenshot Value="Properties/Screenshots/sc4.jpg" />
-	<Screenshot Value="Properties/Screenshots/sc5.jpg" />
-	<Screenshot Value="Properties/Screenshots/sc6.jpg" />
-	<Screenshot Value="Properties/Screenshots/sc7.jpg" />
-	<Screenshot Value="Properties/Screenshots/sc8.jpg" />
-	<Screenshot Value="Properties/Screenshots/sc9.jpg" />
-	<Screenshot Value="Properties/Screenshots/sc10.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/overview.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/resources.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/businesses.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/commercial.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/entertainment.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/forestry.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/agriculture.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/oil.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/ore.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/office.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/profiles.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/logs.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/residential.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/services.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/signature.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/districts.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/districts_expand.jpg" />
+  <Screenshot Value="AdvancedTPM/Properties/Screenshots/district_settings.jpg" />
 
 	<!--Tag, can be set multiple times-->
   <Tag Value="" />
   <!--Link to the forum post where the mod can be discussed-->
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/advanced-tax-production-manager.1917448/" />
   <!--Version of the mod-->
-  <ModVersion Value="1.0.3" />
+  <ModVersion Value="1.1.0" />
   <!--Recommended version of the base game to use the mod-->
-  <GameVersion Value="1.5.4*" />
+  <GameVersion Value="1.5.8f1*" />
   <!--Dependency for the mod, can be set multiple times-->
   <Dependency Id="" />
   <!--Required DLC, can be set multiple times. Supported values are "Landmark Buildings", "San Fransisco Set", "Beach Properties", "Urban Promenades", "Modern Architecture"-->
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
-	<ChangeLog>
-		## Changelog 1.0.2
-	</ChangeLog> 
+	<ChangeLog><![CDATA[
+## Changelog 1.1.0
+## v1.1.0 - Districts Residential & Services Overhaul
+
+**Released:** 2026-05-13
+
+### Added
+- **Districts Dashboard:** Complete overhaul featuring reorderable cards, settings gear, demographic metrics, and district-level policies.
+- **Happiness Aggregation:** Integrated happiness metrics into the Districts UI panel.
+- **Residential Browser:** Filterable UI for residential housing data (themes, densities, occupancy, etc.) complete with residents/employees columns and dynamic rows.
+- **Services Browser:** Filterable panel for tracking city service buildings with metrics.
+- **Advisor Panel Fixes:** Stabilized the layout of the adaptive learning advisor logs and UI components.
+
+### Changed
+- Refined and stabilized auto-resizing row components and panel layouts.
+- Resolved C# missing symbol bugs regarding DistrictHappinessData components and system states.
+- Enhanced robust image icon mapping for business types and resources in the UI.
+	]]></ChangeLog> 
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
   <ExternalLink Type="" Url="https://github.com/binded-zz/AdvancedTPM" />
   <!--Supported values Public, Private, Unlisted-->
