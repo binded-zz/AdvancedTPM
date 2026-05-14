@@ -8,34 +8,39 @@
   <ShortDescription Value="AdvancedTPM - Advanced Tax &amp; Production Manager" />
   <!--Long description of the mod. Single line or multi line. Supports minimal markdown subset-->
   <LongDescription>
-## AdvancedTPM
+	  ## AdvancedTPM
 
-Advanced per-resource tax and production manager with an AI advisor and in-depth company browser. Configure taxes for individual resources, monitor production and consumption, and get adaptive recommendations from a learning advisor.
+	  Advanced per-resource tax and production manager with an AI advisor and in-depth company browser. Configure taxes for individual resources, monitor production and consumption, and get adaptive recommendations from a learning advisor.
 
-## Key features
+	  ## Key features
 
-- Per-resource tax sliders and real-time production/consumption bars
-- Category grouping: Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial
-- Company Browser: sortable table, efficiency factor analysis, happiness indicator, and camera jump
-- Auto-Tax engine with configurable rules and per-resource min/max ranges
-- Adaptive Learning Advisor: records outcomes and provides confidence-weighted recommendations
-
-For full details, screenshots and installation steps please see the project README or edit the mod page on the hosting site.
+	  - Per-resource tax sliders and real-time production/consumption bars
+	  
+	  - Category grouping: Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial
+	  
+	  - Company Browser: sortable table, efficiency factor analysis, happiness indicator, and camera jump
+	  
+	  - Auto-Tax engine with configurable rules and per-resource min/max ranges
+	  
+	  - Adaptive Learning Advisor: records outcomes and provides confidence-weighted recommendations
+	  
+	  - Districts Dashboard: Complete overhaul featuring reorderable cards, settings gear, demographic metrics, and district-level policies.
+	  
+	  - Happiness Aggregation: Integrated happiness metrics into the Districts UI panel (synthesizes realistic district happiness factors based on city data vs district performance).
+	  
+	  - Residential Browser: Filterable UI for residential housing data (themes, densities, occupancy, etc.) complete with residents/employees columns and dynamic rows.
+	  
+	  - Services Browser: Filterable panel for tracking city service buildings with metrics.
+	  
+	  For full details, screenshots and installation steps please see the project README or edit the mod page on the hosting site.
   </LongDescription>
   <!--Thumbnail-->
   <Thumbnail Value="Properties/Thumbnail.png" />
   <!--Screenshot, can be set multiple times-->
-  <Screenshot Value="Properties/screenshots/overview.jpg" />
   <Screenshot Value="Properties/screenshots/resources.jpg" />
   <Screenshot Value="Properties/screenshots/businesses.jpg" />
   <Screenshot Value="Properties/screenshots/commercial.jpg" />
-  <Screenshot Value="Properties/screenshots/entertainment.jpg" />
-  <Screenshot Value="Properties/screenshots/forestry.jpg" />
-  <Screenshot Value="Properties/screenshots/agriculture.jpg" />
-  <Screenshot Value="Properties/screenshots/oil.jpg" />
-  <Screenshot Value="Properties/screenshots/ore.jpg" />
   <Screenshot Value="Properties/screenshots/office.jpg" />
-  <Screenshot Value="Properties/screenshots/profiles.jpg" />
   <Screenshot Value="Properties/screenshots/residential.jpg" />
   <Screenshot Value="Properties/screenshots/services.jpg" />
   <Screenshot Value="Properties/screenshots/signature.jpg" />
@@ -60,19 +65,14 @@ For full details, screenshots and installation steps please see the project READ
 ## Changelog 1.1.0
 ## v1.1.0 - Districts Residential & Services Overhaul
 
-**Released:** 2026-05-13
-
 ### Added
-- **Districts Dashboard:** Complete overhaul featuring reorderable cards, settings gear, demographic metrics, and district-level policies.
-- **Happiness Aggregation:** Integrated happiness metrics into the Districts UI panel.
-- **Residential Browser:** Filterable UI for residential housing data (themes, densities, occupancy, etc.) complete with residents/employees columns and dynamic rows.
-- **Services Browser:** Filterable panel for tracking city service buildings with metrics.
-- **Advisor Panel Fixes:** Stabilized the layout of the adaptive learning advisor logs and UI components.
+- ** Districts Dashboard:** Complete overhaul featuring reorderable cards, settings gear, demographic metrics, and district-level policies.
+- ** Happiness Aggregation:** Integrated happiness metrics into the Districts UI panel.
+- ** Residential Browser:** Filterable UI for residential housing data (themes, densities, occupancy, etc.) complete with residents/employees columns and dynamic rows.
+- ** Services Browser:** Filterable panel for tracking city service buildings with metrics.
+- ** Advisor Panel Fixes:** Stabilized the layout of the adaptive learning advisor logs and UI components.
 
-### Changed
-- Refined and stabilized auto-resizing row components and panel layouts.
-- Resolved C# missing symbol bugs regarding DistrictHappinessData components and system states.
-- Enhanced robust image icon mapping for business types and resources in the UI.
+
 	]]></ChangeLog> 
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
   <ExternalLink Type="" Url="https://github.com/binded-zz/AdvancedTPM" />
