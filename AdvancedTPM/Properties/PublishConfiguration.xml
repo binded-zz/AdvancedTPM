@@ -23,26 +23,25 @@ Advanced per-resource tax and production manager with an AI advisor and in-depth
 For full details, screenshots and installation steps please see the project README or edit the mod page on the hosting site.
   </LongDescription>
   <!--Thumbnail-->
-  <Thumbnail Value="AdvancedTPM/Properties/thumbnail.png" />
+  <Thumbnail Value="Properties/Thumbnail.png" />
   <!--Screenshot, can be set multiple times-->
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/overview.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/resources.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/businesses.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/commercial.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/entertainment.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/forestry.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/agriculture.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/oil.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/ore.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/office.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/profiles.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/logs.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/residential.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/services.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/signature.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/districts.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/districts_expand.jpg" />
-  <Screenshot Value="AdvancedTPM/Properties/Screenshots/district_settings.jpg" />
+  <Screenshot Value="Properties/screenshots/overview.jpg" />
+  <Screenshot Value="Properties/screenshots/Resource.jpg" />
+  <Screenshot Value="Properties/screenshots/businesses.jpg" />
+  <Screenshot Value="Properties/screenshots/commerical.jpg" />
+  <Screenshot Value="Properties/screenshots/ent.jpg" />
+  <Screenshot Value="Properties/screenshots/forstry.jpg" />
+  <Screenshot Value="Properties/screenshots/argicualture.jpg" />
+  <Screenshot Value="Properties/screenshots/oil.jpg" />
+  <Screenshot Value="Properties/screenshots/ore.jpg" />
+  <Screenshot Value="Properties/screenshots/office.jpg" />
+  <Screenshot Value="Properties/screenshots/profiles.jpg" />
+  <Screenshot Value="Properties/screenshots/residental.jpg" />
+  <Screenshot Value="Properties/screenshots/services.jpg" />
+  <Screenshot Value="Properties/screenshots/signature.jpg" />
+  <Screenshot Value="Properties/screenshots/districts.jpg" />
+  <Screenshot Value="Properties/screenshots/districts expand.jpg" />
+  <Screenshot Value="Properties/screenshots/district settings.jpg" />
 
 	<!--Tag, can be set multiple times-->
   <Tag Value="" />
