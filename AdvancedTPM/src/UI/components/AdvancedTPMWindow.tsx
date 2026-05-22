@@ -12,6 +12,7 @@ import ServiceIcon from '../assets/ServiceIcon';
 import ThemeIcon from '../assets/ThemeIcon';
 import PackIcon from '../assets/PackIcon';
 import { ModDebugPanel } from './ModDebugPanel';
+import { getSafeColor } from '../../mods/apiSafe';
 import './AdvancedTPMWindow.css';
 
 interface TaxResourceKey {
@@ -605,6 +606,15 @@ districtPoliciesData,
     return () => window.removeEventListener('atpm.useGameIconsChanged', handler as EventListener);
   }, []);
   const [viewMode, setViewMode] = useState<'resources' | 'businesses' | 'signature' | 'advisor' | 'residential' | 'services' | 'districts'>('resources');
+
+  useEffect(() => {
+    let mode = viewMode as string;
+    if (viewMode === 'resources') mode = 'overview';
+    else if (viewMode === 'businesses') mode = 'company';
+    else if (viewMode === 'districts') mode = 'district';
+    trigger("taxProduction", "setActiveViewMode", mode);
+  }, [viewMode]);
+
   const safeCategory = (selectedCategory || 'all').toLowerCase();
   const iconMap = new Map(resourceCategories.flatMap((c) => c.resources.map((r) => [r.key, r.icon] as const)));
   const autoTaxParsed = useMemo(() => parseAutoTaxStatus(autoTaxStatus), [autoTaxStatus]);
@@ -892,7 +902,7 @@ districtPoliciesData,
               {profitCount > 0 && (
                 <span
                   className="adv-autotax-status-profit"
-                  style={{ color: profitColor }}
+                  style={{ color: getSafeColor(profitColor) }}
                   title={`Average company profitability across ${profitCount} tracked resource(s):\n${posProfit} profitable, ${negProfit} losing money\n\nThis reflects real company profit data from ECS entities.`}
                 >
                   {`\u00a0\u2248${overallAvg > 0 ? '+' : ''}${overallAvg.toFixed(0)}% profit`}
@@ -1231,7 +1241,7 @@ const SignatureUnifiedView: React.FC<{
   if (allItems.length === 0) {
     return (
       <div className="adv-table-section">
-        <div className="adv-empty" style={{ padding: '20rem', textAlign: 'center', color: 'rgba(255,255,255,0.55)', fontSize: '13rem', fontStyle: 'italic' }}>
+        <div className="adv-empty" style={{ padding: '20rem', textAlign: 'center', color: getSafeColor('rgba(255,255,255,0.55)'), fontSize: '13rem', fontStyle: 'italic' }}>
           No signature buildings unlocked yet. Build and complete signature building requirements to see them here.
         </div>
       </div>
@@ -1313,7 +1323,7 @@ const SignatureUnifiedView: React.FC<{
               })()}
             </div>
           )}
-          <div className="sig-summary-row" style={{ display: 'flex', alignItems: 'center', padding: '4rem 10rem', borderTop: '1rem solid rgba(255,255,255,0.05)', marginTop: '4rem' }}>
+          <div className="sig-summary-row" style={{ display: 'flex', alignItems: 'center', padding: '4rem 10rem', borderTopWidth: '1rem', borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.05)', marginTop: '4rem' }}>
             <span className="sig-count" style={{ fontSize: '11rem', opacity: 0.6 }}>{filtered.length} buildings shown</span>
           </div>
         </div>
@@ -1333,7 +1343,7 @@ const SignatureUnifiedView: React.FC<{
       <div className="sig-rows-wrap" style={{ flex: 1, minHeight: 0 }}>
         <div ref={bodyRef} className="sig-rows-scroll" style={{ overflowY: 'auto' }}>
           {filtered.map((item) => (
-            <div key={item.entityKey} className="sig-row-container" style={{ borderBottom: '1rem solid rgba(255,255,255,0.05)' }}>
+            <div key={item.entityKey} className="sig-row-container" style={{ borderBottomWidth: '1rem', borderBottomStyle: 'solid', borderBottomColor: 'rgba(255,255,255,0.05)' }}>
               <div className={`sig-row${expandedEntity === item.entityKey ? ' sig-row-active' : ''}`} 
                   onClick={() => {
                     focusSignatureEntity(item.entityKey);
@@ -1357,13 +1367,13 @@ const SignatureUnifiedView: React.FC<{
                 <div className="sig-col-pack" style={{ width: '80rem', textAlign: 'center' }}>
                   <PackIcon pack={item.assetPack} size={14} />
                 </div>
-                <div className="sig-col-level" style={{ width: '36rem', textAlign: 'center', color: 'rgba(255,255,255,0.75)' }}>{item.level > 0 ? item.level : '-'}</div>
+                <div className="sig-col-level" style={{ width: '36rem', textAlign: 'center', color: getSafeColor('rgba(255,255,255,0.75)') }}>{item.level > 0 ? item.level : '-'}</div>
                 <div className="sig-col-dist" style={{ width: '60rem', textAlign: 'center', opacity: 0.8, fontSize: '10rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.district}</div>
               </div>
               {expandedEntity === item.entityKey && (
-                <div className="sig-row-details" style={{ padding: '4rem 10rem 8rem 34rem', background: 'rgba(0,0,0,0.15)', fontSize: '10rem', color: 'rgba(255,255,255,0.6)' }}>
+                <div className="sig-row-details" style={{ padding: '4rem 10rem 8rem 34rem', backgroundColor: getSafeColor('rgba(0,0,0,0.15)'), fontSize: '10rem', color: getSafeColor('rgba(255,255,255,0.6)') }}>
                   <div className="sig-detail-line" style={{ marginBottom: '2rem' }}>{item.address}</div>
-                  {item.extraInfo && <div className="sig-detail-line sig-detail-extra" style={{ color: '#50b8e9' }}>{item.extraInfo}</div>}
+                  {item.extraInfo && <div className="sig-detail-line sig-detail-extra" style={{ color: getSafeColor('#50b8e9') }}>{item.extraInfo}</div>}
                   <div className="sig-detail-line" style={{ marginTop: '4rem', fontStyle: 'italic' }}>Entity: {item.entityKey}</div>
                 </div>
               )}
@@ -1375,5 +1385,5 @@ const SignatureUnifiedView: React.FC<{
   );
 };
 
-export default AdvancedTPMWindow;
+export default React.memo(AdvancedTPMWindow);
 

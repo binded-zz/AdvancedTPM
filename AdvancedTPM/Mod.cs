@@ -10,7 +10,7 @@ namespace AdvancedTPM
     public class Mod : IMod
     {
         public static readonly string Name = "AdvancedTPM";
-        public static readonly string Version = "1.1.0";
+        public static readonly string Version = "1.1.1";
         public static ILog log = LogManager.GetLogger($"{nameof(AdvancedTPM)}.{nameof(Mod)}").SetShowsErrorsInUI(false);
         public static TPMModSettings Settings { get; private set; }
 
@@ -58,13 +58,12 @@ namespace AdvancedTPM
             AssetDatabase.global.LoadSettings(nameof(AdvancedTPM), Settings, new TPMModSettings(this));
 
             updateSystem.UpdateAt<TaxingProductionUISystem>(SystemUpdatePhase.UIUpdate);
-            updateSystem.UpdateAt<AutoTaxSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<AutoTaxSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAt<CompanyBrowserSystem>(SystemUpdatePhase.UIUpdate);
-            updateSystem.UpdateAt<AdaptiveLearningSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<AdaptiveLearningSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAt<ResidentialBrowserSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<ServicesBrowserSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<DistrictBrowserSystem>(SystemUpdatePhase.UIUpdate);
-            updateSystem.UpdateAt<AdvancedTPM.Systems.DistrictHappinessAggregationSystem>(SystemUpdatePhase.GameSimulation);
 
             log.Info($"{Name} loaded successfully");
 

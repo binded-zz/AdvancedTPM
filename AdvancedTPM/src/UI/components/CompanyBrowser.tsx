@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffe
 // React hooks are provided by the environment. Do not import to avoid duplicate type declarations.
 import { trigger } from 'cs2/api';
 import { Entity } from 'cs2/utils';
+import { getSafeValue, getSafeColor } from '../../mods/apiSafe';
 import { resourceCategories } from '../data/resourceTaxonomy';
 import ServiceIcon from '../assets/ServiceIcon';
 import './CompanyBrowser.css';
@@ -286,7 +287,7 @@ const ZONE_BADGE_LABELS: Record<string, string> = {
 
 const serviceIcon = (c: string): string | null => {
   if (c.includes('garbage') || c.includes('waste') || c.includes('landfill') || c.includes('recycling')) return 'Media/Game/Icons/Garbage.svg';
-  if (c.includes('park') || c.includes('recreation') || c.includes('leisure')) return 'Media/Game/Icons/ParkAndRecreation.svg';
+  if (c.includes('park') || c.includes('recreation') || c.includes('leisure')) return 'Media/Game/Icons/Services.svg';
   if (c.includes('telecom') || c.includes('internet')) return 'Media/Game/Resources/Telecom.svg';
   return null;
 };
@@ -411,7 +412,9 @@ interface CompanyBrowserProps {
 }
 
 const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happinessData = '', isSignatureView }) => {
-  const safeCompanies = Array.isArray(companies) ? companies : [];
+  const dataReady = companies && Array.isArray(companies);
+  if (!dataReady) return null;
+  const safeCompanies = companies;
   const [zoneFilter, setZoneFilter] = useState('All');
   const [tierFilter, setTierFilter] = useState('All');
   const [resourceFilter, setResourceFilter] = useState('All');
@@ -430,18 +433,21 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
   const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
   const [happinessMap, setHappinessMap] = useState<CompanyHappinessMap>({});
   const [happinessLoading, setHappinessLoading] = useState<Record<string, boolean>>({});
+  const [displayLimit, setDisplayLimit] = useState(50);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   // Scroll to top and clear expansion when filters or sort changes so users see results
   useEffect(() => {
     try { if (bodyRef.current) bodyRef.current.scrollTop = 0; } catch { }
     setExpandedEntity(null);
+    setDisplayLimit(50);
   }, [zoneFilter, tierFilter, resourceFilter, packFilter, themeFilter, districtFilter, kindFilter, searchText]);
 
   // Merge incoming single-company happiness payloads into local map
   useEffect(() => {
-    if (!happinessData) return;
-    const parsed = parseCompanyHappinessPayload(happinessData);
+    const companyHappinessData = getSafeValue(happinessData, '');
+    if (!companyHappinessData || companyHappinessData.length === 0) return;
+    const parsed = parseCompanyHappinessPayload(companyHappinessData);
     if (!parsed) return;
     const [key, map] = parsed;
     setHappinessMap((prev) => ({ ...prev, [key]: map }));
@@ -801,9 +807,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
       {/* Summary */}
       <div className="cb-summary">
         <span className="cb-summary-total" style={{ marginRight: '16rem' }}>{`${totalCount} total`}</span>
-        <span className="cb-summary-profitable" style={{ color: '#8bdb46', marginRight: '16rem' }}>{`${healthyCount} healthy`}</span>
-        <span className="cb-summary-losing" style={{ color: '#e88c3a', marginRight: '16rem' }}>{`${losingCount} struggling`}</span>
-        <span className="cb-summary-bankrupt" style={{ color: '#e05050', marginRight: '16rem' }}>{`${bankruptCount} bankrupt`}</span>
+        <span className="cb-summary-profitable" style={{ color: getSafeColor('#8bdb46'), marginRight: '16rem' }}>{`${healthyCount} healthy`}</span>
+        <span className="cb-summary-losing" style={{ color: getSafeColor('#e88c3a'), marginRight: '16rem' }}>{`${losingCount} struggling`}</span>
+        <span className="cb-summary-bankrupt" style={{ color: getSafeColor('#e05050'), marginRight: '16rem' }}>{`${bankruptCount} bankrupt`}</span>
       </div>
 
       {/* Company rows with custom scrollbar */}
@@ -853,7 +859,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
           {sorted.length === 0 && (
             <div className="cb-empty">No companies found. Companies will appear once the game simulation is running.</div>
           )}
-          {sorted.slice(0, 400).map((c, i) => {
+          {sorted.slice(0, displayLimit).map((c, i) => {
             const compKey = `${c.entityIndex},${c.entityVersion}`;
             const isExpanded = expandedEntity === compKey;
             const rowClickHandler = (e: React.MouseEvent) => {
@@ -864,7 +870,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
               }
             };
             const profitColor = c.profit < 0 ? '#e05050' : c.profit > 0 ? '#8bdb46' : 'rgba(255,255,255,0.5)';
-            const tierColor = TIER_COLORS[c.profitabilityTier] || TIER_COLORS.Unknown;
+            const tierColor = TIER_COLORS[c.profitabilityTier] || 'transparent';
             const workerPct = c.maxWorkers > 0 ? Math.round((c.workers / c.maxWorkers) * 100) : 0;
             const profitDescription = c.profit > 20 ? 'Very profitable — high tax tolerance'
               : c.profit > 5 ? 'Healthy — moderate tax tolerance'
@@ -904,12 +910,12 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
                     <span className={isRawResource(c.resourceKey) ? 'cb-resource-raw' : ''}>{resourceLabel(c.resourceKey)}</span>
                   </div>
                   <div className="cb-col-profit">
-                    <span style={{ color: profitColor }}>
+                    <span style={{ color: getSafeColor(profitColor) }}>
                       {`${c.profit > 0 ? '+' : ''}${c.profit}\u00a0%`}
                     </span>
                   </div>
                   <div className="cb-col-tax">
-                    <span style={{ color: c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)' }}>
+                    <span style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>
                       {`${c.taxRate}\u00a0%`}
                     </span>
                   </div>
@@ -924,14 +930,14 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
                         : Math.max(0, Math.min(100, Math.round(50 + (eff - 100) * 0.2 + profitVal * 0.25 + (staffPct - 75) * 0.3 - Math.max(0, tax - 10) * 0.5)));
                       const color = estimate >= 75 ? '#8bdb46' : estimate >= 50 ? '#50b8e9' : estimate >= 30 ? '#e88c3a' : '#e05050';
                       return (
-                        <span style={{ color, fontWeight: 800 }} title={`Estimated company happiness: ${estimate}`}>
+                        <span style={{ color: getSafeColor(color), fontWeight: 800 }} title={`Estimated company happiness: ${estimate}`}>
                           {`${estimate}`}
                         </span>
                       );
                     })()}
                   </div>
                   <div className="cb-col-tier">
-                    <span style={{ color: tierColor }}>
+                    <span style={{ color: getSafeColor(tierColor) }}>
                       {TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}
                     </span>
                   </div>
@@ -954,15 +960,15 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
                       <div className="cb-detail-main">
                         <div className="cb-detail-row">
                           <span className="cb-detail-label">Profitability</span>
-                          <span className="cb-detail-value" style={{ color: profitColor }}>{`${c.profit > 0 ? '+' : ''}${c.profit}%`}</span>
+                          <span className="cb-detail-value" style={{ color: getSafeColor(profitColor) }}>{`${c.profit > 0 ? '+' : ''}${c.profit}%`}</span>
                         </div>
                         <div className="cb-detail-row">
                           <span className="cb-detail-label">Status</span>
-                          <span className="cb-detail-value" style={{ color: tierColor }}>{TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}</span>
+                          <span className="cb-detail-value" style={{ color: getSafeColor(tierColor) }}>{TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}</span>
                         </div>
                         <div className="cb-detail-row">
                           <span className="cb-detail-label">Assessment</span>
-                          <span className="cb-detail-value cb-detail-assessment" style={{ color: profitColor }}>{profitDescription}</span>
+                          <span className="cb-detail-value cb-detail-assessment" style={{ color: getSafeColor(profitColor) }}>{profitDescription}</span>
                         </div>
                         <div className="cb-detail-row">
                           <span className="cb-detail-label">Zone</span>
@@ -977,7 +983,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
                         </div>
                         <div className="cb-detail-row">
                           <span className="cb-detail-label">Tax Rate</span>
-                          <span className="cb-detail-value" style={{ color: c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.8)' }}>
+                          <span className="cb-detail-value" style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.8)') }}>
                             {`${c.taxRate}%`}
                           </span>
                         </div>
@@ -1001,7 +1007,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
                         </div>
                         <div className="cb-detail-row">
                           <span className="cb-detail-label">Efficiency</span>
-                          <span className="cb-detail-value" style={{ color: c.efficiency >= 80 ? '#8bdb46' : c.efficiency >= 50 ? '#e88c3a' : '#e05050' }}>
+                          <span className="cb-detail-value" style={{ color: getSafeColor(c.efficiency >= 80 ? '#8bdb46' : c.efficiency >= 50 ? '#e88c3a' : '#e05050') }}>
                             {`${c.efficiency}%`}
                           </span>
                         </div>
@@ -1030,15 +1036,23 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
                           return factors.map((f, fi) => (
                             <div key={fi} className="cb-detail-row">
                               <span className="cb-detail-label">{f.label}</span>
-                              <span className="cb-detail-value" style={{ color: f.color }}>{f.status}</span>
+                              <span className="cb-detail-value" style={{ color: getSafeColor(f.color, '#EAEAEA') }}>{f.status}</span>
                             </div>
                           ));
                         })()}
                       </div>
                       <div className="cb-detail-factors">
                         <div className="cb-detail-section-title">Public Services</div>
-                        <div className="cb-detail-row"><span className="cb-detail-label">Crime</span><span className="cb-detail-value">{(happinessMap[compKey]?.crimeProbability || 0).toFixed(2)}</span></div>
-                        <div className="cb-detail-row"><span className="cb-detail-label">Healthcare</span><span className="cb-detail-value">{(happinessMap[compKey]?.healthcare || 0).toFixed(2)}</span></div>
+                        {(() => {
+                          const companyHappinessData = getSafeValue(happinessMap[compKey], null);
+                          if (!companyHappinessData) return <div className="cb-detail-loading-placeholder" style={{ opacity: 0.5, fontSize: '11rem', padding: '4rem 0' }}>Loading factor data...</div>;
+                          return (
+                            <>
+                              <div className="cb-detail-row"><span className="cb-detail-label">Crime</span><span className="cb-detail-value">{(companyHappinessData.crimeProbability || 0).toFixed(2)}</span></div>
+                              <div className="cb-detail-row"><span className="cb-detail-label">Healthcare</span><span className="cb-detail-value">{(companyHappinessData.healthcare || 0).toFixed(2)}</span></div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -1046,6 +1060,11 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
               </div>
             );
           })}
+          {displayLimit < sorted.length && (
+            <div className="cb-row" style={{ justifyContent: 'center', padding: '12rem', color: getSafeColor('#50b8e9'), fontWeight: 'bold' }} onClick={() => setDisplayLimit((d) => d + 50)}>
+              Load More ({sorted.length - displayLimit} remaining)
+            </div>
+          )}
         </div>
       </div>
     </div>

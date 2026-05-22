@@ -1,4 +1,4 @@
-﻿
+
 <Publish>
   <!--Id must be set in order to update existing mod. It is not required for publishing mod for the first time--> 
   <ModId Value="141486" />
@@ -15,23 +15,34 @@
 	  ## Key features
 
 	  - Per-resource tax sliders and real-time production/consumption bars
-	  
+
 	  - Category grouping: Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial
-	  
+
 	  - Company Browser: sortable table, efficiency factor analysis, happiness indicator, and camera jump
-	  
+
 	  - Auto-Tax engine with configurable rules and per-resource min/max ranges
-	  
+
 	  - Adaptive Learning Advisor: records outcomes and provides confidence-weighted recommendations
-	  
+
 	  - Districts Dashboard: Complete overhaul featuring reorderable cards, settings gear, demographic metrics, and district-level policies.
-	  
+
 	  - Happiness Aggregation: Integrated happiness metrics into the Districts UI panel (synthesizes realistic district happiness factors based on city data vs district performance).
-	  
+
 	  - Residential Browser: Filterable UI for residential housing data (themes, densities, occupancy, etc.) complete with residents/employees columns and dynamic rows.
-	  
+
 	  - Services Browser: Filterable panel for tracking city service buildings with metrics.
-	  
+
+
+
+	  1.1.1 Update: Performance improvements and bug fixes. Removed district happiness system due to performance issues.
+	  this mod is pretty cpu intensive due to the amount of data it tracks and the calculations it does every frame to provide real time feedback on the UI.
+	  i have made some optimizations to reduce the cpu usage but it is still something to keep in mind when using the mod.
+	  I used the vanilla profiler to find bottlenecks and make improvements but there are still some areas that could be optimized further.
+	  If you have any suggestions or want to contribute please let me know.
+	  when i say i made improvements i mean i really mean it thread times from 60-80ms down to 10-20ms in the worst cases and usually around 1-2ms which is a huge improvement but still not perfect.
+
+	  next update will be focused on adding more features and improving the rest of the service residential system but i will also continue to look for ways to optimize the performance of the mod.
+
 	  For full details, screenshots and installation steps please see the project README or edit the mod page on the hosting site.
   </LongDescription>
   <!--Thumbnail-->
@@ -53,7 +64,7 @@
   <!--Link to the forum post where the mod can be discussed-->
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/advanced-tax-production-manager.1917448/" />
   <!--Version of the mod-->
-  <ModVersion Value="1.1.0" />
+  <ModVersion Value="1.1.1" />
   <!--Recommended version of the base game to use the mod-->
   <GameVersion Value="1.5.8f1*" />
   <!--Dependency for the mod, can be set multiple times-->
@@ -62,6 +73,10 @@
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog><![CDATA[
+## Changelog 1.1.1
+## v1.1.1 - Improved Performance and bug fixes used profiler to find bottlenecks and make fixes. this thing should fly now.
+removed district happiness system couldnt get it to to work right or at least the way i wanted it too it was costing tons of cpu
+
 ## Changelog 1.1.0
 ## v1.1.0 - Districts Residential & Services Overhaul
 

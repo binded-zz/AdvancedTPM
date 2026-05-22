@@ -21,7 +21,7 @@ const ServiceIcon: React.FC<{ category?: string; size?: number; style?: React.CS
     if (c.includes('electric') || c.includes('power')) return 'Media/Game/Icons/Electricity.svg';
     if (c.includes('water') || c.includes('sewage') || c.includes('wastewater')) return 'Media/Game/Icons/Water.svg';
     if (c.includes('garbage') || c.includes('waste') || c.includes('landfill') || c.includes('recycling')) return 'Media/Game/Icons/Garbage.svg';
-    if (c.includes('park') || c.includes('recreation') || c.includes('leisure')) return 'Media/Game/Icons/ParkAndRecreation.svg';
+    if (c.includes('park') || c.includes('recreation') || c.includes('leisure')) return 'Media/Game/Icons/Services.svg';
     if (c.includes('telecom') || c.includes('internet')) return 'Media/Game/Resources/Telecom.svg';
     if (c.includes('post') || c.includes('mail')) return 'Media/Game/Icons/PostService.svg';
     if (c.includes('bus') || c.includes('tram') || c.includes('metro') || c.includes('subway') || c.includes('transport')) return 'Media/Game/Icons/Transportation.svg';

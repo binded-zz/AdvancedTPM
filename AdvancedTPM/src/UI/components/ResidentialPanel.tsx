@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { trigger } from 'cs2/api';
+import { getSafeColor } from '../../mods/apiSafe';
 import './ResidentialPanel.css';
 import ThemeIcon from '../assets/ThemeIcon';
 import PackIcon from '../assets/PackIcon';
@@ -466,19 +467,19 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
         <div className="res-global-stats">
           <div className="res-stat-item">
             <span className="res-stat-label">Happiness</span>
-            <span className="res-stat-value" style={{ color: data.avgHappiness >= 70 ? '#8bdb46' : data.avgHappiness >= 40 ? '#50b8e9' : '#e05050' }}>
+            <span className="res-stat-value" style={{ color: getSafeColor(data.avgHappiness >= 70 ? '#8bdb46' : data.avgHappiness >= 40 ? '#50b8e9' : '#e05050') }}>
               {data.avgHappiness}%
             </span>
           </div>
           <div className="res-stat-item">
             <span className="res-stat-label">Unemployment</span>
-            <span className="res-stat-value" style={{ color: data.unemploymentRate > 10 ? '#e05050' : '#8bdb46' }}>
+            <span className="res-stat-value" style={{ color: getSafeColor(data.unemploymentRate > 10 ? '#e05050' : '#8bdb46') }}>
               {data.unemploymentRate}%
             </span>
           </div>
           <div className="res-stat-item">
             <span className="res-stat-label">Homeless</span>
-            <span className="res-stat-value" style={{ color: data.homelessHouseholds > 100 ? '#e05050' : 'rgba(255,255,255,0.8)' }}>
+            <span className="res-stat-value" style={{ color: getSafeColor(data.homelessHouseholds > 100 ? '#e05050' : 'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.8)') }}>
               {data.homelessHouseholds.toLocaleString()}
             </span>
           </div>
@@ -503,7 +504,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
           </div>
           {densitySummaryRows.map((row) => (
             <div key={row.label} className="res-table-row">
-              <div className="res-col-density" style={{ color: DENSITY_COLORS[row.label.split(' ')[0]] }}>{row.label}</div>
+              <div className="res-col-density" style={{ color: getSafeColor(DENSITY_COLORS[row.label.split(' ')[0]] || 'transparent') }}>{row.label}</div>
               <div className="res-col-total">{row.total.toLocaleString()}</div>
               <div className="res-col-occupied">{row.occupied.toLocaleString()}</div>
               <div className="res-col-free">{row.free.toLocaleString()}</div>
@@ -544,7 +545,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                   key={d}
                   className={`res-density-tab${densityFilter === d ? ' res-density-active' : ''}`}
                   onClick={() => setDensityFilter(d)}
-                  style={d !== 'All' ? { borderColor: DENSITY_COLORS[d] } : undefined}
+                  style={d !== 'All' ? { borderColor: getSafeColor(DENSITY_COLORS[d]) } : undefined}
                 >
                   {d}
                 </button>
@@ -656,7 +657,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                           {b.isSignature && <span className="res-signature-badge" title="Signature Building">★</span>}
                           {b.address}
                         </div>
-                        <div className="res-bcol-density" style={{ color: DENSITY_COLORS[b.density] || 'rgba(255,255,255,0.7)' }}>{b.density}</div>
+                        <div className="res-bcol-density" style={{ color: getSafeColor(DENSITY_COLORS[b.density] || 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>{b.density}</div>
                         <div className="res-bcol-level">
                           <span className="res-level-badge">Lv {b.level}</span>
                         </div>
@@ -664,7 +665,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                         <div className="res-bcol-assetpack">{b.assetPack || 'Base Game'}</div>
                         <div className="res-bcol-occupied">{b.occupied}</div>
                         <div className="res-bcol-capacity">{b.capacity > 0 ? b.capacity : '\u2014'}</div>
-                        <div className="res-bcol-occupancy" style={{ color: occColor }}>{occPct}%</div>
+                        <div className="res-bcol-occupancy" style={{ color: getSafeColor(occColor) }}>{occPct}%</div>
                         <div className="res-bcol-happy">
                           {(() => {
                             const base = data.avgHappiness || 50;
@@ -672,7 +673,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                             const levelAdj = (b.level - 3) * 2;
                             const estimate = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
                             const color = estimate >= 75 ? '#8bdb46' : estimate >= 50 ? '#50b8e9' : estimate >= 30 ? '#e88c3a' : '#e05050';
-                            return <span style={{ color, fontWeight: 700 }} title={`Estimated happiness: ${estimate}%`}>{`${estimate}%`}</span>;
+                            return <span style={{ color: getSafeColor(color), fontWeight: 700 }} title={`Estimated happiness: ${estimate}%`}>{`${estimate}%`}</span>;
                           })()}
                         </div>
                         <div className="res-bcol-action">

@@ -24,11 +24,12 @@ namespace AdvancedTPM
         private IndustrialDemandSystem _industrialDemandSystem;
         private CommercialDemandSystem _commercialDemandSystem;
         private CityStatisticsSystem _cityStatisticsSystem;
-        private CompanyBrowserSystem _companyBrowserSystem;
+                private CompanyBrowserSystem _companyBrowserSystem;
         private AdaptiveLearningSystem _adaptiveLearningSystem;
         private SimulationSystem _simulationSystem;
+        private TaxingProductionUISystem _taxingProductionUISystem;
 
-        private int _tickCounter;
+        private float m_UpdateTimer = 0f;   // Real-time DeltaTime accumulator (replaces frame counter)
         private bool _firstRunPending;
 
         // Set by AutoTaxSystem after adjustments so TaxingProductionUISystem forces a re-read
@@ -179,6 +180,7 @@ namespace AdvancedTPM
             try { _companyBrowserSystem = World.GetOrCreateSystemManaged<CompanyBrowserSystem>(); } catch { }
             try { _adaptiveLearningSystem = World.GetOrCreateSystemManaged<AdaptiveLearningSystem>(); } catch { }
             try { _simulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>(); } catch { }
+            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch { }
 
             var settings = Mod.Settings;
             LoadExcludedResources(settings);
@@ -194,10 +196,10 @@ namespace AdvancedTPM
             m_Log.Info("AutoTaxSystem initialized");
         }
 
-        private int m_FrameCounter = 0;
+        // private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("AutoTaxSystem Heartbeat");
+            // if (m_FrameCounter++ % 600 == 0) Mod.log.Info("AutoTaxSystem Heartbeat");
             if (!_autoTaxEnabled.value) return;
 
             var settings = Mod.Settings;
@@ -217,37 +219,43 @@ namespace AdvancedTPM
             // First run fires immediately after enabling
             if (_firstRunPending)
             {
-                _firstRunPending = false;
-                _tickCounter = 0;
-                Mod.log.Info("AutoTax: first run triggered");
-                RunAutoTaxAdjustment(settings);
+                if (RunAutoTaxAdjustment(settings))
+                {
+                    _firstRunPending = false;
+                    m_UpdateTimer = 0f;
+                    // Mod.log.Info("AutoTax: first run triggered successfully");
+                }
                 return;
             }
 
-            // Speed tier → frame count mapping
-            // Tier 1=Very Fast (~5s), 2=Fast (~10s), 3=Normal (~20s), 4=Slow (~45s), 5=Very Slow (~90s)
+            // ── Real-time throttle (replaces frame-count tier) ──────────────────────
+            // DeltaTime accumulation is frame-rate independent and pause-aware:
+            // the timer only advances while the simulation is running, so the interval
+            // reflects actual simulated seconds rather than wall-clock frame count.
+            // Tier → seconds: 1=5s, 2=10s, 3=20s, 4=45s, 5=90s
+            m_UpdateTimer += World.Time.DeltaTime;
             int tier = settings.AutoTaxInterval;
             if (tier < 1) tier = 1;
             if (tier > 5) tier = 5;
-            int targetFrames;
+            float targetSeconds;
             switch (tier)
             {
-                case 1: targetFrames = 300; break;   // ~5s at 60fps
-                case 2: targetFrames = 600; break;   // ~10s
-                case 3: targetFrames = 1200; break;  // ~20s
-                case 4: targetFrames = 2700; break;  // ~45s
-                case 5: targetFrames = 5400; break;  // ~90s
-                default: targetFrames = 1200; break;
+                case 1: targetSeconds = 5f;  break;  // Very Fast
+                case 2: targetSeconds = 10f; break;  // Fast
+                case 3: targetSeconds = 20f; break;  // Normal
+                case 4: targetSeconds = 45f; break;  // Slow
+                case 5: targetSeconds = 90f; break;  // Very Slow
+                default: targetSeconds = 20f; break;
             }
+            if (m_UpdateTimer < targetSeconds) return;
 
-            _tickCounter++;
-            if (_tickCounter < targetFrames) return;
-            _tickCounter = 0;
-
-            RunAutoTaxAdjustment(settings);
+            if (RunAutoTaxAdjustment(settings))
+            {
+                m_UpdateTimer = 0f;
+            }
         }
 
-        private void RunAutoTaxAdjustment(TPMModSettings settings)
+        private bool RunAutoTaxAdjustment(TPMModSettings settings)
         {
             int minRate = settings.AutoTaxMinRate;
             int maxRate = settings.AutoTaxMaxRate;
@@ -273,76 +281,71 @@ namespace AdvancedTPM
             // Range: -1.0 (very unhappy, strong lower bias) to +1.0 (very happy, can raise)
             float happinessBias = (happiness - 50f) / 50f;
 
-            // Get production data
+            // Get production, consumption and company data along with their handles
             NativeArray<int> productionArray = default;
-            bool hasProduction = false;
-            try
-            {
-                JobHandle prodDeps;
-                productionArray = _countCompanyDataSystem.GetProduction(out prodDeps);
-                prodDeps.Complete();
-                hasProduction = productionArray.IsCreated && productionArray.Length > 0;
-            }
-            catch { }
+            JobHandle prodDeps = default;
+            try { productionArray = _countCompanyDataSystem.GetProduction(out prodDeps); } catch { }
 
             NativeArray<int> industrialConsumption = default;
-            bool hasIndustrialConsumption = false;
+            JobHandle consDeps = default;
             if (_industrialDemandSystem != null)
             {
-                try
-                {
-                    JobHandle consDeps;
-                    industrialConsumption = _industrialDemandSystem.GetConsumption(out consDeps);
-                    consDeps.Complete();
-                    hasIndustrialConsumption = industrialConsumption.IsCreated && industrialConsumption.Length > 0;
-                }
-                catch { }
+                try { industrialConsumption = _industrialDemandSystem.GetConsumption(out consDeps); } catch { }
             }
 
             NativeArray<int> commercialConsumption = default;
-            bool hasCommercialConsumption = false;
+            JobHandle commDeps = default;
             if (_commercialDemandSystem != null)
             {
-                try
-                {
-                    JobHandle commDeps;
-                    commercialConsumption = _commercialDemandSystem.GetConsumption(out commDeps);
-                    commDeps.Complete();
-                    hasCommercialConsumption = commercialConsumption.IsCreated && commercialConsumption.Length > 0;
-                }
-                catch { }
+                try { commercialConsumption = _commercialDemandSystem.GetConsumption(out commDeps); } catch { }
             }
 
-            // Get company data
             NativeArray<int> industrialCompanies = default;
             NativeArray<int> industrialDemand = default;
-            bool hasIndustrialData = false;
+            JobHandle indDeps = default;
             try
             {
-                JobHandle indDeps;
                 var indData = _countCompanyDataSystem.GetIndustrialCompanyDatas(out indDeps);
-                indDeps.Complete();
                 industrialCompanies = indData.m_ProductionCompanies;
                 industrialDemand = indData.m_Demand;
-                hasIndustrialData = industrialCompanies.IsCreated && industrialCompanies.Length > 0;
             }
             catch { }
 
             NativeArray<int> commercialCompanies = default;
             NativeArray<int> commercialCapacity = default;
             NativeArray<int> commercialAvailables = default;
-            bool hasCommercialData = false;
+            JobHandle comDeps = default;
             try
             {
-                JobHandle comDeps;
                 var comData = _countCompanyDataSystem.GetCommercialCompanyDatas(out comDeps);
-                comDeps.Complete();
                 commercialCompanies = comData.m_ServiceCompanies;
                 commercialCapacity = comData.m_ProduceCapacity;
                 commercialAvailables = comData.m_TotalAvailables;
-                hasCommercialData = commercialCompanies.IsCreated && commercialCompanies.Length > 0;
             }
             catch { }
+
+            // Combine all dependencies to check if background jobs are finished
+            var combinedDeps = JobHandle.CombineDependencies(
+                JobHandle.CombineDependencies(prodDeps, consDeps),
+                JobHandle.CombineDependencies(commDeps, indDeps),
+                comDeps
+            );
+
+            if (!combinedDeps.IsCompleted)
+            {
+                // Defer: background compile jobs are still active on worker threads.
+                // We will try again on the next frame without stalling.
+                return false;
+            }
+
+            // Safe to call complete now, it won't block since IsCompleted is true
+            combinedDeps.Complete();
+
+            bool hasProduction = productionArray.IsCreated && productionArray.Length > 0;
+            bool hasIndustrialConsumption = industrialConsumption.IsCreated && industrialConsumption.Length > 0;
+            bool hasCommercialConsumption = commercialConsumption.IsCreated && commercialConsumption.Length > 0;
+            bool hasIndustrialData = industrialCompanies.IsCreated && industrialCompanies.Length > 0;
+            bool hasCommercialData = commercialCompanies.IsCreated && commercialCompanies.Length > 0;
 
             int adjustCount = 0;
             int raiseCount = 0;
@@ -695,8 +698,9 @@ namespace AdvancedTPM
             if (adjustCount > 0)
             {
                 TaxRatesChanged = true;
-                Mod.log.Info($"AutoTax: happiness={happiness} adjusted={adjustCount} (raise={raiseCount} lower={lowerCount} hold={holdCount})");
+                // Mod.log.Info($"AutoTax: happiness={happiness} adjusted={adjustCount} (raise={raiseCount} lower={lowerCount} hold={holdCount})");
             }
+            return true;
         }
 
         private string SerializeStatus(int happiness, int adjustCount, int raiseCount, int lowerCount, int holdCount)
@@ -746,7 +750,7 @@ namespace AdvancedTPM
             if (enabled)
             {
                 _firstRunPending = true;
-                _tickCounter = 0;
+                m_UpdateTimer = 0f;
             }
             else
             {

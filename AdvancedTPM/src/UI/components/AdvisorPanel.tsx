@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import './AdvisorPanel.css';
+import { getSafeColor } from '../../mods/apiSafe';
 
 interface LearningProfile {
   key: string;
@@ -260,19 +261,19 @@ const ProfileRow: React.FC<{ p: LearningProfile }> = React.memo(({ p }) => {
           </div>
         </div>
         <div className="advisor-profile-meta">
-          <span style={{ color: getConfidenceColor(p.confidence), marginRight: '10rem' }}>
+          <span style={{ color: getSafeColor(getConfidenceColor(p.confidence)), marginRight: '10rem' }}>
             {`${(p.confidence * 100).toFixed(0)}\u00a0%`} conf
           </span>
-          <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
+          <span style={{ color: getSafeColor('rgba(255,255,255,0.25)'), marginRight: '10rem' }}>{"\u00B7"}</span>
           <span style={{ marginRight: '10rem' }}>{p.sampleCount} samples</span>
-          <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
-          <span style={{ color: getOutcomeColor(p.avgOutcome), marginRight: '10rem' }}>
+          <span style={{ color: getSafeColor('rgba(255,255,255,0.25)'), marginRight: '10rem' }}>{"\u00B7"}</span>
+          <span style={{ color: getSafeColor(getOutcomeColor(p.avgOutcome)), marginRight: '10rem' }}>
             avg: {p.avgOutcome > 0 ? '+' : ''}{p.avgOutcome.toFixed(2)}
           </span>
           {p.volatility > 0.15 && (
             <>
-              <span style={{ color: 'rgba(255,255,255,0.25)', marginRight: '10rem' }}>{"\u00B7"}</span>
-              <span style={{ color: '#f0c040' }}>
+              <span style={{ color: getSafeColor('rgba(255,255,255,0.25)'), marginRight: '10rem' }}>{"\u00B7"}</span>
+              <span style={{ color: getSafeColor('#f0c040') }}>
                 vol: {(p.volatility * 100).toFixed(0)}%
               </span>
             </>
@@ -306,7 +307,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   onResetLearning,
   onSetAggressiveness,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'profiles' | 'log'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'profiles'>('overview');
   const [confirmReset, setConfirmReset] = useState(false);
 
   // Overlay scrollbar refs — left col (recommendations), right col (decisions)
@@ -327,12 +328,6 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   const profilesThumbRef = useRef<HTMLDivElement | null>(null);
   const [profilesThumbTop, setProfilesThumbTop] = useState(0);
   const [profilesThumbHeight, setProfilesThumbHeight] = useState(48);
-
-  const logBodyRef = useRef<HTMLDivElement | null>(null);
-  const logTrackRef = useRef<HTMLDivElement | null>(null);
-  const logThumbRef = useRef<HTMLDivElement | null>(null);
-  const [logThumbTop, setLogThumbTop] = useState(0);
-  const [logThumbHeight, setLogThumbHeight] = useState(48);
 
   const makeUpdate = useCallback((
     bodyRef: React.RefObject<HTMLDivElement>,
@@ -362,7 +357,6 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   const updateLeft = useCallback(makeUpdate(leftBodyRef, leftTrackRef, setLeftThumbHeight, setLeftThumbTop), []);
   const updateRight = useCallback(makeUpdate(rightBodyRef, rightTrackRef, setRightThumbHeight, setRightThumbTop), []);
   const updateProfiles = useCallback(makeUpdate(profilesBodyRef, profilesTrackRef, setProfilesThumbHeight, setProfilesThumbTop), []);
-  const updateLog = useCallback(makeUpdate(logBodyRef, logTrackRef, setLogThumbHeight, setLogThumbTop), []);
 
   const makeDragHandler = (
     thumbRef: React.RefObject<HTMLDivElement>,
@@ -419,7 +413,6 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   makeDragHandler(leftThumbRef, leftTrackRef, leftBodyRef, leftThumbTop, leftThumbHeight, setLeftThumbTop, updateLeft);
   makeDragHandler(rightThumbRef, rightTrackRef, rightBodyRef, rightThumbTop, rightThumbHeight, setRightThumbTop, updateRight);
   makeDragHandler(profilesThumbRef, profilesTrackRef, profilesBodyRef, profilesThumbTop, profilesThumbHeight, setProfilesThumbTop, updateProfiles);
-  makeDragHandler(logThumbRef, logTrackRef, logBodyRef, logThumbTop, logThumbHeight, setLogThumbTop, updateLog);
 
   const { profiles, recommendations } = useMemo(() => parseAdvisorData(advisorData), [advisorData]);
   const decisions = useMemo(() => parseDecisionLog(decisionLogData), [decisionLogData]);
@@ -433,16 +426,14 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   useLayoutEffect(() => {
     if (activeTab === 'overview') { updateLeft(); updateRight(); }
     else if (activeTab === 'profiles') updateProfiles();
-    else if (activeTab === 'log') updateLog();
   }, [activeTab, profiles.length, decisions.length, recommendations.length, sortedProfiles.length]);
 
   useEffect(() => {
-    const onResize = () => { updateLeft(); updateRight(); updateProfiles(); updateLog(); };
+    const onResize = () => { updateLeft(); updateRight(); updateProfiles(); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [updateLeft, updateRight, updateProfiles, updateLog]);
+  }, [updateLeft, updateRight, updateProfiles]);
 
-  // Limit rendered profiles to avoid heavy renders when there are many (kept for potential future use)
   const handleReset = () => {
     if (confirmReset) {
       onResetLearning();
@@ -453,7 +444,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
     }
   };
 
-  // ProfileRow component is defined at module scope for stable identity
+  if (!advisorData || !profiles) return null;
 
   return (
     <div className="advisor-panel">
@@ -500,12 +491,6 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
         >
           Profiles ({profiles.length})
         </button>
-        <button
-          className={`advisor-tab${activeTab === 'log' ? ' advisor-tab-active' : ''}`}
-          onClick={() => setActiveTab('log')}
-        >
-          Log ({decisions.length})
-        </button>
       </div>
 
       {/* Content area */}
@@ -524,7 +509,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
               <div className="advisor-stat-label">Active Profiles</div>
             </div>
             <div className="advisor-stat">
-              <div className="advisor-stat-value" style={{ color: getConfidenceColor(stats.avgConfidence) }}>
+              <div className="advisor-stat-value" style={{ color: getSafeColor(getConfidenceColor(stats.avgConfidence)) }}>
                 {`${(stats.avgConfidence * 100).toFixed(0)}\u00a0%`}
               </div>
               <div className="advisor-stat-label">Avg Confidence</div>
@@ -553,16 +538,15 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                       <div className="advisor-rec-list">
                         {recommendations.map((rec) => {
                           const recIcon = getResourceIconSrc(rec.key);
-                          const recTypeIcon = getResourceTypeIcon(rec.key);
                           return (
                             <div key={rec.key} className="advisor-rec-row">
-                              <span className="advisor-rec-dir" style={{ color: getDirectionColor(rec.direction) }}>
+                              <span className="advisor-rec-dir" style={{ color: getSafeColor(getDirectionColor(rec.direction)) }}>
                                 {getDirectionSymbol(rec.direction)}
                               </span>
                               {recIcon && <img src={recIcon} className="advisor-resource-icon" alt="" />}
                               <span className="advisor-rec-name">{getResourceLabel(rec.key)}</span>
                               <span className="advisor-rec-rate">{`${rec.currentRate}\u00a0%`}</span>
-                              <span className="advisor-rec-conf" style={{ color: getConfidenceColor(rec.confidence) }}>
+                              <span className="advisor-rec-conf" style={{ color: getSafeColor(getConfidenceColor(rec.confidence)) }}>
                                 {`${(rec.confidence * 100).toFixed(0)}\u00a0%`}
                               </span>
                             </div>
@@ -580,7 +564,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
 
             {/* Right — Recent Decisions */}
             <div className="advisor-overview-col">
-              <div className="advisor-section-title">Recent Decisions ({decisions.length})</div>
+              <div className="advisor-section-title">Recent Decisions</div>
               <div className="advisor-col-content-wrap" style={{ position: 'relative', flex: 1, minHeight: 0 }}>
                 {decisions.length === 0 ? (
                   <div className="advisor-empty">No decisions logged yet.</div>
@@ -597,8 +581,11 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                               <span className="advisor-decision-change">
                                 {`${d.oldRate}\u00a0%`} {'→'} {`${d.newRate}\u00a0%`}
                               </span>
-                              <span className="advisor-decision-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
+                              <span className="advisor-decision-outcome" style={{ color: getSafeColor(getOutcomeColor(d.outcomeScore)) }}>
                                 {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
+                              </span>
+                              <span className="advisor-decision-conf" style={{ color: getSafeColor(getConfidenceColor(d.confidence)) }}>
+                                {`${(d.confidence * 100).toFixed(0)}\u00a0%`}
                               </span>
                             </div>
                           );
@@ -632,43 +619,9 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
           </div>
         </div>
 
-        {/* ———— LOG TAB ———— */}
-        <div className="advisor-tab-pane" style={{ display: activeTab === 'log' ? undefined : 'none', position: 'relative' }}>
-          {decisions.length === 0 && (
-            <div className="advisor-empty">No decisions logged yet.</div>
-          )}
-          <div ref={logBodyRef} className="advisor-tab-scroll" onScroll={updateLog} style={{ paddingRight: '18rem' }}>
-            <div className="advisor-log-list">
-              {[...decisions].reverse().map((d, i) => {
-                const logTypeIcon = getResourceTypeIcon(d.key);
-                const logIcon = getResourceIconSrc(d.key);
-                return (
-                  <div key={i} className="advisor-log-row">
-                    <div className="advisor-log-header">
-                      {logIcon && <img src={logIcon} className="advisor-log-icon" alt="" />}
-                      <span className="advisor-log-resource">{getResourceLabel(d.key)}</span>
-                      <span className="advisor-log-change">{`${d.oldRate}\u00a0%`} {'→'} {`${d.newRate}\u00a0%`}</span>
-                      <span className="advisor-log-outcome" style={{ color: getOutcomeColor(d.outcomeScore) }}>
-                        {d.outcomeScore > 0 ? '+' : ''}{d.outcomeScore.toFixed(2)}
-                      </span>
-                      <span className="advisor-log-conf" style={{ color: getConfidenceColor(d.confidence) }}>
-                        {`${(d.confidence * 100).toFixed(0)}\u00a0%`}
-                      </span>
-                    </div>
-                    {d.summary && <div className="advisor-log-summary">{d.summary}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div ref={logTrackRef} className="advisor-scrollbar-track" aria-hidden>
-            <div ref={logThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${logThumbTop}px`, height: `${logThumbHeight}px` }} />
-          </div>
-        </div>
-
       </div>
     </div>
   );
 };
 
-export default AdvisorPanel;
+export default React.memo(AdvisorPanel);

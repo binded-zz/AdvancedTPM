@@ -1,4 +1,5 @@
 import React from 'react';
+import { getSafeColor } from '../../mods/apiSafe';
 
 const districtColor = (name: string): string => {
   if (!name || name === 'City') return '#607D8B';
@@ -13,7 +14,7 @@ const DistrictIcon: React.FC<{ district?: string; size?: number; style?: React.C
   const initial = label.charAt(0).toUpperCase();
   const color = districtColor(label);
   return React.createElement('svg', { width: size, height: size, viewBox: '0 0 20 20', xmlns: 'http://www.w3.org/2000/svg', style, 'aria-label': label },
-    React.createElement('circle', { cx: 10, cy: 10, r: 9, fill: color }),
+    React.createElement('circle', { cx: 10, cy: 10, r: 9, fill: getSafeColor(color, '#607D8B') }),
     React.createElement('text', { x: 10, y: 14.5, textAnchor: 'middle', fontSize: 11, fontWeight: 'bold', fill: '#fff', fontFamily: 'Arial,sans-serif' }, initial)
   );
 };

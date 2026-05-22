@@ -23,7 +23,6 @@ export const ModDebugPanel: React.FC<ModDebugPanelProps> = ({ onClose }) => {
     const [searchKeyword, setSearchKeyword] = useState('');
     const [searchResults, setSearchResults] = useState<TypeSearchResult[]>([]);
     const [status, setStatus] = useState('Idle');
-
     const [pos, setPos] = useState<{x:number;y:number}>(() => {
         try {
             const raw = localStorage.getItem('atpm.moddebug.pos');
@@ -73,6 +72,8 @@ export const ModDebugPanel: React.FC<ModDebugPanelProps> = ({ onClose }) => {
     const doSearch = () => {
         (window as any).engine.trigger('taxProduction.searchTypes', searchKeyword);
     };
+
+
 
     return (
         <div className="mod-debug-panel" style={{ left: pos.x, top: pos.y }}>
@@ -127,6 +128,8 @@ export const ModDebugPanel: React.FC<ModDebugPanelProps> = ({ onClose }) => {
                     ))}
                 </div>
             </div>
+
+
         </div>
     );
 };

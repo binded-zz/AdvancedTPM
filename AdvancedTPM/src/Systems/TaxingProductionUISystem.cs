@@ -17,6 +17,14 @@ namespace AdvancedTPM
     public partial class TaxingProductionUISystem : UISystemBase
     {
         private ValueBinding<bool> _advancedVisible;
+
+        /// <summary>
+        /// Returns true when the AdvancedTPM window is currently visible on screen.
+        /// Sibling systems (e.g. DistrictBrowserSystem) read this to skip all work
+        /// while the panel is hidden, eliminating unconditional main-thread stalls.
+        /// </summary>
+        public bool IsPanelOpen => _advancedVisible != null && _advancedVisible.value;
+        public string ActiveViewMode { get; set; } = "overview";
         private ValueBinding<int> _globalTaxRate;
         private ValueBinding<string> _selectedResourceCategory;
         private ValueBinding<bool> _debugEnabled;
@@ -28,7 +36,6 @@ namespace AdvancedTPM
         private ValueBinding<int> _advancedWindowWidth;
         private ValueBinding<int> _advancedWindowHeight;
         private ValueBinding<bool> _showTopLeftButton;
-        private ValueBinding<bool> _showUMMButton;
         private ValueBinding<string> _resourceRowsData;
 
         private CountCompanyDataSystem _countCompanyDataSystem;
@@ -40,6 +47,9 @@ namespace AdvancedTPM
         private CityStatisticsSystem _cityStatisticsSystem;
         private int _updateCounter;
         private bool _initialTaxRatesLoaded;
+        private bool _wasPanelOpen;
+        private bool _isRowDataDirty;
+        private readonly System.Text.StringBuilder _serializeBuilder = new System.Text.StringBuilder(8192);
 
         private enum ResourceTaxArea { Industrial, Commercial, Office }
 
@@ -317,7 +327,6 @@ namespace AdvancedTPM
             AddBinding(_advancedWindowWidth = new ValueBinding<int>("taxProduction", "advancedWindowWidth", settings?.AdvancedWindowWidth ?? 520));
             AddBinding(_advancedWindowHeight = new ValueBinding<int>("taxProduction", "advancedWindowHeight", settings?.AdvancedWindowHeight ?? 420));
             AddBinding(_showTopLeftButton = new ValueBinding<bool>("taxProduction", "showTopLeftButton", settings?.ShowTopLeftButton ?? true));
-            AddBinding(_showUMMButton = new ValueBinding<bool>("taxProduction", "showUMMButton", settings?.ShowUMMButton ?? true));
             AddBinding(_resourceRowsData = new ValueBinding<string>("taxProduction", "resourceRowsData", SerializeRows()));
 
             AddBinding(new TriggerBinding("taxProduction", "toggleAdvancedWindow", ToggleAdvancedWindow));
@@ -329,12 +338,17 @@ namespace AdvancedTPM
             AddBinding(new TriggerBinding("taxProduction", "toggleDebugPanel", ToggleDebugPanel));
             AddBinding(new TriggerBinding<string>("taxProduction", "setAdvancedWindowRect", SetAdvancedWindowRect));
             AddBinding(new TriggerBinding("taxProduction", "resetDefaults", ResetDefaults));
+            AddBinding(new TriggerBinding<string>("taxProduction", "setActiveViewMode", (mode) => {
+                ActiveViewMode = mode;
+                UpdateSystemActivityFlags();
+            }));
 
             Mod.log.Info("TaxingProductionUISystem bindings initialized");
         }
 
         protected override void OnUpdate()
         {
+            UpdateSystemActivityFlags();
             base.OnUpdate();
 
             var settings = Mod.Settings;
@@ -353,10 +367,15 @@ namespace AdvancedTPM
                 _showTopLeftButton.Update(settings.ShowTopLeftButton);
             }
 
-            if (_showUMMButton.value != settings.ShowUMMButton)
+            bool isOpen = IsPanelOpen;
+            if (!isOpen)
             {
-                _showUMMButton.Update(settings.ShowUMMButton);
+                _wasPanelOpen = false;
+                return;
             }
+
+            bool justOpened = !_wasPanelOpen;
+            _wasPanelOpen = true;
 
             // Load actual game tax rates once the TaxSystem is available
             if (!_initialTaxRatesLoaded)
@@ -367,14 +386,13 @@ namespace AdvancedTPM
             _updateCounter++;
             // UpdateSpeed: 1=Fast(8/32), 2=Normal(16/64), 3=Slow(32/128)
             int speedSetting = settings.UpdateSpeed;
-            int activeInterval, inactiveInterval;
+            int activeInterval;
             switch (speedSetting)
             {
-                case 1: activeInterval = 8; inactiveInterval = 32; break;
-                case 3: activeInterval = 32; inactiveInterval = 128; break;
-                default: activeInterval = 16; inactiveInterval = 64; break;
+                case 1: activeInterval = 8; break;
+                case 3: activeInterval = 32; break;
+                default: activeInterval = 16; break;
             }
-            int refreshInterval = _advancedVisible.value ? activeInterval : inactiveInterval;
 
             // Force immediate refresh when AutoTaxSystem changed rates
             if (AutoTaxSystem.TaxRatesChanged)
@@ -383,14 +401,25 @@ namespace AdvancedTPM
                 _updateCounter = 0;
                 ReadGameTaxRates();
                 UpdateProductionData();
+                if (_isRowDataDirty)
+                {
+                    _resourceRowsData.Update(SerializeRows());
+                    _isRowDataDirty = false;
+                }
                 return;
             }
 
-            if (_updateCounter >= refreshInterval)
+            if (justOpened || _updateCounter >= activeInterval)
             {
                 _updateCounter = 0;
                 ReadGameTaxRates();
                 UpdateProductionData();
+            }
+
+            if (_isRowDataDirty)
+            {
+                _resourceRowsData.Update(SerializeRows());
+                _isRowDataDirty = false;
             }
         }
 
@@ -432,7 +461,7 @@ namespace AdvancedTPM
 
                 if (anyChanged)
                 {
-                    _resourceRowsData.Update(SerializeRows());
+                    _isRowDataDirty = true;
                 }
 
                 return true;
@@ -721,7 +750,7 @@ namespace AdvancedTPM
 
                 if (anyChanged)
                 {
-                    _resourceRowsData.Update(SerializeRows());
+                    _isRowDataDirty = true;
                 }
             }
             catch (Exception ex)
@@ -742,6 +771,7 @@ namespace AdvancedTPM
                 ReadGameTaxRates();
                 UpdateProductionData();
             }
+            UpdateSystemActivityFlags();
 
             SetLastAction($"toggleAdvancedWindow:{_advancedVisible.value}");
         }
@@ -755,7 +785,7 @@ namespace AdvancedTPM
                 row.TaxRate = clampedRate;
                 WriteGameTaxRate(row.Key, clampedRate);
             }
-            _resourceRowsData.Update(SerializeRows());
+            _isRowDataDirty = true;
 
             if (Mod.Settings != null)
             {
@@ -775,7 +805,7 @@ namespace AdvancedTPM
 
             row.TaxRate = ClampRate(parsedRate);
             WriteGameTaxRate(row.Key, row.TaxRate);
-            _resourceRowsData.Update(SerializeRows());
+            _isRowDataDirty = true;
             SetLastAction($"setResourceTaxRate:{row.Key}:{row.TaxRate}");
         }
 
@@ -872,24 +902,49 @@ namespace AdvancedTPM
 
         private string SerializeRows()
         {
-            return string.Join(";", _resourceRows.Values.Select(r => string.Format(CultureInfo.InvariantCulture,
-                "{0}|{1}|{2}|{3:0.##}|{4:0.##}|{5}|{6:0.##}|{7:0.##}|{8:0.#}|{9}|{10}|{11}|{12}|{13}|{14}|{15:0.##}",
-                r.Key,
-                r.Label,
-                r.Stage,
-                r.Production,
-                r.Consumption,
-                r.TaxRate,
-                r.Surplus,
-                r.Deficit,
-                r.TaxIncome,
-                r.IncomeSource ?? "unknown",
-                ResourceKeyToEnum.TryGetValue(r.Key, out var res) ? EconomyUtils.GetResourceIndex(res) : -1,
-                r.IsService ? "1" : "0",
-                r.CompanyCount,
-                r.MaxWorkers,
-                r.CurrentWorkers,
-                r.Demand)));
+            _serializeBuilder.Clear();
+            bool first = true;
+            foreach (var r in _resourceRows.Values)
+            {
+                if (!first)
+                {
+                    _serializeBuilder.Append(';');
+                }
+                first = false;
+
+                _serializeBuilder.Append(r.Key);
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.Label);
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.Stage);
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.Production.ToString("0.##", CultureInfo.InvariantCulture));
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.Consumption.ToString("0.##", CultureInfo.InvariantCulture));
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.TaxRate);
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.Surplus.ToString("0.##", CultureInfo.InvariantCulture));
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.Deficit.ToString("0.##", CultureInfo.InvariantCulture));
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.TaxIncome.ToString("0.#", CultureInfo.InvariantCulture));
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.IncomeSource ?? "unknown");
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(ResourceKeyToEnum.TryGetValue(r.Key, out var res) ? EconomyUtils.GetResourceIndex(res) : -1);
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.IsService ? '1' : '0');
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.CompanyCount);
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.MaxWorkers);
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.CurrentWorkers);
+                _serializeBuilder.Append('|');
+                _serializeBuilder.Append(r.Demand.ToString("0.##", CultureInfo.InvariantCulture));
+            }
+            return _serializeBuilder.ToString();
         }
 
         private class ResourceRowState
@@ -928,6 +983,26 @@ namespace AdvancedTPM
             {
                 Mod.log.Info($"TPM action: {action}");
             }
+        }
+
+        private void UpdateSystemActivityFlags()
+        {
+            bool panelOpen = IsPanelOpen;
+            string mode = ActiveViewMode;
+
+            DistrictBrowserSystem.IsSystemActive = panelOpen && (mode == "district");
+            CompanyBrowserSystem.IsSystemActive = panelOpen && (mode == "company");
+            ResidentialBrowserSystem.IsSystemActive = panelOpen && (mode == "residential");
+            ServicesBrowserSystem.IsSystemActive = panelOpen && (mode == "services");
+        }
+
+        protected override void OnDestroy()
+        {
+            DistrictBrowserSystem.IsSystemActive = false;
+            CompanyBrowserSystem.IsSystemActive = false;
+            ResidentialBrowserSystem.IsSystemActive = false;
+            ServicesBrowserSystem.IsSystemActive = false;
+            base.OnDestroy();
         }
     }
 }

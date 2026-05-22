@@ -94,7 +94,7 @@
 /* Row decorators */
 .res-row-icon { width:14rem; height:14rem; margin-right:4rem; flex-shrink:0; opacity:0.7; }
 .res-signature-badge { color:#f0c040; margin-right:4rem; font-size:12rem; flex-shrink:0; }
-.res-level-badge { display:inline-block; padding:1rem 4rem; background:rgba(255,255,255,0.08); border-radius:2rem; font-size:10rem; color:rgba(255,255,255,0.75); }
+.res-level-badge { display:flex; padding:1rem 4rem; background:rgba(255,255,255,0.08); border-radius:2rem; font-size:10rem; color:rgba(255,255,255,0.75); }
 .res-locate-btn { padding:2rem 7rem; font-size:10rem; font-weight:600; background:rgba(80,184,233,0.2); border:1rem solid rgba(80,184,233,0.4); color:#50b8e9; border-radius:2rem; cursor:pointer; }
 .res-locate-btn:hover { background:rgba(80,184,233,0.35); }
 
@@ -106,5 +106,5 @@
 .res-bldg-detail-value { font-size:11rem; color:rgba(255,255,255,0.85); }
 
 /* Custom scrollbar */
-.res-scrollbar-track { position:absolute; right:1rem; top:0; width:12rem; background:rgba(12,18,28,0.5); border-radius:6rem; pointer-events:auto; z-index:5; }
-.res-scrollbar-thumb { position:absolute; left:2rem; width:8rem; background:rgba(80,140,200,0.78); border-radius:4rem; cursor:pointer; pointer-events:auto; min-height:18rem; }
+.res-scrollbar-track { position:absolute; right:1rem; top:0; width:12rem; background:rgba(12,18,28,0.5); border-radius:6rem; z-index:5; }
+.res-scrollbar-thumb { position:absolute; left:2rem; width:8rem; background:rgba(80,140,200,0.78); border-radius:4rem; cursor:pointer; min-height:18rem; }

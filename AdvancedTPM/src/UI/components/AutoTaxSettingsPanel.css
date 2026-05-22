@@ -1,8 +1,8 @@
-/* == AutoTax Settings Panel — CS2 rem-scaled == */
+/* == AutoTax Settings Panel - CS2 rem-scaled == */
 .ats-panel { position:absolute; top:40rem; left:8rem; width:380rem; max-height:720rem; background:linear-gradient(180deg, rgba(18,28,44,0.99) 0%, rgba(12,20,32,0.99) 100%); border:1rem solid rgba(74,107,146,0.5); border-radius:4rem; color:#e7edf2; display:flex; flex-direction:column; box-shadow:0 8rem 32rem rgba(0,0,0,0.6); z-index:50; overflow:hidden; }
 
 .ats-header { display:flex; align-items:center; justify-content:space-between; padding:8rem 12rem; background:linear-gradient(180deg, rgba(25,41,63,1) 0%, rgba(18,30,47,1) 100%); border-bottom:2rem solid rgba(74,107,146,0.45); cursor:move; user-select:none; }
-.ats-header-title { font-size:13rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5rem; color:#59bfff; pointer-events:none; }
+.ats-header-title { font-size:13rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5rem; color:#59bfff; }
 .ats-close-btn { border:1rem solid rgba(124,152,189,0.95) !important; background:rgba(34,46,62,0.98) !important; color:#ffffff !important; font-size:14rem; font-weight:800; width:24rem; height:24rem; border-radius:2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background-color 0.15s; line-height:1; }
 .ats-close-btn:hover { background:rgba(185,52,52,0.95) !important; color:#fff !important; }
 
@@ -25,8 +25,7 @@
 .ats-slider-thumb { width:18rem; height:18rem; border-radius:50%; background-color:#eee; cursor:grab; box-shadow:0 2rem 6rem rgba(0,0,0,0.4); }
 .ats-slider-value { min-width:66rem; text-align:right; font-size:12rem; font-weight:600; color:rgba(255,255,255,0.9); white-space:nowrap; }
 
-/* Resource groups */
-.ats-resource-groups { }
+
 .ats-resource-group { margin-bottom:6rem; }
 .ats-group-header { display:flex; align-items:center; padding:4rem 6rem; cursor:pointer; border-radius:3rem; transition:background-color 0.15s; }
 .ats-group-header:hover { background:rgba(255,255,255,0.06); }
@@ -66,7 +65,7 @@
 .ats-resource-custom-badge { font-size:9rem; font-weight:600; color:#e88c3a; background:rgba(232,140,58,0.15); border:1rem solid rgba(232,140,58,0.35); border-radius:2rem; padding:1rem 5rem; margin-left:auto; text-transform:uppercase; letter-spacing:0.3rem; }
 
 /* Custom scrollbar */
-.ats-scrollbar-track { position:absolute; top:0; right:0; bottom:0; width:6rem; background:rgba(15,24,37,0.5); border-radius:3rem; z-index:2; pointer-events:auto; }
+.ats-scrollbar-track { position:absolute; top:0; right:0; bottom:0; width:6rem; background:rgba(15,24,37,0.5); border-radius:3rem; z-index:2; }
 .ats-scrollbar-thumb { position:absolute; top:0; right:0; width:6rem; min-height:20rem; background:rgba(80,140,200,0.55); border-radius:3rem; cursor:grab; transition:background-color 0.15s; }
 .ats-scrollbar-thumb:hover { background:rgba(80,160,220,0.8); }
 
@@ -88,11 +87,11 @@
 .ats-btn-close { background:rgba(34,46,62,0.98) !important; color:#ffffff !important; border:1rem solid rgba(100,130,170,0.6) !important; }
 .ats-btn-close:hover { background:rgba(40,55,75,0.98) !important; color:#ffffff !important; }
 
-/* Info icon — ? badge next to slider labels */
-.ats-info-icon { display:flex; align-items:center; justify-content:center; width:14rem; height:14rem; margin-left:5rem; font-size:10rem; font-weight:700; color:rgba(80,184,233,0.85); background:rgba(80,184,233,0.12); border:1rem solid rgba(80,184,233,0.4); border-radius:50%; cursor:pointer; vertical-align:middle; line-height:1; position:relative; }
+/* Info icon - ? badge next to slider labels */
+.ats-info-icon { display:flex; align-items:center; justify-content:center; width:14rem; height:14rem; margin-left:5rem; font-size:10rem; font-weight:700; color:rgba(80,184,233,0.85); background:rgba(80,184,233,0.12); border:1rem solid rgba(80,184,233,0.4); border-radius:50%; cursor:pointer; line-height:1; position:relative; }
 .ats-info-icon:hover { background:rgba(80,184,233,0.25); color:#50b8e9; }
 
-/* Info popup — click-toggle tooltip for CoHTML */
+/* Info popup - click-toggle tooltip for CoHTML */
 .ats-info-popup { position:absolute; top:100%; left:0; margin-top:4rem; width:280rem; padding:8rem 10rem; background:linear-gradient(180deg, rgba(18,30,50,0.99) 0%, rgba(12,20,35,0.99) 100%); border:1rem solid rgba(80,184,233,0.5); border-radius:4rem; box-shadow:0 6rem 24rem rgba(0,0,0,0.7); z-index:100; font-size:11rem; font-weight:400; color:rgba(220,235,250,0.9); line-height:1.45; white-space:normal; text-align:left; text-transform:none; letter-spacing:0; cursor:default; }
 .ats-info-popup > div { margin-bottom:2rem; }
 .ats-info-popup .ats-info-blank { height:6rem; }

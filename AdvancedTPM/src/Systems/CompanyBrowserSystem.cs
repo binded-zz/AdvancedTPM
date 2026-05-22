@@ -28,6 +28,7 @@ namespace AdvancedTPM
 
     public partial class CompanyBrowserSystem : UISystemBase
     {
+        public static bool IsSystemActive = false;
         private PrefixedLogger m_Log;
         private ValueBinding<string> _companyBrowserData;
 
@@ -37,6 +38,7 @@ namespace AdvancedTPM
         private PrefabSystem _prefabSystem;
         private TaxSystem _taxSystem;
         private NameSystem _nameSystem;
+        private TaxingProductionUISystem _taxingProductionUISystem;
         private Game.UI.InGame.SignatureBuildingUISystem _signatureSystem;
         private FieldInfo _signatureQueryField;
         private readonly HashSet<int> _signaturePrefabIndices = new HashSet<int>();
@@ -45,7 +47,19 @@ namespace AdvancedTPM
         private ValueBinding<string> _signaturePrefabsBinding;
         private ValueBinding<string> _signatureCompaniesBinding;
         private ValueBinding<string> _signatureCacheStatusBinding;
-        private int _updateCounter;
+        private float m_UpdateTimer = 0f;
+        private bool m_WasPanelOpen = false;
+        private string m_LastCompanyBrowserData = "";
+        private string m_LastSignatureCompanies = "[]";
+        private string m_LastSignatureCacheStatus = "{}";
+
+        // ── Pre-allocated reusable buffers (zero GC per update cycle) ──────────
+        private readonly List<CompanyInfo> _companyBuffer = new List<CompanyInfo>(2048);
+        private readonly Dictionary<Resource, (float sum, int count)> _resourceProfitSums = new Dictionary<Resource, (float sum, int count)>();
+        private readonly List<string> _sigKeyBuffer = new List<string>(64);
+        private readonly List<string> _efficiencyFactorParts = new List<string>(16);
+        private readonly System.Text.StringBuilder _sb = new System.Text.StringBuilder(128 * 1024);
+        private static readonly Resource[] _allResources = (Resource[])Enum.GetValues(typeof(Resource));
 
         // Queries
         private EntityQuery _industrialQuery;
@@ -63,6 +77,7 @@ namespace AdvancedTPM
             try { _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>(); } catch { }
             try { _taxSystem = World.GetOrCreateSystemManaged<TaxSystem>(); } catch { }
             try { _nameSystem = World.GetOrCreateSystemManaged<NameSystem>(); } catch { }
+            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch { }
             try
             {
                 _signatureSystem = World.GetOrCreateSystemManaged<Game.UI.InGame.SignatureBuildingUISystem>();
@@ -111,9 +126,17 @@ namespace AdvancedTPM
             });
 
             AddBinding(_companyBrowserData = new ValueBinding<string>("taxProduction", "companyBrowserData", ""));
-            try { AddBinding(_signaturePrefabsBinding = new ValueBinding<string>("taxProduction", "signaturePrefabs", "")); } catch { }
-            try { AddBinding(_signatureCompaniesBinding = new ValueBinding<string>("taxProduction", "signatureCompanies", "")); } catch { }
-            try { AddBinding(_signatureCacheStatusBinding = new ValueBinding<string>("taxProduction", "signatureCacheStatus", "")); } catch { }
+            try { AddBinding(_signaturePrefabsBinding = new ValueBinding<string>("taxProduction", "signaturePrefabs", "[]")); } catch { }
+            try { AddBinding(_signatureCompaniesBinding = new ValueBinding<string>("taxProduction", "signatureCompanies", "[]")); } catch { }
+            try { AddBinding(_signatureCacheStatusBinding = new ValueBinding<string>("taxProduction", "signatureCacheStatus", "{}")); } catch { }
+            try
+            {
+                AddBinding(_companyHappinessData = new ValueBinding<string>("taxProduction", "companyHappinessData", ""));
+                _companyHappinessData.Update("");
+            }
+            catch { }
+            try { AddBinding(new TriggerBinding<string>("taxProduction", "requestCompanyHappiness", HandleCompanyHappinessRequest)); } catch { }
+            try { AddBinding(new TriggerBinding<string>("taxProduction", "refreshSignatureCache", (s) => { RefreshSignatureCache(); })); } catch { }
 
             m_Log = new PrefixedLogger(nameof(CompanyBrowserSystem));
             m_Log.Info("CompanyBrowserSystem initialized (direct ECS)");
@@ -137,43 +160,79 @@ namespace AdvancedTPM
         private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("CompanyBrowserSystem Heartbeat");
-            _updateCounter++;
+            if (!IsSystemActive)
+            {
+                this.Dependency = Dependency;
+                return;
+            }
+            // ── Global UI Sleep Gate ──────────────────────────────────────────────────
+            // Company queries iterate up to 2000 entities and serialize all results to JSON.
+            // There is zero value in doing this when the AdvancedTPM panel is not visible.
+            if (_taxingProductionUISystem == null || !_taxingProductionUISystem.IsPanelOpen || _taxingProductionUISystem.ActiveViewMode != "company")
+            {
+                m_WasPanelOpen = false;
+                this.Dependency = Dependency;
+                return;
+            }
 
-            _updateCounter++;
-            if (_updateCounter < 480) return; // ~8 seconds between refreshes to reduce UI jumping
-            _updateCounter = 0;
+            bool justOpened = !m_WasPanelOpen;
+            m_WasPanelOpen = true;
+
+            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("CompanyBrowserSystem Heartbeat");
+
+            m_UpdateTimer += World.Time.DeltaTime;
+            // ── 2-second throttle gate (reduced from 10s — profiler showed 60ms stalls on flush) ──
+            if (m_UpdateTimer < 2.0f && !justOpened)
+            {
+                this.Dependency = Dependency;
+                return;
+            }
+            m_UpdateTimer = 0f;
+
+            // ── Tick signature cache once per update cycle, not per entity ────────────
+            try
+            {
+                if ((DateTime.UtcNow - _signatureCacheTimestamp) > _signatureCacheTtl)
+                    RefreshSignatureCache();
+            }
+            catch { }
 
             try
             {
-                var companies = CollectCompanyData();
-                var serialized = SerializeCompanies(companies);
-                _companyBrowserData.Update(serialized);
+                CollectCompanyData(_companyBuffer);
+                var serialized = SerializeCompanies(_companyBuffer);
+                if (serialized != m_LastCompanyBrowserData)
+                {
+                    _companyBrowserData.Update(serialized);
+                    m_LastCompanyBrowserData = serialized;
+                }
                 try
                 {
                     // Publish authoritative list of signature company entity keys as JSON array ["idx,ver",...]
                     if (_signatureCompaniesBinding != null)
                     {
-                        var sigKeys = new List<string>();
-                        foreach (var c in companies)
+                        _sigKeyBuffer.Clear();
+                        foreach (var c in _companyBuffer)
                         {
                             if (c.IsSignature)
-                                sigKeys.Add(c.Entity.Index + "," + c.Entity.Version);
+                                _sigKeyBuffer.Add(c.Entity.Index + "," + c.Entity.Version);
                         }
-                        var json = "[" + string.Join(",", sigKeys.ConvertAll(k => "\"" + k + "\"")) + "]";
-                        _signatureCompaniesBinding.Update(json);
+                        var json = "[" + string.Join(",", _sigKeyBuffer.ConvertAll(k => "\"" + k + "\"")) + "]";
+                        if (json != m_LastSignatureCompanies)
+                        {
+                            _signatureCompaniesBinding.Update(json);
+                            m_LastSignatureCompanies = json;
+                        }
                     }
                     // Publish cache status for debug (timestamp + count of signature prefabs)
                     if (_signatureCacheStatusBinding != null)
                     {
-                        var statusObj = new Dictionary<string, object>
+                        var statusJson = "{\"timestamp\":\"" + DateTime.UtcNow.ToString("o") + "\",\"count\": " + _signaturePrefabIndices.Count + "}";
+                        if (statusJson != m_LastSignatureCacheStatus)
                         {
-                            ["timestamp"] = DateTime.UtcNow.ToString("o"),
-                            ["count"] = _signaturePrefabIndices.Count
-                        };
-                        // Simple JSON serialization
-                        var statusJson = "{\"timestamp\":\"" + statusObj["timestamp"] + "\",\"count\": " + statusObj["count"] + "}";
-                        _signatureCacheStatusBinding.Update(statusJson);
+                            _signatureCacheStatusBinding.Update(statusJson);
+                            m_LastSignatureCacheStatus = statusJson;
+                        }
                     }
                 }
                 catch { }
@@ -182,6 +241,8 @@ namespace AdvancedTPM
             {
                 Mod.log.Warn("CompanyBrowserSystem update error: " + ex.Message);
             }
+
+            this.Dependency = Dependency;
         }
 
         private struct CompanyInfo
@@ -224,28 +285,23 @@ namespace AdvancedTPM
             public string CompanyKind;
         }
 
-        private List<CompanyInfo> CollectCompanyData()
+        private void CollectCompanyData(List<CompanyInfo> result)
         {
-            var result = new List<CompanyInfo>();
-            var resourceProfitSums = new Dictionary<Resource, (float sum, int count)>();
+            // Reuse pre-allocated buffers — zero heap allocations per update cycle
+            result.Clear();
+            _resourceProfitSums.Clear();
 
-            int indCount = _industrialQuery.IsEmptyIgnoreFilter ? 0 : _industrialQuery.CalculateEntityCount();
-            int comCount = _commercialQuery.IsEmptyIgnoreFilter ? 0 : _commercialQuery.CalculateEntityCount();
-            int stoCount = _storageQuery.IsEmptyIgnoreFilter ? 0 : _storageQuery.CalculateEntityCount();
-
-            CollectFromQuery(_industrialQuery, "Industrial", result, resourceProfitSums);
-            CollectFromQuery(_commercialQuery, "Commercial", result, resourceProfitSums);
-            CollectFromQuery(_storageQuery, "Storage", result, resourceProfitSums);
+            CollectFromQuery(_industrialQuery, "Industrial", result, _resourceProfitSums);
+            CollectFromQuery(_commercialQuery, "Commercial", result, _resourceProfitSums);
+            CollectFromQuery(_storageQuery, "Storage", result, _resourceProfitSums);
 
             // Compute average profit per resource for auto-tax integration
             _avgProfitByResource.Clear();
-            foreach (var kvp in resourceProfitSums)
+            foreach (var kvp in _resourceProfitSums)
             {
                 if (kvp.Value.count > 0)
                     _avgProfitByResource[kvp.Key] = kvp.Value.sum / kvp.Value.count;
             }
-
-            return result;
         }
 
         private void CollectFromQuery(EntityQuery query, string defaultZone,
@@ -392,8 +448,9 @@ namespace AdvancedTPM
                         Game.Economy.Resource storedFlags = storageCompany.m_StoredResources;
                         Resource storedRes = Resource.NoResource;
 
-                        foreach (Resource flag in Enum.GetValues(typeof(Resource)))
+                        for (int rIdx = 0; rIdx < _allResources.Length; rIdx++)
                         {
+                            Resource flag = _allResources[rIdx];
                             if (flag != Resource.NoResource && (storedFlags & flag) != 0)
                             {
                                 storedRes = flag;
@@ -499,7 +556,7 @@ namespace AdvancedTPM
                         if (effBuf.Length > 0)
                         {
                             float combined = 1f;
-                            var factorParts = new List<string>();
+                            _efficiencyFactorParts.Clear();
                             for (int e = 0; e < effBuf.Length; e++)
                             {
                                 float eff = Math.Max(0f, effBuf[e].m_Efficiency);
@@ -514,16 +571,16 @@ namespace AdvancedTPM
                                     try
                                     {
                                         string fname = effBuf[e].m_Factor.ToString();
-                                        int result = Math.Max(1, (int)Math.Round(combined * 100f));
+                                        int effCumulative = Math.Max(1, (int)Math.Round(combined * 100f));
                                         // Send as "Factor:change:cumulative" e.g. "EmployeeHappiness:+14:114"
-                                        factorParts.Add(fname + ":" + (percentageChange > 0 ? "+" : "") + percentageChange + ":" + result);
+                                        _efficiencyFactorParts.Add(fname + ":" + (percentageChange > 0 ? "+" : "") + percentageChange + ":" + effCumulative);
                                     }
                                     catch { }
                                 }
                             }
                             info.Efficiency = Math.Max(0, Math.Min(999, (int)Math.Round(combined * 100f)));
-                            if (factorParts.Count > 0)
-                                info.EfficiencyDetails = string.Join(",", factorParts);
+                            if (_efficiencyFactorParts.Count > 0)
+                                info.EfficiencyDetails = string.Join(",", _efficiencyFactorParts);
                         }
                         else
                         {
@@ -658,8 +715,8 @@ namespace AdvancedTPM
                         // If we have a cached authoritative list from SignatureBuildingUISystem, prefer that
                         try
                         {
-                            if ((DateTime.UtcNow - _signatureCacheTimestamp) > _signatureCacheTtl)
-                                RefreshSignatureCache();
+                            // NOTE: Signature cache TTL is now refreshed once per update cycle in OnUpdate().
+                            // Do NOT call RefreshSignatureCache() here to avoid per-entity overhead.
                             // building prefab check: compare building prefab index to cached set
                             if (!sig && em.HasComponent<PropertyRenter>(entity))
                             {
@@ -738,19 +795,6 @@ namespace AdvancedTPM
         protected override void OnStartRunning()
         {
             base.OnStartRunning();
-            try { AddBinding(_companyHappinessData = new ValueBinding<string>("taxProduction", "companyHappinessData", "")); } catch { }
-            try { AddBinding(new TriggerBinding<string>("taxProduction", "requestCompanyHappiness", HandleCompanyHappinessRequest)); } catch { }
-            try { AddBinding(new TriggerBinding<string>("taxProduction", "refreshSignatureCache", (s) => { RefreshSignatureCache(); })); } catch { }
-
-            // Ensure signature prefab binding exists and refresh signature cache early so signature view is populated
-            try
-            {
-                if (_signaturePrefabsBinding == null)
-                {
-                    AddBinding(_signaturePrefabsBinding = new ValueBinding<string>("taxProduction", "signaturePrefabs", ""));
-                }
-            }
-            catch { }
 
             try
             {
@@ -987,49 +1031,51 @@ namespace AdvancedTPM
         {
             if (companies.Count == 0) return "";
 
-                // Format: entityIndex,entityVersion|name|zoneType|resourceKey|profit|tier|workers|maxWorkers|posX|posY|posZ|efficiency|input1|input2|taxRate|buildingLevel|efficiencyDetails|brandName|buildingAddress|happiness|g|c|m|e|w|isSignature
-            var parts = new List<string>(companies.Count);
+            // Format: entityIndex,entityVersion|name|zoneType|resourceKey|profit|tier|workers|maxWorkers|posX|posY|posZ|efficiency|input1|input2|taxRate|buildingLevel|efficiencyDetails|brandName|buildingAddress|happiness|g|c|m|e|w|eCons|wCons|gAccum|mAccum|cProb|district|theme|pack|kind|isSignature
+            _sb.Clear();
+            bool first = true;
             foreach (var c in companies)
             {
-                parts.Add(string.Format(CultureInfo.InvariantCulture,
-                    "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9:F0}|{10:F0}|{11:F0}|{12}|{13}|{14}|{15}|{16}|{17}|{18}|{19}|{20}|{21}|{22}|{23}|{24}|{25}|{26}|{27}|{28}|{29}|{30}|{31}|{32}|{33}|{34}|{35}",
-                    c.Entity.Index, c.Entity.Version,
-                    EscapePipe(c.Name ?? "Unknown"),
-                    c.ZoneType,
-                    c.ResourceKey ?? "",
-                    c.Profit,
-                    c.ProfitabilityTier,
-                    c.CurrentWorkers,
-                    c.MaxWorkers,
-                    c.HasPosition ? c.Position.x : 0,
-                    c.HasPosition ? c.Position.y : 0,
-                    c.HasPosition ? c.Position.z : 0,
-                    c.Efficiency,
-                    c.InputResource1 ?? "",
-                    c.InputResource2 ?? "",
-                    c.TaxRate,
-                    c.BuildingLevel,
-                    c.EfficiencyDetails ?? "",
-                    EscapePipe(c.BrandName ?? ""),
-                    EscapePipe(c.BuildingAddress ?? ""),
-                    c.HappinessEstimate,
-                    c.ProducesGarbage ? 1 : 0,
-                    c.ProducesCrime ? 1 : 0,
-                    c.ProducesMail ? 1 : 0,
-                    c.NeedsElectricity ? 1 : 0,
-                    c.NeedsWater ? 1 : 0,
-                    c.ElectricityConsumption.ToString(CultureInfo.InvariantCulture),
-                    c.WaterConsumption.ToString(CultureInfo.InvariantCulture),
-                    c.GarbageAccumulation.ToString(CultureInfo.InvariantCulture),
-                    c.MailAccumulation.ToString(CultureInfo.InvariantCulture),
-                    c.CrimeProbability.ToString(CultureInfo.InvariantCulture),
-                    EscapePipe(c.District ?? "City"),
-                    EscapePipe(c.Theme ?? "USA"),
-                    EscapePipe(c.AssetPack ?? "Base Game"),
-                    EscapePipe(c.CompanyKind ?? ""),
-                    c.IsSignature ? 1 : 0));
+                if (!first) _sb.Append(';');
+                first = false;
+
+                _sb.Append(c.Entity.Index).Append(',').Append(c.Entity.Version).Append('|')
+                   .Append(EscapePipe(c.Name ?? "Unknown")).Append('|')
+                   .Append(c.ZoneType).Append('|')
+                   .Append(c.ResourceKey ?? "").Append('|')
+                   .Append(c.Profit).Append('|')
+                   .Append(c.ProfitabilityTier).Append('|')
+                   .Append(c.CurrentWorkers).Append('|')
+                   .Append(c.MaxWorkers).Append('|')
+                   .Append(((int)c.Position.x).ToString(CultureInfo.InvariantCulture)).Append('|')
+                   .Append(((int)c.Position.y).ToString(CultureInfo.InvariantCulture)).Append('|')
+                   .Append(((int)c.Position.z).ToString(CultureInfo.InvariantCulture)).Append('|')
+                   .Append(c.Efficiency).Append('|')
+                   .Append(c.InputResource1 ?? "").Append('|')
+                   .Append(c.InputResource2 ?? "").Append('|')
+                   .Append(c.TaxRate).Append('|')
+                   .Append(c.BuildingLevel).Append('|')
+                   .Append(c.EfficiencyDetails ?? "").Append('|')
+                   .Append(EscapePipe(c.BrandName ?? "")).Append('|')
+                   .Append(EscapePipe(c.BuildingAddress ?? "")).Append('|')
+                   .Append(c.HappinessEstimate).Append('|')
+                   .Append(c.ProducesGarbage ? 1 : 0).Append('|')
+                   .Append(c.ProducesCrime ? 1 : 0).Append('|')
+                   .Append(c.ProducesMail ? 1 : 0).Append('|')
+                   .Append(c.NeedsElectricity ? 1 : 0).Append('|')
+                   .Append(c.NeedsWater ? 1 : 0).Append('|')
+                   .Append(c.ElectricityConsumption.ToString(CultureInfo.InvariantCulture)).Append('|')
+                   .Append(c.WaterConsumption.ToString(CultureInfo.InvariantCulture)).Append('|')
+                   .Append(c.GarbageAccumulation.ToString(CultureInfo.InvariantCulture)).Append('|')
+                   .Append(c.MailAccumulation.ToString(CultureInfo.InvariantCulture)).Append('|')
+                   .Append(c.CrimeProbability.ToString(CultureInfo.InvariantCulture)).Append('|')
+                   .Append(EscapePipe(c.District ?? "City")).Append('|')
+                   .Append(EscapePipe(c.Theme ?? "USA")).Append('|')
+                   .Append(EscapePipe(c.AssetPack ?? "Base Game")).Append('|')
+                   .Append(EscapePipe(c.CompanyKind ?? "")).Append('|')
+                   .Append(c.IsSignature ? 1 : 0);
             }
-            return string.Join(";", parts);
+            return _sb.ToString();
         }
 
         private void RefreshSignatureCache()

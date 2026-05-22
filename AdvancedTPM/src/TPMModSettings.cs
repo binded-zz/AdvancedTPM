@@ -28,10 +28,6 @@ namespace AdvancedTPM
         public bool ShowTopLeftButton { get; set; } = true;
 
         [SettingsUISection(TabSettings, GroupGeneral)]
-        [SettingsUIDisplayName("ShowUMMButton", "Show UMM Button")]
-        public bool ShowUMMButton { get; set; } = true;
-
-        [SettingsUISection(TabSettings, GroupGeneral)]
         [SettingsUIDisplayName("UpdateSpeed", "UI Update Speed")]
         [SettingsUISlider(min = 1, max = 3, step = 1)]
         public int UpdateSpeed { get; set; } = 2;
@@ -150,7 +146,6 @@ namespace AdvancedTPM
         {
             DefaultGlobalTaxRate = 15;
             ShowTopLeftButton = true;
-            ShowUMMButton = true;
             UpdateSpeed = 2;
             AdvancedWindowX = 140;
             AdvancedWindowY = 150;

@@ -16,14 +16,19 @@ namespace AdvancedTPM
 {
     public partial class ServicesBrowserSystem : UISystemBase
     {
+        public static bool IsSystemActive = false;
         private ValueBinding<string> _servicesBrowserData;
         private ValueBinding<string> _servicesBuildingsData;
         private HashSet<int> _signaturePrefabIndices = new HashSet<int>();
         private CitySystem _citySystem;
         private NameSystem _nameSystem;
         private PrefabSystem _prefabSystem;
+        private TaxingProductionUISystem _taxingProductionUISystem;
         private EntityQuery _serviceBuildingQuery;
-        private int _updateCounter;
+        private float m_UpdateTimer = 0f;
+        private bool m_WasPanelOpen = false;
+        private string m_LastServicesBrowserData = "[]";
+        private string m_LastServicesBuildingsData = "[]";
 
         protected override void OnCreate()
         {
@@ -32,6 +37,7 @@ namespace AdvancedTPM
             try { _citySystem = World.GetOrCreateSystemManaged<CitySystem>(); } catch { }
             try { _nameSystem = World.GetOrCreateSystemManaged<NameSystem>(); } catch { }
             try { _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>(); } catch { }
+            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch { }
             
             _serviceBuildingQuery = GetEntityQuery(new EntityQueryDesc
             {
@@ -48,20 +54,45 @@ namespace AdvancedTPM
                 }
             });
 
-            AddBinding(_servicesBrowserData = new ValueBinding<string>("taxProduction", "servicesBrowserData", ""));
-            AddBinding(_servicesBuildingsData = new ValueBinding<string>("taxProduction", "servicesBuildingsData", ""));
+            AddBinding(_servicesBrowserData = new ValueBinding<string>("taxProduction", "servicesBrowserData", "[]"));
+            AddBinding(_servicesBuildingsData = new ValueBinding<string>("taxProduction", "servicesBuildingsData", "[]"));
             Mod.log.Info("ServicesBrowserSystem OnCreate finished");
         }
 
         private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("ServicesBrowserSystem Heartbeat");
-            if (Mod.Settings == null) return;
+            if (!IsSystemActive)
+            {
+                this.Dependency = Dependency;
+                return;
+            }
+            // ── Global UI Sleep Gate ──────────────────────────────────────────────────
+            // Building queries and JSON serialization serve no purpose while the panel is hidden.
+            if (_taxingProductionUISystem == null || !_taxingProductionUISystem.IsPanelOpen || _taxingProductionUISystem.ActiveViewMode != "services")
+            {
+                m_WasPanelOpen = false;
+                this.Dependency = Dependency;
+                return;
+            }
 
-            _updateCounter++;
-            if (_updateCounter < 480) return; // ~8 seconds
-            _updateCounter = 0;
+            bool justOpened = !m_WasPanelOpen;
+            m_WasPanelOpen = true;
+
+            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("ServicesBrowserSystem Heartbeat");
+            if (Mod.Settings == null)
+            {
+                this.Dependency = Dependency;
+                return;
+            }
+
+            m_UpdateTimer += World.Time.DeltaTime;
+            if (m_UpdateTimer < 10.0f && !justOpened)
+            {
+                this.Dependency = Dependency;
+                return;
+            }
+            m_UpdateTimer = 0f;
 
             Mod.log.Info("ServicesBrowserSystem OnUpdate triggered");
             try { UpdateServicesData(); } catch (Exception ex) { try { Mod.log.Warn($"ServicesBrowserSystem UpdateServicesData Error: {ex.Message}"); } catch { } }
@@ -191,7 +222,11 @@ namespace AdvancedTPM
             finally { entities.Dispose(); }
 
             var payload = "[" + string.Join(",", list) + "]";
-            _servicesBuildingsData.Update(payload);
+            if (payload != m_LastServicesBuildingsData)
+            {
+                _servicesBuildingsData.Update(payload);
+                m_LastServicesBuildingsData = payload;
+            }
         }
 
         private void RefreshSignatureCache()
@@ -242,21 +277,12 @@ namespace AdvancedTPM
             var list = map.Values.OrderBy(v => v.ServiceId).ToList();
             if (list.Count == 0) return;
             var payload = "[" + string.Join(",", list.Select(i => i.ToJson(serviceEnumType))) + "]";
-            if (_servicesBrowserData != null) _servicesBrowserData.Update(payload);
-            try { Mod.log?.Info($"ServicesBrowserSystem: payload len={payload?.Length ?? 0} services={list.Count}"); } catch { /* Colossal logger can throw internally */ }
-            // Dump services payload to ModsData for easier capture when debugging
-            try
+            if (_servicesBrowserData != null && payload != m_LastServicesBrowserData)
             {
-                var md = AdvancedTPM.Utilities.FilePaths.GetModsDataFolder();
-                if (!string.IsNullOrEmpty(md))
-                {
-                    if (!System.IO.Directory.Exists(md)) System.IO.Directory.CreateDirectory(md);
-                    var outp = System.IO.Path.Combine(md, "services_payload.json");
-                    System.IO.File.WriteAllText(outp, payload ?? "", System.Text.Encoding.UTF8);
-                    try { Mod.log.Info($"Wrote services payload to {outp}"); } catch { }
-                }
+                _servicesBrowserData.Update(payload);
+                m_LastServicesBrowserData = payload;
             }
-            catch (Exception ex) { try { Mod.log.Warn($"Failed to write services payload: {ex.Message}"); } catch { } }
+            try { Mod.log?.Info($"ServicesBrowserSystem: payload len={payload?.Length ?? 0} services={list.Count}"); } catch { /* Colossal logger can throw internally */ }
         }
 
 

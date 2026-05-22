@@ -29,8 +29,8 @@
 .svc-table-row:hover, .svc-row-expanded { background:rgba(255,255,255,0.05); }
 
 /* Expandable Details */
-.svc-row-details { display:flex; flex-wrap:wrap; padding:10rem 14rem; background:rgba(0,0,0,0.2); border-bottom:1rem solid rgba(255,255,255,0.03); gap:15rem; font-size:11rem; }
-.svc-detail-group { display:flex; flex-direction:column; min-width:120rem; }
+.svc-row-details { display:flex; flex-wrap:wrap; padding:10rem 14rem 0; background:rgba(0,0,0,0.2); border-bottom:1rem solid rgba(255,255,255,0.03); font-size:11rem; }
+.svc-detail-group { display:flex; flex-direction:column; min-width:120rem; margin-right:15rem; margin-bottom:10rem; }
 .svc-detail-label { color:rgba(255,255,255,0.4); text-transform:uppercase; font-size:9rem; letter-spacing:0.3rem; margin-bottom:2rem; }
 .svc-detail-value { color:rgba(255,255,255,0.85); font-weight:500; }
 
@@ -63,8 +63,8 @@
 .svc-summary-card-top { display:flex; align-items:center; margin-bottom:4rem; }
 .svc-summary-name { flex:1; font-size:11rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-left:4rem; }
 .svc-summary-budget { font-size:10rem; color:rgba(255,255,255,0.4); }
-.svc-summary-card-body { display:flex; flex-direction:column; gap:2rem; }
-.svc-summary-stat { display:flex; justify-content:space-between; font-size:10rem; }
+.svc-summary-card-body { display:flex; flex-direction:column; }
+.svc-summary-stat { display:flex; justify-content:space-between; font-size:10rem; margin-bottom:2rem; }
 .svc-summary-stat .label { color:rgba(255,255,255,0.5); }
 .svc-summary-bar-bg { height:3rem; background:rgba(255,255,255,0.1); border-radius:1.5rem; margin-top:2rem; overflow:hidden; }
 .svc-summary-bar-fill { height:100%; border-radius:1.5rem; transition:width 0.3s ease; }

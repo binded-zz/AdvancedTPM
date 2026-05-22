@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
 import { trigger } from 'cs2/api';
+import { getSafeColor } from '../../mods/apiSafe';
 import './ServicesPanel.css';
 import ServiceIcon from '../assets/ServiceIcon';
 import ThemeIcon from '../assets/ThemeIcon';
@@ -261,14 +262,14 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                     <div className="svc-summary-card-body">
                       <div className="svc-summary-stat">
                         <span className="label">Efficiency</span>
-                        <span className="value" style={{ color: s.efficiency >= 90 ? '#8bdb46' : s.efficiency >= 50 ? '#50b8e9' : '#e05050' }}>{s.efficiency.toFixed(0)}%</span>
+                        <span className="value" style={{ color: getSafeColor(s.efficiency >= 90 ? '#8bdb46' : s.efficiency >= 50 ? '#50b8e9' : '#e05050') }}>{s.efficiency.toFixed(0)}%</span>
                       </div>
                       <div className="svc-summary-stat">
                         <span className="label">Usage</span>
                         <span className="value">{loadPct}%</span>
                       </div>
                       <div className="svc-summary-bar-bg">
-                        <div className="svc-summary-bar-fill" style={{ width: `${loadPct}%`, backgroundColor: loadPct > 90 ? '#e05050' : loadPct > 70 ? '#f0ad4e' : '#50b8e9' }} />
+                        <div className="svc-summary-bar-fill" style={{ width: `${loadPct}%`, backgroundColor: getSafeColor(loadPct > 90 ? '#e05050' : loadPct > 70 ? '#f0ad4e' : '#50b8e9') }} />
                       </div>
                     </div>
                   </div>
@@ -309,7 +310,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                    <div className="svc-col-level">{b.level > 0 ? `Lv ${b.level}` : '—'}</div>
                    <div className="svc-col-cap">{b.capacity.toFixed(0)}</div>
                    <div className="svc-col-usage">{b.usage.toFixed(0)}</div>
-                   <div className="svc-col-eff" style={{ color: b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#50b8e9' : '#e05050' }}>{b.efficiency.toFixed(0)}%</div>
+                   <div className="svc-col-eff" style={{ color: getSafeColor(b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#50b8e9' : '#e05050') }}>{b.efficiency.toFixed(0)}%</div>
                    <div className="svc-col-go">
                      <button className="svc-go-btn" onClick={(e) => { e.stopPropagation(); focusEntityKey(b.entityKey); }}>GO</button>
                    </div>

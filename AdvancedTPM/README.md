@@ -2,16 +2,11 @@
 
 A comprehensive Cities: Skylines 2 mod for per-resource tax control, production monitoring, company analysis, and AI-powered tax optimization.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.1-blue)
 ![CS2](https://img.shields.io/badge/Cities%3A%20Skylines%202-compatible-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
-
-## What's new (recent)
-- Company Happiness: compact, colorized happiness score visible in company rows and in the expanded detail panel.
-- Signature buildings & debug: server-side detection and enhanced debug UI for signature prefabs and cached signature company data; logging improvements for troubleshooting.
-- Learning DB loader: more robust handling of persisted profiles (now accepts gzipped payloads saved by the mod).
 
 
 ## Features

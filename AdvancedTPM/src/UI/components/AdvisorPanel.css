@@ -1,4 +1,4 @@
-/* ── Advisor Panel ── */
+/* == Advisor Panel == */
 .advisor-panel {
   display: flex;
   flex-direction: column;
@@ -150,7 +150,6 @@
   top: 0;
   height: 100%;
   display: none;
-  pointer-events: auto;
   z-index: 30;
 }
 .advisor-scrollbar-thumb {
@@ -159,7 +158,6 @@
   width: 8rem;
   background: rgba(80,120,160,0.85);
   border-radius: 6rem;
-  pointer-events: auto;
   box-shadow: 0 2rem 6rem rgba(0,0,0,0.5);
   cursor: grab;
   z-index: 31;
@@ -174,11 +172,7 @@
   padding: 8rem 18rem 8rem 10rem;
 }
 
-/* Advisor custom scrollbar (visible even when native scrollbars hidden) */
-/* Make native scrollbars visible where possible */
-.advisor-content { /* keep simple, avoid vendor scrollbar properties unsupported by CoHTML */
-  /* intentionally minimal for Cohtml compatibility */
-}
+
 
 /* Overview */
 .advisor-stats-grid {
@@ -406,7 +400,7 @@
   white-space: nowrap;
 }
 .advisor-decision-summary {
-  display: none; /* hidden in overview half-panel — shown only in log full-width view */
+  display: none; /* hidden in overview half-panel - shown only in log full-width view */
 }
 
 /* Profiles tab */
@@ -460,7 +454,6 @@
   height: 20rem;
   margin-right: 8rem;
   flex-shrink: 0;
-  vertical-align: middle;
   display: block;
 }
 .advisor-zone-icon-small {
@@ -468,7 +461,6 @@
   height: 18rem;
   margin-right: 6rem;
   flex-shrink: 0;
-  vertical-align: middle;
   display: block;
 }
 /* Fallback badge style when user chooses 'badges' mode */
@@ -479,7 +471,6 @@
   border-radius: 2rem;
   margin-right: 6rem;
   flex-shrink: 0;
-  vertical-align: middle;
 }
 /* Per-stage colored badges (restore the colored look used on Resources page) */
 .advisor-zone-industrial { background: rgba(232,140,58,0.95); color: #ffffff; }
@@ -494,7 +485,6 @@
   width: 16rem;
   height: 16rem;
   margin-right: 8rem;
-  vertical-align: middle;
   display: block;
 }
 .advisor-profile-bars {
@@ -642,10 +632,11 @@
 
 /* Scrollbar: -webkit-scrollbar not supported in CoHTML; use JS-based scrollbar or rely on default */
 
-/* Two-column overview: make left/right columns scrollable boxes */
 .advisor-overview-two {
   display: flex;
-  gap: 12rem;
+}
+.advisor-overview-left {
+  margin-right: 12rem;
 }
 .advisor-overview-left,
 .advisor-overview-right {
@@ -678,9 +669,9 @@
 
 /* Two-column overview: make left/right columns resize vertically with the panel */
 .advisor-overview { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-.advisor-overview-two { display: flex; flex: 1 1 auto; gap: 12rem; min-height: 0; }
+.advisor-overview-two { display: flex; flex: 1 1 auto; min-height: 0; }
 .advisor-overview-left, .advisor-overview-right { box-sizing: border-box; flex: 1 1 50%; min-width: 120rem; min-height: 0; display: flex; flex-direction: column; }
-.advisor-rec-box { /* reserved for rec-specific tweaks */ }
+.advisor-overview-left { margin-right: 12rem; }
 
 /* Legend button & popup (per-page) */
 .advisor-controls { position: relative; }
@@ -703,7 +694,7 @@
   padding: 0;
 }
 .advisor-legend-btn:hover { background: rgba(62,98,145,0.88); border-color: rgba(140,186,235,0.95); color: #fff; }
-.advisor-legend-popup { pointer-events: auto; }
+
 .advisor-legend-title { font-weight: 700; margin-bottom: 8rem; }
 .advisor-legend-popup ul { margin: 0; padding-left: 14rem; font-size: 12rem; }
 .advisor-legend-popup li { margin-bottom: 6rem; }

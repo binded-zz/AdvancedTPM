@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { getSafeColor } from '../../mods/apiSafe';
 
 interface TPMWindowShellProps {
   x: number;
@@ -11,109 +12,129 @@ interface TPMWindowShellProps {
   children: React.ReactNode;
 }
 
-// Guard against NaN/undefined reaching CoHTML style properties (triggers "invalid value" warnings)
 const safeNum = (v: number, fallback: number): number => (Number.isFinite(v) ? v : fallback);
 
 const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, collapsed = false, collapsedHeight = 74, onSaveRect, children }) => {
   const [rect, setRect] = useState({ x: safeNum(x, 140), y: safeNum(y, 150), width: safeNum(width, 520), height: safeNum(height, 420) });
   const [activeMode, setActiveMode] = useState<'none' | 'drag' | 'resize-right' | 'resize-left'>('none');
-  const dragRef = useRef<{ active: boolean; startX: number; startY: number; ox: number; oy: number }>({ active: false, startX: 0, startY: 0, ox: x, oy: y });
-  const resizeRef = useRef<{ active: boolean; startX: number; startY: number; ox: number; ow: number; oh: number }>({ active: false, startX: 0, startY: 0, ox: x, ow: width, oh: height });
+  
+  // DOM Ref for 0ms latency dragging
+  const containerRef = useRef<HTMLDivElement>(null);
+  const draggingRectRef = useRef({ ...rect });
 
+  const interactRef = useRef({ mode: 'none', startX: 0, startY: 0, ox: 0, oy: 0, ow: 0, oh: 0 });
+  const onSaveRectRef = useRef(onSaveRect);
+
+  useEffect(() => { onSaveRectRef.current = onSaveRect; }, [onSaveRect]);
+  
   useEffect(() => {
-    setRect({ x: safeNum(x, 140), y: safeNum(y, 150), width: safeNum(width, 520), height: safeNum(height, 420) });
+    const newRect = { x: safeNum(x, 140), y: safeNum(y, 150), width: safeNum(width, 520), height: safeNum(height, 420) };
+    setRect(newRect);
+    draggingRectRef.current = newRect;
   }, [x, y, width, height]);
 
   const visibleHeight = safeNum(collapsed ? collapsedHeight : rect.height, 420);
 
-  const onMove = (clientX: number, clientY: number) => {
-    if (dragRef.current.active) {
-      const dx = clientX - dragRef.current.startX;
-      const dy = clientY - dragRef.current.startY;
-      setRect((r) => ({ ...r, x: Math.max(20, dragRef.current.ox + dx), y: Math.max(20, dragRef.current.oy + dy) }));
+  const onMove = (e: MouseEvent) => {
+    if (e.buttons !== 1) {
+      stopInteraction();
+      return;
     }
-    if (resizeRef.current.active && activeMode === 'resize-right') {
-      const dx = clientX - resizeRef.current.startX;
-      const dy = clientY - resizeRef.current.startY;
-      setRect((r) => ({ ...r, width: Math.max(360, resizeRef.current.ow + dx), height: Math.max(240, resizeRef.current.oh + dy) }));
-    }
-    if (resizeRef.current.active && activeMode === 'resize-left') {
-      const dx = clientX - resizeRef.current.startX;
-      const dy = clientY - resizeRef.current.startY;
-      const nextWidth = Math.max(360, resizeRef.current.ow - dx);
-      const maxDelta = resizeRef.current.ow - 360;
+    const { mode, startX, startY, ox, oy, ow, oh } = interactRef.current;
+    if (mode === 'none') return;
+
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    let newX = ox; let newY = oy; let newW = ow; let newH = oh;
+
+    if (mode === 'drag') {
+      newX = Math.max(20, ox + dx);
+      newY = Math.max(20, oy + dy);
+    } else if (mode === 'resize-right') {
+      newW = Math.max(360, ow + dx);
+      newH = Math.max(240, oh + dy);
+    } else if (mode === 'resize-left') {
+      const maxDelta = ow - 360;
       const clampedDx = Math.max(-10000, Math.min(maxDelta, dx));
-      const nextX = Math.max(20, resizeRef.current.ox + clampedDx);
-      setRect((r) => ({ ...r, x: nextX, width: nextWidth, height: Math.max(240, resizeRef.current.oh + dy) }));
+      newX = Math.max(20, ox + clampedDx);
+      newW = Math.max(360, ow - clampedDx);
+      newH = Math.max(240, oh + dy);
+    }
+
+    // UPDATE DOM DIRECTLY - DO NOT CALL setRect HERE
+    draggingRectRef.current = { x: newX, y: newY, width: newW, height: newH };
+
+    if (containerRef.current) {
+      containerRef.current.style.left = `${newX}px`;
+      containerRef.current.style.top = `${newY}px`;
+      if (mode.startsWith('resize')) {
+        containerRef.current.style.width = `${newW}px`;
+        if (!collapsed) containerRef.current.style.height = `${newH}px`;
+      }
     }
   };
 
   const stopInteraction = () => {
-    if (dragRef.current.active || resizeRef.current.active) {
-      onSaveRect(rect.x, rect.y, rect.width, rect.height);
+    if (interactRef.current.mode !== 'none') {
+      const finalRect = draggingRectRef.current;
+      setRect(finalRect); // Trigger React render ONLY when mouse is released
+      onSaveRectRef.current(finalRect.x, finalRect.y, finalRect.width, finalRect.height);
     }
-    dragRef.current.active = false;
-    resizeRef.current.active = false;
+    interactRef.current.mode = 'none';
     setActiveMode('none');
   };
 
   useEffect(() => {
-    const onWindowMove = (e: MouseEvent) => onMove(e.clientX, e.clientY);
+    if (activeMode === 'none') return;
+    const onWindowMove = (e: MouseEvent) => onMove(e);
     const onWindowUp = () => stopInteraction();
+    
     document.addEventListener('mousemove', onWindowMove);
     document.addEventListener('mouseup', onWindowUp);
+    
     return () => {
       document.removeEventListener('mousemove', onWindowMove);
       document.removeEventListener('mouseup', onWindowUp);
     };
-  }, [rect.x, rect.y, rect.width, rect.height]);
+  }, [activeMode]);
 
   return (
-    <>
-    {activeMode !== 'none' && (
-      <div
-        style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, pointerEvents: 'auto', zIndex: 100000, cursor: activeMode === 'drag' ? 'move' : 'nwse-resize' }}
-        onMouseMove={(e) => onMove(e.clientX, e.clientY)}
-        onMouseUp={() => stopInteraction()}
-      />
-    )}
     <div
-      style={{ position: 'absolute', left: safeNum(rect.x, 140), top: safeNum(rect.y, 150), width: safeNum(rect.width, 520), height: visibleHeight, pointerEvents: 'auto', display: 'flex', flexDirection: 'column' }}
-      onMouseDown={(e) => {
-        const target = e.target as HTMLElement;
-        if (target && (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.closest('[data-interactive]') || target.closest('.ats-panel'))) {
-          return;
-        }
-        if (e.clientY <= rect.y + 42) {
-          dragRef.current = { active: true, startX: e.clientX, startY: e.clientY, ox: rect.x, oy: rect.y };
-          setActiveMode('drag');
-        }
-      }}
+      ref={containerRef}
+      style={{ position: 'absolute', left: safeNum(rect.x, 140), top: safeNum(rect.y, 150), width: safeNum(rect.width, 520), height: visibleHeight, display: 'flex', flexDirection: 'column', pointerEvents: 'auto' }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       <div
-        style={{ height: 24, flexShrink: 0, cursor: 'move', opacity: 1, background: 'linear-gradient(180deg, rgba(80,125,177,0.88) 0%, rgba(47,83,127,0.92) 100%)', borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottom: '1px solid rgba(160,200,240,0.55)', display: 'flex', alignItems: 'center', paddingLeft: 10, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: '#e9f3ff', textShadow: '0 1px 1px rgba(0,0,0,0.45)' }}
+        style={{ height: 24, flexShrink: 0, cursor: 'move', opacity: 1, backgroundColor: getSafeColor('rgba(47,83,127,0.92)'), borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: getSafeColor('rgba(160,200,240,0.55)'), display: 'flex', alignItems: 'center', paddingLeft: 10, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: getSafeColor('#e9f3ff'), textShadow: '0 1px 1px rgba(0,0,0,0.45)' }}
         onMouseDown={(e) => {
-          dragRef.current = { active: true, startX: e.clientX, startY: e.clientY, ox: rect.x, oy: rect.y };
+          e.preventDefault(); e.stopPropagation();
+          interactRef.current = { mode: 'drag', startX: e.clientX, startY: e.clientY, ox: draggingRectRef.current.x, oy: draggingRectRef.current.y, ow: draggingRectRef.current.width, oh: draggingRectRef.current.height };
           setActiveMode('drag');
         }}
       >DRAG WINDOW</div>
-      <div style={{ position: 'relative', width: '100%', flex: 1, overflow: 'visible' }}>{children}</div>
+      <div className="tpm-window-shell" style={{ flexGrow: 1, width: '100%', position: 'relative' }}>
+        {children}
+      </div>
       <div
-        style={{ position: 'absolute', right: 0, bottom: 0, width: 18, height: 18, cursor: 'nwse-resize', background: 'rgba(255,255,255,0.35)', borderTopLeftRadius: 3 }}
+        style={{ position: 'absolute', right: 0, bottom: 0, width: 18, height: 18, cursor: 'nwse-resize', backgroundColor: getSafeColor('rgba(255,255,255,0.35)'), borderTopLeftRadius: 3 }}
         onMouseDown={(e) => {
-          resizeRef.current = { active: true, startX: e.clientX, startY: e.clientY, ox: rect.x, ow: rect.width, oh: rect.height };
+          e.preventDefault(); e.stopPropagation();
+          interactRef.current = { mode: 'resize-right', startX: e.clientX, startY: e.clientY, ox: draggingRectRef.current.x, oy: draggingRectRef.current.y, ow: draggingRectRef.current.width, oh: draggingRectRef.current.height };
           setActiveMode('resize-right');
         }}
       />
       <div
-        style={{ position: 'absolute', left: 0, bottom: 0, width: 18, height: 18, cursor: 'nesw-resize', background: 'rgba(255,255,255,0.35)', borderTopRightRadius: 3 }}
+        style={{ position: 'absolute', left: 0, bottom: 0, width: 18, height: 18, cursor: 'nesw-resize', backgroundColor: getSafeColor('rgba(255,255,255,0.35)'), borderTopRightRadius: 3 }}
         onMouseDown={(e) => {
-          resizeRef.current = { active: true, startX: e.clientX, startY: e.clientY, ox: rect.x, ow: rect.width, oh: rect.height };
+          e.preventDefault(); e.stopPropagation();
+          interactRef.current = { mode: 'resize-left', startX: e.clientX, startY: e.clientY, ox: draggingRectRef.current.x, oy: draggingRectRef.current.y, ow: draggingRectRef.current.width, oh: draggingRectRef.current.height };
           setActiveMode('resize-left');
         }}
       />
     </div>
-    </>
   );
 };
 

@@ -34,25 +34,26 @@ namespace AdvancedTPM
         private CityStatisticsSystem _cityStatisticsSystem;
         private SimulationSystem _simulationSystem;
         private CompanyBrowserSystem _companyBrowserSystem;
+        private TaxingProductionUISystem _taxingProductionUISystem;
 
         private LearningDatabase _database;
         private string _dataFilePath;
 
-        private int _snapshotCounter;
-        private int _evaluationCounter;
-        private int _saveCounter;
+        private float _snapshotCounter;    // seconds accumulator
+        private float _evaluationCounter;  // seconds accumulator
+        private float _saveCounter;        // seconds accumulator
         private uint _lastSimulationTick;
         private bool _wasPaused;
+        private float m_UpdateTimer = 0f;  // Coarse-grained background update timer
 
         // How many game ticks to wait before evaluating a tax change outcome
         // ~262144 ticks/game-month at normal speed; we use ~2 game-days (~17500 ticks)
         private const uint EvaluationDelay = 17500;
 
-        // Snapshot capture interval in frames (at normal speed ~20s)
-        private const int SnapshotFrameInterval = 1200;
-
-        // Auto-save interval in frames (~5 minutes at 60fps)
-        private const int SaveFrameInterval = 18000;
+        // Real-time DeltaTime throttle intervals (seconds)
+        private const float SnapshotIntervalDefault = 20f;  // aggressiveness level 3
+        private const float SaveInterval = 300f;            // auto-save every 5 minutes
+        private const float EvaluationInterval = 5f;        // evaluate pending events every 5s
 
         // EMA alpha for learning updates (0.0–1.0; lower = slower learning, more stable)
         private const float DefaultEmaAlpha = 0.15f;
@@ -69,6 +70,7 @@ namespace AdvancedTPM
             try { _cityStatisticsSystem = World.GetOrCreateSystemManaged<CityStatisticsSystem>(); } catch { }
             try { _simulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>(); } catch { }
             try { _companyBrowserSystem = World.GetOrCreateSystemManaged<CompanyBrowserSystem>(); } catch { }
+            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch { }
 
             // Resolve persistence file path
             var settings = Mod.Settings;
@@ -126,6 +128,7 @@ namespace AdvancedTPM
             if (isPaused)
             {
                 _wasPaused = true;
+                this.Dependency = Dependency;
                 return;
             }
 
@@ -134,32 +137,45 @@ namespace AdvancedTPM
                 _wasPaused = false;
                 // Just unpaused — skip one frame to let systems settle
                 _lastSimulationTick = currentTick;
+                this.Dependency = Dependency;
                 return;
             }
             _lastSimulationTick = currentTick;
 
-            // Snapshot capture
-            _snapshotCounter++;
-            int snapshotInterval = GetSnapshotInterval(settings);
+            // ── Global UI Sleep Gate / Coarse Ticker ──────────────────────────────────
+            m_UpdateTimer += World.Time.DeltaTime;
+            if (m_UpdateTimer < 2.0f)
+            {
+                this.Dependency = Dependency;
+                return;
+            }
+            float dt = m_UpdateTimer;
+            m_UpdateTimer = 0f;
+
+            // ── Snapshot capture ──────────────────────────────────────────────────
+            _snapshotCounter += dt;
+            float snapshotInterval = GetSnapshotInterval(settings);
             if (_snapshotCounter >= snapshotInterval)
             {
-                _snapshotCounter = 0;
-                CaptureSnapshot(currentTick);
+                if (CaptureSnapshot(currentTick))
+                {
+                    _snapshotCounter = 0f;
+                }
             }
 
-            // Evaluate pending tax change events
-            _evaluationCounter++;
-            if (_evaluationCounter >= 300) // Check every ~5 seconds
+            // ── Evaluate pending tax change events ───────────────────────────────
+            _evaluationCounter += dt;
+            if (_evaluationCounter >= EvaluationInterval)
             {
-                _evaluationCounter = 0;
+                _evaluationCounter = 0f;
                 EvaluatePendingEvents(currentTick, settings);
             }
 
-            // Auto-save
-            _saveCounter++;
-            if (_saveCounter >= SaveFrameInterval)
+            // ── Auto-save ───────────────────────────────────────────────────
+            _saveCounter += dt;
+            if (_saveCounter >= SaveInterval)
             {
-                _saveCounter = 0;
+                _saveCounter = 0f;
                 _database.SaveToFile(_dataFilePath);
             }
         }
@@ -173,8 +189,8 @@ namespace AdvancedTPM
             if (!_learningEnabled.value) return;
             if (oldRate == newRate) return;
 
-            // Capture a snapshot at the moment of change
-            var snapshot = BuildCurrentSnapshot(gameTick);
+            // Capture a snapshot at the moment of change (force block because it is rare and critical to capture at exact change point)
+            var snapshot = BuildCurrentSnapshot(gameTick, true);
 
             var evt = new TaxChangeEvent
             {
@@ -288,14 +304,17 @@ namespace AdvancedTPM
             return recommendations;
         }
 
-        private void CaptureSnapshot(uint gameTick)
+        private bool CaptureSnapshot(uint gameTick)
         {
-            var snapshot = BuildCurrentSnapshot(gameTick);
+            var snapshot = BuildCurrentSnapshot(gameTick, false);
+            if (snapshot == null) return false; // compilation jobs not finished, defer
+
             _database.RecentSnapshots.Add(snapshot);
             _database.TrimSnapshots();
+            return true;
         }
 
-        private CitySnapshot BuildCurrentSnapshot(uint gameTick)
+        private CitySnapshot BuildCurrentSnapshot(uint gameTick, bool forceComplete)
         {
             var snapshot = new CitySnapshot
             {
@@ -317,48 +336,47 @@ namespace AdvancedTPM
             int profitCount = 0;
 
             NativeArray<int> productionArray = default;
-            bool hasProduction = false;
+            JobHandle prodDeps = default;
             if (_countCompanyDataSystem != null)
             {
-                try
-                {
-                    JobHandle prodDeps;
-                    productionArray = _countCompanyDataSystem.GetProduction(out prodDeps);
-                    prodDeps.Complete();
-                    hasProduction = productionArray.IsCreated && productionArray.Length > 0;
-                }
-                catch { }
+                try { productionArray = _countCompanyDataSystem.GetProduction(out prodDeps); } catch { }
             }
 
             NativeArray<int> industrialCompanies = default;
-            bool hasIndustrialData = false;
+            JobHandle indDeps = default;
             if (_countCompanyDataSystem != null)
             {
                 try
                 {
-                    JobHandle indDeps;
                     var indData = _countCompanyDataSystem.GetIndustrialCompanyDatas(out indDeps);
-                    indDeps.Complete();
                     industrialCompanies = indData.m_ProductionCompanies;
-                    hasIndustrialData = industrialCompanies.IsCreated && industrialCompanies.Length > 0;
                 }
                 catch { }
             }
 
             NativeArray<int> commercialCompanies = default;
-            bool hasCommercialData = false;
+            JobHandle comDeps = default;
             if (_countCompanyDataSystem != null)
             {
                 try
                 {
-                    JobHandle comDeps;
                     var comData = _countCompanyDataSystem.GetCommercialCompanyDatas(out comDeps);
-                    comDeps.Complete();
                     commercialCompanies = comData.m_ServiceCompanies;
-                    hasCommercialData = commercialCompanies.IsCreated && commercialCompanies.Length > 0;
                 }
                 catch { }
             }
+
+            var combinedDeps = JobHandle.CombineDependencies(prodDeps, indDeps, comDeps);
+            if (!combinedDeps.IsCompleted && !forceComplete)
+            {
+                // Defer capture to a later frame since compilation jobs are still active in background.
+                return null;
+            }
+
+            combinedDeps.Complete();
+            bool hasProduction = productionArray.IsCreated && productionArray.Length > 0;
+            bool hasIndustrialData = industrialCompanies.IsCreated && industrialCompanies.Length > 0;
+            bool hasCommercialData = commercialCompanies.IsCreated && commercialCompanies.Length > 0;
 
             var avgProfits = _companyBrowserSystem?.AvgProfitByResource;
 
@@ -473,7 +491,9 @@ namespace AdvancedTPM
 
                 // Evaluate this event
                 var outcome = EvaluateOutcome(evt, currentTick);
-                ApplyLearning(evt.ResourceKey, outcome, alpha);
+                if (outcome == null) continue; // Defer evaluation because snapshot data isn't ready yet
+
+                ApplyLearning(evt.ResourceKey, outcome.Value, alpha);
 
                 // Record in decision log
                 var decision = new AdvisorDecision
@@ -482,9 +502,9 @@ namespace AdvancedTPM
                     OldRate = evt.OldRate,
                     NewRate = evt.NewRate,
                     GameTick = evt.GameTickAtChange,
-                    OutcomeScore = outcome.Score,
+                    OutcomeScore = outcome.Value.Score,
                     Confidence = _database.Profiles.TryGetValue(evt.ResourceKey, out var p) ? p.Confidence : 0f,
-                    Summary = outcome.Summary
+                    Summary = outcome.Value.Summary
                 };
                 _database.DecisionLog.Add(decision);
                 _database.TrimDecisionLog();
@@ -502,7 +522,7 @@ namespace AdvancedTPM
             }
         }
 
-        private OutcomeResult EvaluateOutcome(TaxChangeEvent evt, uint currentTick)
+        private OutcomeResult? EvaluateOutcome(TaxChangeEvent evt, uint currentTick)
         {
             var before = evt.SnapshotBefore;
             if (before == null || !before.Resources.TryGetValue(evt.ResourceKey, out var beforeRes))
@@ -511,7 +531,11 @@ namespace AdvancedTPM
             }
 
             // Build current state for comparison
-            var currentSnapshot = BuildCurrentSnapshot(currentTick);
+            var currentSnapshot = BuildCurrentSnapshot(currentTick, false);
+            if (currentSnapshot == null)
+            {
+                return null; // Defer evaluation because snapshot data isn't ready yet
+            }
             if (!currentSnapshot.Resources.TryGetValue(evt.ResourceKey, out var afterRes))
             {
                 return new OutcomeResult { Score = 0f, Summary = "No current data" };
@@ -794,18 +818,18 @@ namespace AdvancedTPM
             }
         }
 
-        private int GetSnapshotInterval(TPMModSettings settings)
+        private float GetSnapshotInterval(TPMModSettings settings)
         {
-            // Slower snapshot rate at lower aggressiveness
+            // Slower snapshot rate at lower aggressiveness (seconds)
             int level = settings?.LearningAggressiveness ?? 3;
             switch (level)
             {
-                case 1: return 2400;  // ~40s
-                case 2: return 1800;  // ~30s
-                case 3: return 1200;  // ~20s
-                case 4: return 900;   // ~15s
-                case 5: return 600;   // ~10s
-                default: return SnapshotFrameInterval;
+                case 1: return 40f;   // Very conservative
+                case 2: return 30f;
+                case 3: return 20f;   // Default
+                case 4: return 15f;
+                case 5: return 10f;   // Very aggressive
+                default: return SnapshotIntervalDefault;
             }
         }
 

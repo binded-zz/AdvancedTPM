@@ -1,4 +1,4 @@
-/* == AdvancedTPM Window — CS2 rem-scaled == */
+/* == AdvancedTPM Window - CS2 rem-scaled == */
 .adv-window { width:100%; height:100%; min-height:220rem; background:#121822; /* fully opaque background for CoHTML */ border-radius:4rem; color:#ffffff; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 4rem 12rem rgba(0,0,0,0.6); }
 
 /* Force high-contrast text for all child elements to improve readability */
@@ -28,7 +28,7 @@
 .adv-table-content-wrapper { flex:1; background:rgba(28,36,48,1); overflow:auto; display:flex; flex-direction:column; border:1rem solid rgba(255,255,255,0.02); min-height:0; position:relative; }
 
 /* Ensure pages with long content scroll when needed */
-.adv-window .adv-table-section, .adv-window .adv-table-content-wrapper, .adv-window .adv-table-content, .adv-window .adv-footer, .adv-window .adv-autotax-status-bar { }
+
 .adv-table-content { flex:0 1 auto; overflow-y:auto; overflow-x:visible; padding-right:18rem; box-sizing:border-box; }
 
 /* Resources table content: keep vertical list of category groups for correct
@@ -37,8 +37,8 @@
 .adv-table-content { display:flex; flex-direction:column; }
 
 /* Visible scrollbar styling for resources/advisor pages */
-.adv-table-content, .adv-table-section, .adv-table-content-wrapper, .adv-window .advisor-content { }
-.adv-table-lines { flex:1 0 0; display:flex; pointer-events:none; overflow:hidden; }
+
+.adv-table-lines { flex:1 0 0; display:flex; overflow:hidden; }
 
 /* Overlay scrollbar track positioned in the table wrapper; shown only when needed */
 .adv-scrollbar-track {
@@ -48,8 +48,6 @@
   top: 0;
   height: 100%;
   display: none;
-  /* allow the track to receive clicks (jump-to-scroll) */
-  pointer-events: auto;
   z-index: 30;
 }
 .adv-scrollbar-thumb {
@@ -58,7 +56,6 @@
   width: 8rem;
   background: rgba(80,120,160,0.85);
   border-radius: 6rem;
-  pointer-events: auto; /* enable dragging */
   box-shadow: 0 2rem 6rem rgba(0,0,0,0.5);
   cursor: grab;
   z-index: 31;
@@ -143,10 +140,10 @@
 .adv-prod-bar-deficit { background:rgba(224,80,80,0.6); }
 .adv-prod-bar-demand { background:rgba(160,100,220,0.6); }
 .adv-prod-bar-label { position:relative; z-index:1; padding:0 4rem; font-size:10rem; color:rgba(255,255,255,0.85); white-space:nowrap; font-weight:600; }
-.adv-row-tooltip { min-width:220rem; background:#0c1218; border:1rem solid rgba(120,160,200,0.9); border-radius:4rem; padding:8rem 10rem; font-size:11rem; line-height:1.35; color:#ffffff; box-shadow:0 3rem 10rem rgba(0,0,0,0.65); pointer-events:none; }
+.adv-row-tooltip { min-width:220rem; background:#0c1218; border:1rem solid rgba(120,160,200,0.9); border-radius:4rem; padding:8rem 10rem; font-size:11rem; line-height:1.35; color:#ffffff; box-shadow:0 3rem 10rem rgba(0,0,0,0.65); }
 
 /* Make native scrollbars visible in CoHTML/WebKit when supported */
-.adv-table-content, .adv-table-content-wrapper, .adv-table-section { /* keep minimal for Cohtml compatibility */ }
+
 
 /* == Auto-Tax Styles == */
 .adv-autotax-toggle { position:absolute; right:112rem; top:50%; transform:translateY(-50%); border:1rem solid rgba(124,152,189,0.75); background:rgba(15,24,37,0.98); color:rgba(233,243,255,0.65); font-size:11rem; font-weight:800; padding:4rem 10rem; border-radius:3rem; cursor:pointer; letter-spacing:0.5rem; text-transform:uppercase; transition:background-color 0.15s, border-color 0.15s, color 0.15s; }
@@ -187,12 +184,8 @@
 .adv-view-tab { border:none; background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.55); font-size:13rem; font-weight:600; padding:6rem 18rem; border-radius:4rem 4rem 0 0; cursor:pointer; transition:background-color 0.15s, color 0.15s; margin-right:4rem; }
 .adv-view-tab:hover { background:rgba(255,255,255,0.12); color:rgba(255,255,255,0.85); }
 .adv-view-tab-active { background:rgba(80,184,233,0.22); color:#50b8e9; border-bottom:2rem solid #50b8e9; }
-
-/* Badge for counts on tabs */
 .adv-tab-badge { margin-left:8rem; background:#50b8e9; color:#042; font-weight:800; padding:2rem 6rem; border-radius:8rem; font-size:10rem; }
-
-
-/* Ã¢â€â‚¬Ã¢â€â‚¬ Signature Unified View Ã¢â€â‚¬Ã¢â€â‚¬ */
+/* == Signature Unified View == */
 .sig-view { display:flex; flex-direction:column; height:100%; min-height:0; }
 .sig-filters { display:flex; align-items:center; padding:6rem 10rem; border-bottom:1rem solid rgba(255,255,255,0.08); flex-wrap:wrap; }
 .sig-type-btns { display:flex; margin-right:12rem; }
@@ -213,13 +206,13 @@
 .sig-col-hdr { display:flex; align-items:center; }
 .sig-rows-wrap { position:relative; flex:1; min-height:0; overflow:hidden; }
 .sig-rows-scroll { flex:1; min-height:0; height:100%; overflow-y:scroll; padding-right:14rem; }
-.sig-scrollbar-track { position:absolute; right:2rem; top:0; width:8rem; background:rgba(12,18,24,0.55); border-radius:4rem; pointer-events:none; }
-.sig-scrollbar-thumb { position:absolute; left:1rem; width:6rem; background:rgba(80,140,200,0.75); border-radius:3rem; cursor:pointer; pointer-events:all; min-height:16rem; }
+.sig-scrollbar-track { position:absolute; right:2rem; top:0; width:8rem; background:rgba(12,18,24,0.55); border-radius:4rem; }
+.sig-scrollbar-thumb { position:absolute; left:1rem; width:6rem; background:rgba(80,140,200,0.75); border-radius:3rem; cursor:pointer; min-height:16rem; }
 .sig-row { display:flex; align-items:center; padding:5rem 10rem; font-size:13rem; border-bottom:1rem solid rgba(255,255,255,0.04); cursor:pointer; }
 .sig-row:hover { background:rgba(255,255,255,0.04); }
 .sig-col-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:rgba(255,255,255,0.92); display:flex; align-items:center; }
 .sig-star { color:#f0c040; margin-right:5rem; font-size:12rem; flex-shrink:0; }
-.sig-type-badge { font-size:10rem; padding:2rem 6rem; border-radius:3rem; font-weight:600; display:inline-flex; align-items:center; }
+.sig-type-badge { font-size:10rem; padding:2rem 6rem; border-radius:3rem; font-weight:600; display:flex; align-items:center; }
 .sig-type-icon { width:14rem; height:14rem; margin-right:6rem; opacity:0.95; }
 .sig-type-commercial { background:rgba(80,184,233,0.22); color:#80d0ff; }
 .sig-type-residential { background:rgba(80,140,220,0.25); color:#80b8f0; }

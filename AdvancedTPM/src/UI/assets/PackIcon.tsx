@@ -1,4 +1,5 @@
 import React from 'react';
+import { getSafeColor } from '../../mods/apiSafe';
 
 const PackIcon: React.FC<{ pack?: string; size?: number; style?: React.CSSProperties }> = ({ pack = 'Base Game', size = 16, style }) => {
   const p = (pack || 'Base Game').toLowerCase();
@@ -20,7 +21,7 @@ const PackIcon: React.FC<{ pack?: string; size?: number; style?: React.CSSProper
 
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style={style}>
-      <rect x="2" y="2" width="16" height="16" rx="3" fill={iconColor} />
+      <rect x="2" y="2" width="16" height="16" rx="3" fill={getSafeColor(iconColor, '#6A1B9A')} />
       {iconShape === 'palm' && <path d="M10 15V8M10 8C12 6 15 7 15 7M10 8C8 6 5 7 5 7M10 9C11 11 14 10 14 10M10 9C9 11 6 10 6 10" stroke="#fff" fill="none" strokeWidth="1.5" />}
       {iconShape === 'bridge' && <path d="M4 14Q10 8 16 14M4 16H16M7 11V16M13 11V16" stroke="#fff" fill="none" strokeWidth="1.5" />}
       {iconShape === 'modern' && <path d="M6 14V6L10 4L14 6V14H6Z" fill="#fff" opacity="0.8" />}

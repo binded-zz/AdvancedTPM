@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { parseCompanies } from './CompanyBrowser';
-import apiSafe from '../../mods/apiSafe';
-import { gameHappinessFactors$, type GameFactor } from '../../mods/bindings';
+import apiSafe, { getSafeColor } from '../../mods/apiSafe';
+import ErrorBoundary from './ErrorBoundary';
 import './DistrictsPanel.css';
 
 interface Props {
@@ -33,7 +33,7 @@ interface DistrictRow {
   profitability: number;
   pets: number; upkeep: number; resourceCost: number; feesPaid: number;
   sick: number; students: number; totalCrime: number; homeless: number; tourists: number;
-  happinessFactors: number[][];
+
   
   // InfoLoom
   propertyCount?: number;
@@ -72,23 +72,71 @@ interface DistrictRow {
 }
 
 
+const cardIcons: Record<string, React.ReactNode> = {
+  worker: (
+    <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="#EAEAEA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M22 10v6M2 10l10-5 10 5-10 5z" fill="none" stroke="#EAEAEA" />
+      <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5" fill="none" stroke="#EAEAEA" />
+    </svg>
+  ),
+  property: (
+    <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="#EAEAEA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M3 21h18" fill="none" stroke="#EAEAEA" />
+      <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16" fill="none" stroke="#EAEAEA" />
+      <path d="M9 9h2v2H9zM9 13h2v2H9zM13 9h2v2h-2zM13 13h2v2h-2z" fill="none" stroke="#EAEAEA" />
+    </svg>
+  ),
+  demographic: (
+    <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="#EAEAEA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" fill="none" stroke="#EAEAEA" />
+      <circle cx="9" cy="7" r="4" fill="none" stroke="#EAEAEA" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" fill="none" stroke="#EAEAEA" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" fill="none" stroke="#EAEAEA" />
+    </svg>
+  ),
+  household: (
+    <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="#EAEAEA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="#EAEAEA" />
+      <polyline points="9 22 9 12 15 12 15 22" fill="none" stroke="#EAEAEA" />
+    </svg>
+  ),
+  school: (
+    <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="#EAEAEA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" fill="none" stroke="#EAEAEA" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" fill="none" stroke="#EAEAEA" />
+    </svg>
+  ),
+  health: (
+    <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="#EAEAEA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" fill="none" stroke="#EAEAEA" />
+    </svg>
+  ),
+  policies: (
+    <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="#EAEAEA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="#EAEAEA" />
+      <polyline points="14 2 14 8 20 8" fill="none" stroke="#EAEAEA" />
+      <line x1="16" y1="13" x2="8" y2="13" fill="none" stroke="#EAEAEA" />
+      <line x1="16" y1="17" x2="8" y2="17" fill="none" stroke="#EAEAEA" />
+      <polyline points="10 9 9 9 8 9" fill="none" stroke="#EAEAEA" />
+    </svg>
+  )
+};
+
 interface DashboardCardConfig {
   id: string;
   visible: boolean;
   order: number;
   title: string;
-  icon: string;
 }
 
 const DEFAULT_LAYOUT: DashboardCardConfig[] = [
-  { id: 'worker', visible: true, order: 0, title: 'Education Levels', icon: 'Workers.svg' },
-  { id: 'property', visible: true, order: 1, title: 'Properties', icon: 'Zoning.svg' },
-  { id: 'demographic', visible: true, order: 2, title: 'Demographics', icon: 'Population.svg' },
-  { id: 'household', visible: true, order: 3, title: 'Households', icon: 'Household.svg' },
-  { id: 'school', visible: true, order: 4, title: 'School Data', icon: 'Education.svg' },
-  { id: 'health', visible: true, order: 5, title: 'Health & Value', icon: 'Healthcare.svg' },
-  { id: 'happiness', visible: true, order: 6, title: 'Happiness Factors', icon: 'Citizen.svg' },
-  { id: 'policies', visible: true, order: 7, title: 'Policies', icon: 'Zoning.svg' },
+  { id: 'worker', visible: true, order: 0, title: 'Education Levels' },
+  { id: 'property', visible: true, order: 1, title: 'Properties' },
+  { id: 'demographic', visible: true, order: 2, title: 'Demographics' },
+  { id: 'household', visible: true, order: 3, title: 'Households' },
+  { id: 'school', visible: true, order: 4, title: 'School Data' },
+  { id: 'health', visible: true, order: 5, title: 'Health & Value' },
+  { id: 'policies', visible: true, order: 7, title: 'Policies' },
 ];
 
 const ICON = 'Media/Game/Icons/';
@@ -100,42 +148,17 @@ const fmt = (n: number) => {
 };
 
 const happinessInfo = (h: number) => {
+  if (h === undefined || h === null || isNaN(h)) return { label: 'Unknown', color: '#EAEAEA' };
   if (h >= 75) return { label: 'Happy', color: '#8bdb46' };
   if (h >= 50) return { label: 'Content', color: '#b8d946' };
   if (h >= 25) return { label: 'Unhappy', color: '#e0a050' };
   return { label: 'Miserable', color: '#e05050' };
 };
 
-const HAPPINESS_FACTORS: Record<number, string> = {
-  0:  "Reliable internet service",  // Telecom
-  1:  "High crime risk",             // Crime
-  2:  "Air pollution",               // AirPollution
-  3:  "Apartment size",              // Apartment
-  4:  "Reliable electricity",        // Electricity
-  5:  "Reliable healthcare coverage",// Healthcare
-  6:  "Ground pollution",            // GroundPollution
-  7:  "High noise pollution",        // NoisePollution
-  8:  "Reliable water supply",       // Water
-  9:  "Water pollution",             // WaterPollution
-  10: "Reliable sewage backup",      // Sewage
-  11: "Garbage buildup",             // Garbage
-  12: "Abundance of entertainment",  // Entertainment
-  13: "Education coverage",          // Education
-  14: "Reliable mail service",       // Mail
-  15: "Welfare",                     // Welfare
-  16: "Abundance of leisure time",   // Leisure
-  17: "High taxes",                  // Tax
-  18: "Proximity effects",           // Buildings
-  19: "Consumption",                 // Consumption
-  20: "Traffic jams",                // TrafficPenalty
-  21: "Recent deaths",               // DeathPenalty
-  22: "Homelessness",                // Homelessness
-  23: "Electricity fee",             // ElectricityFee
-  24: "Water fee",                   // WaterFee
-  25: "Unemployment",                // Unemployment
-};
+
 
 const wealthLabel = (w: number) => {
+  if (w === undefined || w === null || isNaN(w)) return { label: 'Unknown', color: '#EAEAEA' };
   if (w >= 15000) return { label: 'Wealthy', color: '#8bdb46' };
   if (w >= 5000) return { label: 'Comfortable', color: '#b8d946' };
   if (w >= 1000) return { label: 'Moderate', color: '#fff176' };
@@ -156,14 +179,14 @@ const getServicesFromMask = (mask: number) => {
 };
 
 const calcAvail = (cap: number, enrolled: number) => {
-  if (cap <= 0) return { text: '0%', color: 'rgba(255,255,255,0.4)' };
+  if (cap === undefined || cap === null || isNaN(cap) || cap <= 0) return { text: '0%', color: 'rgba(255,255,255,0.4)' };
   const val = ((cap - enrolled) / cap) * 100;
   return { text: `${val > 0 ? '+' : ''}${val.toFixed(0)}%`, color: val >= 10 ? '#8bdb46' : (val > 0 ? '#b8d946' : '#e57373') };
 };
 
 const StatRow = ({ label, val, style, rawKey, showRaw }: { label: string; val: string | number; style?: React.CSSProperties; rawKey?: string; showRaw?: boolean }) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12rem', fontSize: '13rem', padding: '1rem 0', color: 'rgba(255,255,255,0.85)', ...style }}>
-    <span style={{ opacity: 0.7 }}>
+  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13rem', padding: '1rem 0', color: getSafeColor('rgba(255,255,255,0.85)'), ...style }}>
+    <span style={{ opacity: 0.7, marginRight: '12rem' }}>
       {label}
       {showRaw && rawKey && <span className="dp-raw-key">({rawKey})</span>}
     </span>
@@ -262,8 +285,7 @@ export const DistrictsPanel: React.FC<Props> = ({
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
   }, []);
 
-  // Game's authoritative city-wide happiness factors (same as Demographics right panel)
-  const gameHappinessFactors = apiSafe.useValue<GameFactor[]>(gameHappinessFactors$) ?? [];
+
 
   const focusEntity = (ek: string) => {
     if (!ek) return;
@@ -298,7 +320,7 @@ export const DistrictsPanel: React.FC<Props> = ({
         avgWealth: 0, avgIncome: 0, avgRent: 0, avgHappiness: 0, residents: 0, children: 0, teens: 0, adults: 0, seniors: 0, 
         eduUneducated: 0, eduPoorlyEducated: 0, eduEducated: 0, eduWellEducated: 0, eduHighlyEducated: 0, 
         localServices: 0, assignedServices: 0, profitability: 0, pets: 0, upkeep: 0, resourceCost: 0, feesPaid: 0, 
-        sick: 0, students: 0, totalCrime: 0, homeless: 0, tourists: 0, happinessFactors: [],
+        sick: 0, students: 0, totalCrime: 0, homeless: 0, tourists: 0,
         elemCapacity: 0, elemEnrolled: 0, hsCapacity: 0, hsEnrolled: 0, collegeCapacity: 0, collegeEnrolled: 0, uniCapacity: 0, uniEnrolled: 0,
         elemEligible: 0, hsEligible: 0, collegeEligible: 0, uniEligible: 0
       });
@@ -334,7 +356,7 @@ export const DistrictsPanel: React.FC<Props> = ({
       d.gameCommuters = a.gameCommuters || 0;
       d.gameMovingAway = a.gameMovingAway || 0;
       d.gameEmployees = a.gameEmployees || 0;
-      d.happinessFactors = a.happinessFactors || [];
+
       
       d.propertyCount = a.propertyCount || 0;
       d.resProp = a.resProp || 0;
@@ -459,15 +481,15 @@ export const DistrictsPanel: React.FC<Props> = ({
     if (total === 0) return null;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '6rem' }}>
-        <div style={{ display: 'flex', height: '12rem', borderRadius: '3rem', overflow: 'hidden', background: 'rgba(0,0,0,0.3)' }}>
+        <div style={{ display: 'flex', height: '12rem', borderRadius: '3rem', overflow: 'hidden', backgroundColor: getSafeColor('rgba(0,0,0,0.3)') }}>
           {items.map((it, idx) => it.value > 0 ? (
-            <div key={idx} style={{ width: `${(it.value / total) * 100}%`, background: it.color, minWidth: '2rem' }} title={`${it.label}: ${fmt(it.value)}`} />
+            <div key={idx} style={{ width: `${(it.value / total) * 100}%`, backgroundColor: getSafeColor(it.color, 'transparent'), minWidth: '2rem' }} title={`${it.label}: ${fmt(it.value)}`} />
           ) : null)}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', marginTop: '5rem' }}>
           {items.filter(it => it.value > 0).map((it, idx) => (
-            <div key={idx} style={{ display: 'flex', alignItems: 'center', marginRight: '12rem', marginBottom: '3rem', fontSize: '13rem', color: 'rgba(255,255,255,0.7)' }}>
-              <div style={{ width: '10rem', height: '10rem', borderRadius: '2rem', background: it.color, marginRight: '5rem', flexShrink: 0 }} />
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', marginRight: '12rem', marginBottom: '3rem', fontSize: '13rem', color: getSafeColor('rgba(255,255,255,0.7)') }}>
+              <div style={{ width: '10rem', height: '10rem', borderRadius: '2rem', backgroundColor: getSafeColor(it.color, 'transparent'), marginRight: '5rem', flexShrink: 0 }} />
               {it.label}: {fmt(it.value)}
             </div>
           ))}
@@ -480,10 +502,10 @@ export const DistrictsPanel: React.FC<Props> = ({
 
   return (
     <div className="dp-container">
-      <div className="tab-buttons" style={{ position: 'relative', height: '40rem', background: 'transparent', borderBottom: 'none' }}>
+      <div className="tab-buttons" style={{ position: 'relative', height: '40rem', backgroundColor: getSafeColor('transparent'), borderBottomStyle: 'none' }}>
           <button className={`adv-settings-btn ${showSettings ? 'adv-settings-btn-active' : ''}`} 
                   onClick={() => setShowSettings(!showSettings)} 
-                  style={{ position: 'absolute', right: '19rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.05)' }} 
+                  style={{ position: 'absolute', right: '19rem', top: '50%', transform: 'translateY(-50%)', backgroundColor: getSafeColor('rgba(255,255,255,0.05)') }} 
                   title="Layout Settings">
             <svg className="adv-settings-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/>
@@ -556,17 +578,17 @@ export const DistrictsPanel: React.FC<Props> = ({
                 onClick={() => setExpandedRow(isExp ? null : r.name)}>
                 <div className="dp-col-exp"><span className="dp-arrow">{isExp ? 'v' : '>'}</span></div>
                 <div className="dp-col-name">
-                  <span style={{ fontWeight: r.entityKey ? '800' : '400', color: r.isCity ? '#50b8e9' : 'inherit' }}>
+                  <span style={{ fontWeight: r.entityKey ? '800' : '400', color: getSafeColor(r.isCity ? '#50b8e9' : 'inherit') }}>
                     {r.isCity ? `City (${r.cityName})` : r.name}
                   </span>
                 </div>
                 <div className="dp-col-count">{fmt(r.residential)}</div>
-                <div className="dp-col-count" style={{color:'#ffb74d'}}>{fmt(r.mixed)}</div>
-                <div className="dp-col-count" style={{color:'#50b8e9', fontWeight: 800}}>{fmt(r.resTotal)}</div>
+                <div className="dp-col-count" style={{color: getSafeColor('#ffb74d')}}>{fmt(r.mixed)}</div>
+                <div className="dp-col-count" style={{color: getSafeColor('#50b8e9'), fontWeight: 800}}>{fmt(r.resTotal)}</div>
                 <div className="dp-col-count">{fmt(r.services)}</div>
                 <div className="dp-col-count">{fmt(r.businesses)}</div>
-                <div className="dp-col-count" style={{color:'#64b5f6'}}>{fmt(r.residents)}</div>
-                <div className="dp-col-count" style={{color:'#81c784'}}>{fmt(r.workers)}</div>
+                <div className="dp-col-count" style={{color: getSafeColor('#64b5f6')}}>{fmt(r.residents)}</div>
+                <div className="dp-col-count" style={{color: getSafeColor('#81c784')}}>{fmt(r.workers)}</div>
                 <div className="dp-col-policies">
                   <div className="dp-inline-policies-row">
                     {policyPrefabs.map(pol => {
@@ -600,7 +622,7 @@ export const DistrictsPanel: React.FC<Props> = ({
                       </div>
                     ) : (
                       <>
-                        <span className="dp-expanded-name" style={{ color: r.isCity ? '#50b8e9' : '#fff' }}>
+                        <span className="dp-expanded-name" style={{ color: getSafeColor(r.isCity ? '#50b8e9' : '#fff') }}>
                           {r.isCity ? `City (${r.cityName})` : r.name}
                         </span>
                         {r.entityKey && !r.isCity && (
@@ -612,11 +634,11 @@ export const DistrictsPanel: React.FC<Props> = ({
 
                   {/* City-Wide Authoritative Stats (from CountHouseholdDataSystem) */}
                   {r.isCity && (r.gameAllCitizens || 0) > 0 && (
-                    <div style={{ margin: '0 0 15rem', padding: '10rem 15rem', background: 'rgba(80,184,233,0.08)', border: '1px solid rgba(80,184,233,0.2)', borderRadius: '6rem' }}>
-                      <div style={{ fontSize: '11rem', color: '#50b8e9', marginBottom: '8rem', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' }}>City-Wide Snapshot <span style={{ opacity: 0.5, fontWeight: 400 }}>(Game Authoritative)</span></div>
+                    <div style={{ margin: '0 0 15rem', padding: '10rem 15rem', backgroundColor: getSafeColor('rgba(80,184,233,0.08)'), borderWidth: 1, borderStyle: 'solid', borderColor: getSafeColor('rgba(80,184,233,0.2)'), borderRadius: '6rem' }}>
+                      <div style={{ fontSize: '11rem', color: getSafeColor('#50b8e9'), marginBottom: '8rem', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' }}>City-Wide Snapshot <span style={{ opacity: 0.5, fontWeight: 400 }}>(Game Authoritative)</span></div>
                       <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                         <StatRow label="All Citizens" val={fmt(r.gameAllCitizens || 0)} showRaw={showRawData} rawKey="gameAllCitizens" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
-                        <StatRow label="Residents" val={fmt(r.residents)} showRaw={showRawData} rawKey="residents" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', color: '#8bdb46', width: '180rem' }} />
+                        <StatRow label="Residents" val={fmt(r.residents)} showRaw={showRawData} rawKey="residents" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', color: getSafeColor('#8bdb46'), width: '180rem' }} />
                         <StatRow label="Employees" val={fmt(r.gameEmployees || 0)} showRaw={showRawData} rawKey="gameEmployees" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
                         <StatRow label="Students" val={fmt(r.students || 0)} showRaw={showRawData} rawKey="students" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
                         <StatRow label="Moving Away" val={fmt(r.gameMovingAway || 0)} showRaw={showRawData} rawKey="gameMovingAway" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
@@ -628,36 +650,36 @@ export const DistrictsPanel: React.FC<Props> = ({
                   )}
 
                   {/* District Summary Bar */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '15rem', padding: '10rem 15rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '15rem', padding: '10rem 15rem', backgroundColor: getSafeColor('rgba(255,255,255,0.03)'), borderRadius: '8rem', borderWidth: 1, borderStyle: 'solid', borderColor: getSafeColor('rgba(255,255,255,0.06)') }}>
                     <div style={{ display: 'flex', alignItems: 'center', marginRight: '30rem', padding: '6rem 0' }}>
                       <img src={`${ICON}Population.svg`} style={{ width: '28rem', opacity: 0.3, marginRight: '10rem' }} alt="" />
                       <div>
-                        <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase' }}>Population</div>
+                        <div style={{ fontSize: '9rem', color: getSafeColor('rgba(255,255,255,0.4)'), fontWeight: 'bold', textTransform: 'uppercase' }}>Population</div>
                         <div style={{ fontSize: '16rem', fontWeight: 900 }}>{fmt(r.residents)}</div>
-                        {r.pets > 0 && <div style={{ fontSize: '9rem', color: '#ffb74d' }}>Pets: {fmt(r.pets)}</div>}
+                        {r.pets > 0 && <div style={{ fontSize: '9rem', color: getSafeColor('#ffb74d') }}>Pets: {fmt(r.pets)}</div>}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', marginRight: '30rem', padding: '6rem 0' }}>
-                      <img src={`${ICON}WorkplaceAvailability.svg`} style={{ width: '28rem', opacity: 0.3, marginRight: '10rem' }} alt="" />
-                      <div>
-                        <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase' }}>Avg Level</div>
+                     <div style={{ display: 'flex', alignItems: 'center', marginRight: '30rem', padding: '6rem 0' }}>
+                       <img src={`${ICON}Workers.svg`} style={{ width: '28rem', opacity: 0.3, marginRight: '10rem' }} alt="" />
+                       <div>
+                        <div style={{ fontSize: '9rem', color: getSafeColor('rgba(255,255,255,0.4)'), fontWeight: 'bold', textTransform: 'uppercase' }}>Avg Level</div>
                         <div style={{ fontSize: '16rem', fontWeight: 900 }}>{r.buildingLevelSamples ? (r.buildingLevelSum! / r.buildingLevelSamples).toFixed(1) : '0.0'}</div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', marginRight: '20rem', padding: '6rem 0' }}>
-                      <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>HAPPY</div>
-                      <div style={{ fontSize: '13rem', fontWeight: 800, color: happinessInfo(r.avgHappiness).color }}>{happinessInfo(r.avgHappiness).label} {Math.round(r.avgHappiness)}%</div>
+                      <div style={{ fontSize: '9rem', color: getSafeColor('rgba(255,255,255,0.4)'), fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>HAPPY</div>
+                      <div style={{ fontSize: '13rem', fontWeight: 800, color: getSafeColor(happinessInfo(r.avgHappiness).color) }}>{happinessInfo(r.avgHappiness).label} {Math.round(r.avgHappiness)}%</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', marginRight: '20rem', padding: '6rem 0' }}>
-                      <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>WEALTH</div>
-                      <div style={{ fontSize: '13rem', fontWeight: 800, color: wealthLabel(r.avgWealth).color }}>{wealthLabel(r.avgWealth).label}</div>
+                      <div style={{ fontSize: '9rem', color: getSafeColor('rgba(255,255,255,0.4)'), fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>WEALTH</div>
+                      <div style={{ fontSize: '13rem', fontWeight: 800, color: getSafeColor(wealthLabel(r.avgWealth).color) }}>{wealthLabel(r.avgWealth).label}</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', marginRight: '20rem', padding: '6rem 0' }}>
-                      <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>INCOME</div>
+                      <div style={{ fontSize: '9rem', color: getSafeColor('rgba(255,255,255,0.4)'), fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>INCOME</div>
                       <div style={{ fontSize: '13rem', fontWeight: 800 }}>{fmt(r.avgIncome)}</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', padding: '6rem 0' }}>
-                      <div style={{ fontSize: '9rem', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>RENT</div>
+                      <div style={{ fontSize: '9rem', color: getSafeColor('rgba(255,255,255,0.4)'), fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8rem' }}>RENT</div>
                       <div style={{ fontSize: '13rem', fontWeight: 800 }}>{fmt(r.avgRent)}</div>
                     </div>
                   </div>
@@ -678,8 +700,8 @@ export const DistrictsPanel: React.FC<Props> = ({
                                   { label: 'Well Educated', value: r.workerWellEducated || 0, color: '#4dd0e1' },
                                   { label: 'Highly Educated', value: r.workerHighlyEducated || 0, color: '#64b5f6' },
                                 ]} />
-                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
-                                  <StatRow label="Employees" val={`${fmt(r.workers)} / ${fmt(r.maxWorkers)}`} rawKey="workers" showRaw={showRawData} style={{ fontWeight: 'bold', color: '#50b8e9' }} />
+                                <div style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
+                                  <StatRow label="Employees" val={`${fmt(r.workers)} / ${fmt(r.maxWorkers)}`} rawKey="workers" showRaw={showRawData} style={{ fontWeight: 'bold', color: getSafeColor('#50b8e9') }} />
                                 </div>
                               </div>
                             );
@@ -692,8 +714,8 @@ export const DistrictsPanel: React.FC<Props> = ({
                                 <StatRow label="Industrial" val={fmt(r.indProp || 0)} rawKey="indProp" showRaw={showRawData} />
                                 <StatRow label="Office" val={fmt(r.offProp || 0)} rawKey="offProp" showRaw={showRawData} />
                                 <StatRow label="Storage" val={fmt(r.storProp || 0)} rawKey="storProp" showRaw={showRawData} />
-                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
-                                  <StatRow label="Total Properties" val={fmt((r.resProp || 0) + (r.comProp || 0) + (r.indProp || 0) + (r.offProp || 0) + (r.storProp || 0) + (r.mixedProp || 0))} style={{ fontWeight: 'bold', color: '#8bdb46' }} />
+                                <div style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
+                                  <StatRow label="Total Properties" val={fmt((r.resProp || 0) + (r.comProp || 0) + (r.indProp || 0) + (r.offProp || 0) + (r.storProp || 0) + (r.mixedProp || 0))} style={{ fontWeight: 'bold', color: getSafeColor('#8bdb46') }} />
                                 </div>
                               </>
                             );
@@ -709,7 +731,7 @@ export const DistrictsPanel: React.FC<Props> = ({
                                     { label: 'Seniors', value: r.seniors || 0, color: '#ffb74d' },
                                   ]} />
                                 </div>
-                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8rem' }}>
+                                <div style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.08)', paddingTop: '8rem' }}>
                                   <StatRow label="Residents" val={fmt(r.residents)} rawKey="residents" showRaw={showRawData} />
                                   <StatRow label="Students" val={fmt(r.students)} rawKey="students" showRaw={showRawData} />
                                   <StatRow label="Tourists" val={fmt(r.tourists)} rawKey="tourists" showRaw={showRawData} />
@@ -722,11 +744,11 @@ export const DistrictsPanel: React.FC<Props> = ({
                               <>
                                 <StatRow label="Current" val={fmt(r.households)} rawKey="households" showRaw={showRawData} />
                                 <StatRow label="Capacity" val={fmt(r.householdCap)} rawKey="householdCap" showRaw={showRawData} />
-                                <div style={{ height: '12rem', background: 'rgba(255,255,255,0.05)', borderRadius: '3rem', marginTop: '10rem', overflow: 'hidden' }}>
-                                  <div style={{ width: `${Math.min(100, (r.households / (r.householdCap || 1)) * 100)}%`, height: '100%', background: '#50b8e9' }} />
+                                <div style={{ height: '12rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3rem', marginTop: '10rem', overflow: 'hidden' }}>
+                                  <div style={{ width: `${Math.min(100, (r.households / (r.householdCap || 1)) * 100)}%`, height: '100%', backgroundColor: getSafeColor('#50b8e9') }} />
                                 </div>
                                 <div style={{ marginTop: '10rem' }}>
-                                  <StatRow label="Avg Wealth" val={wealthLabel(r.avgWealth).label} rawKey="avgWealth" showRaw={showRawData} style={{ color: wealthLabel(r.avgWealth).color }} />
+                                  <StatRow label="Avg Wealth" val={wealthLabel(r.avgWealth).label} rawKey="avgWealth" showRaw={showRawData} style={{ color: getSafeColor(wealthLabel(r.avgWealth).color) }} />
                                   <StatRow label="Avg Income" val={fmt(r.avgIncome)} rawKey="avgIncome" showRaw={showRawData} />
                                   <StatRow label="Avg Rent" val={fmt(r.avgRent)} rawKey="avgRent" showRaw={showRawData} />
                                 </div>
@@ -735,7 +757,7 @@ export const DistrictsPanel: React.FC<Props> = ({
                           case 'school':
                             return (
                               <div style={{ fontSize: '12rem' }}>
-                                <div style={{ display: 'flex', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', marginBottom: '8rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4rem' }}>
+                                <div style={{ display: 'flex', color: getSafeColor('rgba(255,255,255,0.4)'), fontWeight: 'bold', marginBottom: '8rem', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: getSafeColor('rgba(255,255,255,0.1)'), paddingBottom: '4rem' }}>
                                   <div style={{ flex: 2.5 }}>Level</div>
                                   <div style={{ flex: 1, textAlign: 'right' }}>Enrolled</div>
                                   <div style={{ flex: 1, textAlign: 'right' }}>Capacity</div>
@@ -747,11 +769,11 @@ export const DistrictsPanel: React.FC<Props> = ({
                                   { label: 'College', cap: r.collegeCapacity, enr: r.collegeEnrolled },
                                   { label: 'University', cap: r.uniCapacity, enr: r.uniEnrolled }
                                 ].map((s, i) => (
-                                  <div key={i} style={{ display: 'flex', padding: '6rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)', alignItems: 'center' }}>
-                                    <div style={{ flex: 2.5, fontWeight: 'bold', color: 'rgba(255,255,255,0.8)' }}>{s.label}</div>
+                                  <div key={i} style={{ display: 'flex', padding: '6rem 0', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: getSafeColor('rgba(255,255,255,0.03)'), alignItems: 'center' }}>
+                                    <div style={{ flex: 2.5, fontWeight: 'bold', color: getSafeColor('rgba(255,255,255,0.8)') }}>{s.label}</div>
                                     <div style={{ flex: 1, textAlign: 'right' }}>{fmt(s.enr || 0)}</div>
                                     <div style={{ flex: 1, textAlign: 'right' }}>{fmt(s.cap || 0)}</div>
-                                    <div style={{ flex: 1.2, textAlign: 'right', fontWeight: 'bold', color: calcAvail(s.cap || 0, s.enr || 0).color }}>{calcAvail(s.cap || 0, s.enr || 0).text}</div>
+                                    <div style={{ flex: 1.2, textAlign: 'right', fontWeight: 'bold', color: getSafeColor(calcAvail(s.cap || 0, s.enr || 0).color) }}>{calcAvail(s.cap || 0, s.enr || 0).text}</div>
                                   </div>
                                 ))}
                               </div>
@@ -759,39 +781,16 @@ export const DistrictsPanel: React.FC<Props> = ({
                           case 'health':
                             return (
                               <>
-                                <StatRow label="Health/Safety" val={r.sick > 0 ? `${fmt(r.sick)} Sick` : 'Healthy'} rawKey="sick" showRaw={showRawData} style={{ color: r.sick > 0 ? '#e57373' : '#81c784' }} />
-                                <StatRow label="Crime Risk" val={fmt(Math.round(r.totalCrime / 100))} rawKey="totalCrime" showRaw={showRawData} style={{ color: r.totalCrime > 1000 ? '#ffb74d' : 'inherit' }} />
+                                <StatRow label="Health/Safety" val={r.sick > 0 ? `${fmt(r.sick)} Sick` : 'Healthy'} rawKey="sick" showRaw={showRawData} style={{ color: getSafeColor(r.sick > 0 ? '#e57373' : '#81c784') }} />
+                                <StatRow label="Crime Risk" val={fmt(Math.round(r.totalCrime / 100))} rawKey="totalCrime" showRaw={showRawData} style={{ color: getSafeColor(r.totalCrime > 1000 ? '#ffb74d' : 'inherit') }} />
                                 <StatRow label="Land Value" val={r.landValueSamples ? fmt(r.totalLandValue! / r.landValueSamples) : 0} rawKey="totalLandValue" showRaw={showRawData} />
                                 <StatRow label="Avg Level" val={(r.buildingLevelSamples ? (r.buildingLevelSum! / r.buildingLevelSamples).toFixed(1) : 0)} rawKey="buildingLevelSum" showRaw={showRawData} />
                               </>
                             );
-                          case 'happiness':
-                            const factors = r.isCity ? gameHappinessFactors : (r.happinessFactors || []);
-                            return (
-                              <div style={{ maxHeight: compactMode ? '120rem' : '200rem', overflowY: 'auto', fontSize: '12rem' }}>
-                                <div style={{ marginBottom: '6rem', color: happinessInfo(r.avgHappiness).color, fontWeight: 'bold' }}>
-                                  {r.isCity ? 'City' : 'District'} Happiness: {r.avgHappiness}%
-                                </div>
-                                {factors.length > 0 ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4rem' }}>
-                                    {(r.isCity ? [...gameHappinessFactors].sort((a,b) => Math.abs(b.weight) - Math.abs(a.weight)) : 
-                                      r.happinessFactors.map(f => ({ factor: f[0], weight: f[1] > 0 ? Math.round(f[2] / f[1]) : 0 })).filter(f => f.weight !== 0).sort((a,b) => Math.abs(b.weight) - Math.abs(a.weight))
-                                    ).map((f: any, idx) => {
-                                      const label = r.isCity ? (f.factor || '').split('.').pop()!.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : (HAPPINESS_FACTORS[f.factor] ?? `Factor ${f.factor}`);
-                                      return (
-                                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '2rem 6rem', borderRadius: '3rem' }}>
-                                          <span style={{ opacity: 0.8 }}>{label}</span>
-                                          <span style={{ color: f.weight >= 0 ? '#8bdb46' : '#e57373', fontWeight: 700 }}>{f.weight >= 0 ? '+' : ''}{f.weight}</span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : <div style={{ opacity: 0.4, fontStyle: 'italic' }}>Calculating...</div>}
-                              </div>
-                            );
+
                           case 'policies':
                             return (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6rem' }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                                 {policyPrefabs.map(pol => {
                                   if (r.isCity && !pol.isCity) return null;
                                   if (!r.isCity && !pol.isDistrict) return null;
@@ -810,38 +809,48 @@ export const DistrictsPanel: React.FC<Props> = ({
                       };
 
                       return (
-                        <div key={card.id} className="dp-dashboard-card" draggable
-                          onDragStart={() => { dragSource.current = card.id; }}
-                          onDragOver={(e) => e.preventDefault()}
-                          onMouseEnter={() => {
-                            if (!dragSource.current || dragSource.current === card.id) return;
-                            setDashboardLayout(prev => {
-                              const newList = [...prev];
-                              const sIdx = newList.findIndex(c => c.id === dragSource.current);
-                              const tIdx = newList.findIndex(c => c.id === card.id);
-                              const tempOrder = newList[sIdx].order;
-                              newList[sIdx].order = newList[tIdx].order;
-                              newList[tIdx].order = tempOrder;
-                              return newList;
-                            });
-                          }}
-                          onDragEnd={() => { dragSource.current = null; }}>
-                          <div className="dp-card-header">
-                            <div className="dp-card-title">
-                              <img src={`${ICON}${card.icon}`} style={{ width: '28rem', height: '28rem', marginRight: '10rem', opacity: 0.9 }} alt="" />
-                              {card.title}
+                        <ErrorBoundary key={card.id} name={`DistrictDashboard:${card.id}`}>
+                          <div className="dp-dashboard-card" draggable
+                            onDragStart={() => { dragSource.current = card.id; }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onMouseEnter={() => {
+                              if (!dragSource.current || dragSource.current === card.id) return;
+                              setDashboardLayout(prev => {
+                                const newList = [...prev];
+                                const sIdx = newList.findIndex(c => c.id === dragSource.current);
+                                const tIdx = newList.findIndex(c => c.id === card.id);
+                                const tempOrder = newList[sIdx].order;
+                                newList[sIdx].order = newList[tIdx].order;
+                                newList[tIdx].order = tempOrder;
+                                return newList;
+                              });
+                            }}
+                            onDragEnd={() => { dragSource.current = null; }}>
+                            <div className="dp-card-header">
+                              <div className="dp-card-title">
+                                <span style={{ marginRight: '10rem', display: 'flex', alignItems: 'center' }}>
+                                  {cardIcons[card.id] || (
+                                    <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                                      <line x1="18" y1="20" x2="18" y2="10"/>
+                                      <line x1="12" y1="20" x2="12" y2="4"/>
+                                      <line x1="6" y1="20" x2="6" y2="14"/>
+                                    </svg>
+                                  )}
+                                </span>
+                                {card.title}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div className="dp-card-move-btn" onClick={() => handleMove(card.id, -1)} title="Move Left/Up">&lt;</div>
+                                <div className="dp-card-move-btn" onClick={() => handleMove(card.id, 1)} title="Move Right/Down">&gt;</div>
+                                <div className="dp-card-move-btn" style={{ marginLeft: '10rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, -100)} title="Move to Top">TOP</div>
+                                <div className="dp-card-move-btn" style={{ marginLeft: '4rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, 100)} title="Move to Bottom">BTM</div>
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', pointerEvents: 'auto' }}>
-                              <div className="dp-card-move-btn" onClick={() => handleMove(card.id, -1)} title="Move Left/Up">&lt;</div>
-                              <div className="dp-card-move-btn" onClick={() => handleMove(card.id, 1)} title="Move Right/Down">&gt;</div>
-                              <div className="dp-card-move-btn" style={{ marginLeft: '10rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, -100)} title="Move to Top">TOP</div>
-                              <div className="dp-card-move-btn" style={{ marginLeft: '4rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, 100)} title="Move to Bottom">BTM</div>
+                            <div className="dp-card-content">
+                              {renderContent()}
                             </div>
                           </div>
-                          <div className="dp-card-content">
-                            {renderContent()}
-                          </div>
-                        </div>
+                        </ErrorBoundary>
                       );
                     })}
                   </div>
@@ -853,10 +862,10 @@ export const DistrictsPanel: React.FC<Props> = ({
         </div>
         {/* Custom scrollbar */}
         {showScrollbar && (
-          <div className="cb-scrollbar-track" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '8rem', background: 'rgba(0,0,0,0.3)', pointerEvents: 'none' }}>
+          <div className="cb-scrollbar-track" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '8rem', backgroundColor: getSafeColor('rgba(0,0,0,0.3)') }}>
             <div
               className="cb-scrollbar-thumb"
-              style={{ position: 'absolute', right: 0, width: '8rem', background: isDragging ? 'rgba(80,184,233,0.8)' : 'rgba(80,184,233,0.5)', borderRadius: '4rem', height: `${thumbHeight}px`, top: `${thumbTop}px`, pointerEvents: 'auto', cursor: 'pointer' }}
+              style={{ position: 'absolute', right: 0, width: '8rem', backgroundColor: getSafeColor(isDragging ? 'rgba(80,184,233,0.8)' : 'rgba(80,184,233,0.5)'), borderRadius: '4rem', height: `${thumbHeight}px`, top: `${thumbTop}px`, cursor: 'pointer' }}
               onMouseDown={onThumbMouseDown}
             />
           </div>

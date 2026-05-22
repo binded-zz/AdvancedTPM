@@ -14,7 +14,6 @@
     flex-direction: column;
     font-family: 'Inter', sans-serif;
     box-shadow: 0 10rem 40rem rgba(0,0,0,0.8);
-    pointer-events: auto;
 }
 
 .mod-debug-panel .header {
@@ -91,7 +90,7 @@
     border-radius: 4rem;
 }
 
-.mod-debug-panel button:not(.close-btn) {
+.mod-debug-panel .input-row button {
     background: #00d4ff;
     color: #000;
     border: none;
@@ -125,7 +124,6 @@
 }
 
 .mod-debug-panel ul {
-    list-style: none;
     padding: 0;
     margin: 8rem 0 0 0;
 }
@@ -161,7 +159,6 @@
 
 .mod-debug-panel .members {
     color: #ccc;
-    word-break: break-all;
     margin-top: 6rem;
     font-family: monospace;
     line-height: 1.5;
