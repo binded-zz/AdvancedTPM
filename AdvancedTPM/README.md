@@ -2,7 +2,7 @@
 
 A comprehensive Cities: Skylines 2 mod for per-resource tax control, production monitoring, company analysis, and AI-powered tax optimization.
 
-![Version](https://img.shields.io/badge/version-1.1.1-blue)
+![Version](https://img.shields.io/badge/version-1.1.2-blue)
 ![CS2](https://img.shields.io/badge/Cities%3A%20Skylines%202-compatible-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
@@ -97,7 +97,7 @@ Notes:
 
 ### Project Structure
 ```
-├── AdvancedTPM/AdvancedTPM.csproj        # C# project (net472, Assembly: AdvancedTPM)
+├── AdvancedTPM/AdvancedTPM.csproj        # C# project (net48, Assembly: AdvancedTPM)
 ├── mod.json                    # Mod metadata for CS2
 ├── src/
 │   ├── ModEntry.cs             # Mod entry point (IMod)

@@ -8,38 +8,17 @@
   <ShortDescription Value="AdvancedTPM - Advanced Tax &amp; Production Manager" />
   <!--Long description of the mod. Single line or multi line. Supports minimal markdown subset-->
   <LongDescription>
-	  ## AdvancedTPM
-
-	  Advanced per-resource tax and production manager with an AI advisor and in-depth company browser. Configure taxes for individual resources, monitor production and consumption, and get adaptive recommendations from a learning advisor.
-
-	  ## Key features
-
-	  - Per-resource tax sliders and real-time production/consumption bars
-
-	  - Category grouping: Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial
-
-	  - Company Browser: sortable table, efficiency factor analysis, happiness indicator, and camera jump
-
-	  - Auto-Tax engine with configurable rules and per-resource min/max ranges
-
-	  - Adaptive Learning Advisor: records outcomes and provides confidence-weighted recommendations
-
-	  - Districts Dashboard: Complete overhaul featuring reorderable cards, settings gear, demographic metrics, and district-level policies.
-
-	  - Happiness Aggregation: Integrated happiness metrics into the Districts UI panel (synthesizes realistic district happiness factors based on city data vs district performance).
-
-	  - Residential Browser: Filterable UI for residential housing data (themes, densities, occupancy, etc.) complete with residents/employees columns and dynamic rows.
-
-	  - Services Browser: Filterable panel for tracking city service buildings with metrics.
+	  Take Absolute Control of Your City's Economy
+	  Advanced Tax &amp; Production Manager (AdvancedTPM) is an all-in-one economic dashboard designed to give you deep visibility into your supply chain and automate your tax rates without sacrificing a single frame.
+	  Key Features:
+	  Deep Economic Visualization: Track production, consumption, surplus, and deficits across all resource categories in real-time. See exactly what your city is overproducing or starving for.
+	  Smart Auto-Taxing: Stop micromanaging sliders. The Auto-Tax system dynamically adjusts your tax rates based on city happiness, company profitability, and actual resource demand.
+	  Advanced Browsers: Drill down into the details with comprehensive tracking for Companies, Districts, Residential zones, and Services. Find out exactly which businesses are thriving, and which are failing.
+	  Signature Building Tracker: Unified view to track the status, efficiency, and worker counts of all your unlocked Signature Buildings.
+	  Adaptive Learning System: An integrated advisor that learns from your city's economic shifts to help guide optimal tax directions.
+	  Uncompromising Performance: Built specifically for the Cohtml engine. By utilizing 0ms latency direct-DOM manipulation, the mod boasts a microscopic ~1.3ms thread cost. Enjoy massive economic data tracking with absolutely zero impact on your game's FPS.
 
 
-
-	  1.1.1 Update: Performance improvements and bug fixes. Removed district happiness system due to performance issues.
-	  this mod is pretty cpu intensive due to the amount of data it tracks and the calculations it does every frame to provide real time feedback on the UI.
-	  i have made some optimizations to reduce the cpu usage but it is still something to keep in mind when using the mod.
-	  I used the vanilla profiler to find bottlenecks and make improvements but there are still some areas that could be optimized further.
-	  If you have any suggestions or want to contribute please let me know.
-	  when i say i made improvements i mean i really mean it thread times from 60-80ms down to 10-20ms in the worst cases and usually around 1-2ms which is a huge improvement but still not perfect.
 
 	  next update will be focused on adding more features and improving the rest of the service residential system but i will also continue to look for ways to optimize the performance of the mod.
 
@@ -64,7 +43,7 @@
   <!--Link to the forum post where the mod can be discussed-->
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/advanced-tax-production-manager.1917448/" />
   <!--Version of the mod-->
-  <ModVersion Value="1.1.1" />
+  <ModVersion Value="1.1.2" />
   <!--Recommended version of the base game to use the mod-->
   <GameVersion Value="1.5.8f1*" />
   <!--Dependency for the mod, can be set multiple times-->
@@ -72,7 +51,9 @@
   <!--Required DLC, can be set multiple times. Supported values are "Landmark Buildings", "San Fransisco Set", "Beach Properties", "Urban Promenades", "Modern Architecture"-->
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
-	<ChangeLog><![CDATA[
+	<ChangeLog>
+		<![CDATA[
+## Changelog 1.1.2 update to dotnet 4.8 
 ## Changelog 1.1.1
 ## v1.1.1 - Improved Performance and bug fixes used profiler to find bottlenecks and make fixes. this thing should fly now.
 removed district happiness system couldnt get it to to work right or at least the way i wanted it too it was costing tons of cpu

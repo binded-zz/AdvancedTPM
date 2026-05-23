@@ -2,7 +2,7 @@
 
 A comprehensive Cities: Skylines 2 mod for per-resource tax control, production monitoring, company analysis, and AI-powered tax optimization.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.2-blue)
 ![CS2](https://img.shields.io/badge/Cities%3A%20Skylines%202-compatible-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
@@ -73,7 +73,7 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 ## Building from Source
 
 ### Prerequisites
-- .NET Framework 4.7.2 SDK
+- .NET Framework 4.8 SDK
 - Node.js 18+ with npm
 - Cities: Skylines 2 installed (for game DLL references)
 
@@ -93,7 +93,7 @@ The build automatically:
 
 ### Project Structure
 ```
-├── cities/cities.csproj        # C# project (net472, Assembly: AdvancedTPM)
+├── cities/cities.csproj        # C# project (net48, Assembly: AdvancedTPM)
 ├── mod.json                    # Mod metadata for CS2
 ├── src/
 │   ├── ModEntry.cs             # Mod entry point (IMod)

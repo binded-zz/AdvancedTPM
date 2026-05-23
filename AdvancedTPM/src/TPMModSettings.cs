@@ -138,7 +138,7 @@ namespace AdvancedTPM
         [SettingsUISection(TabSettings, GroupAbout)]
         [SettingsUIDisplayName("AboutText", "About")]
         [SettingsUIMultilineText]
-        public string AboutText => "AdvancedTPM - Advanced Tax & Production Management\nVersion 1.0.0\n\nResource-level tax and production controls with movable/resizable window.";
+        public string AboutText => "AdvancedTPM - Advanced Tax & Production Management\nVersion 1.1.1\n\nResource-level tax and production controls with movable/resizable window.";
 
         public TPMModSettings(IMod mod) : base(mod) { }
 
