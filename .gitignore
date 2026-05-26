@@ -25,8 +25,6 @@ node_modules/
 build/
 dist/
 npm-debug.log*
-package-lock.json
-yarn.lock
 .pnpm-debug.log
 
 # Webpack output to game mods
