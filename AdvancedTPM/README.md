@@ -2,7 +2,7 @@
 
 A comprehensive Cities: Skylines 2 mod for per-resource tax control, production monitoring, company analysis, and AI-powered tax optimization.
 
-![Version](https://img.shields.io/badge/version-1.1.2-blue)
+![Version](https://img.shields.io/badge/version-1.1.3-blue)
 ![CS2](https://img.shields.io/badge/Cities%3A%20Skylines%202-compatible-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 

@@ -43,7 +43,7 @@
   <!--Link to the forum post where the mod can be discussed-->
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/advanced-tax-production-manager.1917448/" />
   <!--Version of the mod-->
-  <ModVersion Value="1.1.2" />
+  <ModVersion Value="1.1.3" />
   <!--Recommended version of the base game to use the mod-->
   <GameVersion Value="1.5.8f1*" />
   <!--Dependency for the mod, can be set multiple times-->
@@ -53,6 +53,9 @@
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
 		<![CDATA[
+## Changelog 1.1.3
+- Internal deployment verification and minor updates
+
 ## Changelog 1.1.2 update to dotnet 4.8 
 ## Changelog 1.1.1
 ## v1.1.1 - Improved Performance and bug fixes used profiler to find bottlenecks and make fixes. this thing should fly now.
@@ -71,7 +74,7 @@ removed district happiness system couldnt get it to to work right or at least th
 
 	]]></ChangeLog> 
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
-  <ExternalLink Type="" Url="https://github.com/binded-zz/AdvancedTPM" />
+  <ExternalLink Type="github" Url="https://github.com/binded-zz/AdvancedTPM" />
   <!--Supported values Public, Private, Unlisted-->
   <AccessLevel Value="Public" />
 </Publish>
