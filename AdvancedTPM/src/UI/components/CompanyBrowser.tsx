@@ -624,6 +624,10 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
     draggingThumb.current = thumb;
     const onMove = (ev: MouseEvent) => {
       ev.preventDefault();
+      if (ev.buttons !== 1) {
+        onUp();
+        return;
+      }
       const val = profitFromClientX(ev.clientX);
       if (draggingThumb.current === 'min') {
         setProfitMin((prev) => Math.min(val, profitMax - 1));
@@ -704,6 +708,10 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
     startTop.current = thumbTop;
     const onMove = (ev: MouseEvent) => {
       if (!scrollRef.current) return;
+      if (ev.buttons !== 1) {
+        onUp();
+        return;
+      }
       const delta = ev.clientY - startY.current;
       const { scrollHeight, clientHeight } = scrollRef.current;
       const newTop = Math.max(0, Math.min(clientHeight - thumbHeight, startTop.current + delta));

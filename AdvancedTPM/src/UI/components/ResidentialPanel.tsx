@@ -190,6 +190,10 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     startTop.current = thumbTop;
     const onMove = (ev: MouseEvent) => {
       if (!scrollRef.current) return;
+      if (ev.buttons !== 1) {
+        onUp();
+        return;
+      }
       const delta = ev.clientY - startY.current;
       const { scrollHeight, clientHeight } = scrollRef.current;
       const newTop = Math.max(0, Math.min(clientHeight - thumbHeight, startTop.current + delta));
@@ -223,6 +227,10 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     happinessDraggingThumb.current = thumb;
     const onMove = (ev: MouseEvent) => {
       ev.preventDefault();
+      if (ev.buttons !== 1) {
+        onUp();
+        return;
+      }
       const val = happinessFromClientX(ev.clientX);
       if (happinessDraggingThumb.current === 'min') {
         setMinHappiness(Math.min(val, maxHappiness));

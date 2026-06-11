@@ -50,7 +50,10 @@ namespace AdvancedTPM
                 { _settings.GetOptionDescLocaleID(nameof(TPMModSettings.AutoTaxMaxRate)), "Auto-tax will never raise a rate above this value." },
 
                 { _settings.GetOptionLabelLocaleID(nameof(TPMModSettings.AutoTaxHappinessWeight)), "Happiness Weight" },
-                { _settings.GetOptionDescLocaleID(nameof(TPMModSettings.AutoTaxHappinessWeight)), "How much city wellbeing influences tax direction. 0 = ignore, 100 = primary factor." },
+                { _settings.GetOptionDescLocaleID(nameof(TPMModSettings.AutoTaxHappinessWeight)), "How much city wellbeing influences tax direction. At 0%, happiness is ignored. At 50% (default), low happiness (<50%) applies strong downward pressure to lower taxes, while high happiness (>70%) permits raising. At 100%, unhappy citizens force aggressive tax cuts." },
+
+                { _settings.GetOptionLabelLocaleID(nameof(TPMModSettings.AutoTaxProfitWeight)), "Profitability Weight" },
+                { _settings.GetOptionDescLocaleID(nameof(TPMModSettings.AutoTaxProfitWeight)), "Balance between macro signals and real company profit data. At 0%, decisions use only macro signals (production, demand, taxable income). At 50% (default), uses an equal mix. At 100%, decisions are driven entirely by actual company profitability." },
 
                 // Advisor group
                 { _settings.GetOptionLabelLocaleID(nameof(TPMModSettings.AdaptiveLearningEnabled)), "Enable Adaptive Learning" },

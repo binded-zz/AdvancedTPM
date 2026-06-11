@@ -85,7 +85,7 @@ namespace AdvancedTPM
         public string AutoTaxPerResourceRanges { get; set; } = "";
 
         [SettingsUISection(TabSettings, GroupAutoTax)]
-        [SettingsUIHidden]
+        [SettingsUIDisplayName("AutoTaxProfitWeight", "Profitability Weight")]
         [SettingsUISlider(min = 0, max = 100, step = 5)]
         public int AutoTaxProfitWeight { get; set; } = 50;
 
@@ -138,7 +138,7 @@ namespace AdvancedTPM
         [SettingsUISection(TabSettings, GroupAbout)]
         [SettingsUIDisplayName("AboutText", "About")]
         [SettingsUIMultilineText]
-        public string AboutText => "AdvancedTPM - Advanced Tax & Production Management\nVersion 1.1.1\n\nResource-level tax and production controls with movable/resizable window.";
+        public string AboutText => $"AdvancedTPM - Advanced Tax & Production Management\nVersion {Mod.Version}\n\nResource-level tax and production controls with movable/resizable window.";
 
         public TPMModSettings(IMod mod) : base(mod) { }
 

@@ -395,6 +395,10 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
 
     const onMove = (ev: MouseEvent) => {
       if (!dragRef.current.active) return;
+      if (ev.buttons !== 1) {
+        onUp();
+        return;
+      }
       const dx = ev.clientX - dragRef.current.startX;
       const dy = ev.clientY - dragRef.current.startY;
       setPanelPos({ x: dragRef.current.ox + dx, y: dragRef.current.oy + dy });
@@ -450,7 +454,7 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
         <div className="ats-section">
           <div className="ats-section-title">
             Per-Resource Auto-Tax
-            <span className="ats-resource-count">{enabledCount} / {allResources.length} enabled</span>
+            <span className="ats-resource-count">{`${enabledCount} / ${allResources.length} enabled`}</span>
           </div>
           <div className="ats-resource-groups">
             {stageGroups.map((sg) => {

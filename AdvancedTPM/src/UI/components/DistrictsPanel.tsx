@@ -462,6 +462,10 @@ export const DistrictsPanel: React.FC<Props> = ({
     startTop.current = thumbTop;
     const onMove = (ev: MouseEvent) => {
       if (!scrollRef.current) return;
+      if (ev.buttons !== 1) {
+        onUp();
+        return;
+      }
       const delta = ev.clientY - startY.current;
       const { scrollHeight, clientHeight } = scrollRef.current;
       const newTop = Math.max(0, Math.min(clientHeight - thumbHeight, startTop.current + delta));

@@ -46,6 +46,10 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAct
 
     const mm = (e: MouseEvent) => {
       if (!drag.current.active) return;
+      if (e.buttons !== 1) {
+        mu();
+        return;
+      }
       const nx = Math.max(0, drag.current.ox + (e.clientX - drag.current.sx));
       const ny = Math.max(0, drag.current.oy + (e.clientY - drag.current.sy));
       setPos({ x: nx, y: ny });
