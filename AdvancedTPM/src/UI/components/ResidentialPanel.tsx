@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { trigger } from 'cs2/api';
+import { camera, selectedInfo } from 'cs2/bindings';
+import { Scrollable } from 'cs2/ui';
 import { getSafeColor } from '../../mods/apiSafe';
+import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import './ResidentialPanel.css';
-import ThemeIcon from '../assets/ThemeIcon';
+import CustomSelect from './CustomSelect';
 import PackIcon from '../assets/PackIcon';
-import DistrictIcon from '../assets/DistrictIcon';
 
 interface ResidentialData {
   lowTotal: number;
@@ -32,6 +33,7 @@ interface ResidentialBuilding {
   capacity: number;
   theme: string;
   assetPack: string;
+  assetPackIcon?: string;
   isSignature: boolean;
 }
 
@@ -76,8 +78,15 @@ const parseResidentialBuildings = (payload: string): ResidentialBuilding[] => {
       theme: parts[7] || 'Unknown',
       assetPack: parts[8] || 'Base Game',
       isSignature: parts[9] === '1',
+      assetPackIcon: parts[10] || '',
     } as ResidentialBuilding;
   }).filter((x): x is ResidentialBuilding => x !== null);
+};
+
+const formatPackName = (name: string): string => {
+  if (!name || name === 'Base Game' || name === 'Custom' || name === 'DLC') return name;
+  if (name.includes(' ')) return name;
+  return name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
 };
 
 const pct = (value: number, total: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
@@ -101,7 +110,7 @@ type SortDir = 'asc' | 'desc';
 
 const FILTER_STEPS = ['0', '25', '50', '75', '90'];
 const OCCUPANCY_STATES = ['All', 'Empty', 'Half Empty', 'Mostly Empty', 'Occupied'];
-const FILTER_ICON_SIZE = 14;
+const FILTER_ICON_SIZE = 24;
 
 const formatThresholdLabel = (prefix: string, value: string) => {
   if (value === '0') return `${prefix}: Any`;
@@ -177,36 +186,17 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
   const [searchText, setSearchText] = useState('');
   const [selectedBuildingKey, setSelectedBuildingKey] = useState<string | null>(null);
   const [expandedBuildingKey, setExpandedBuildingKey] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const RES_PAGE_SIZE = 50;
   const happinessTrackRef = useRef<HTMLDivElement | null>(null);
   const happinessDraggingThumb = useRef<'min' | 'max' | null>(null);
-
-
-  const onScroll = () => updateScroll();
-
-  const onThumbMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    startY.current = e.clientY;
-    startTop.current = thumbTop;
-    const onMove = (ev: MouseEvent) => {
-      if (!scrollRef.current) return;
-      if (ev.buttons !== 1) {
-        onUp();
-        return;
-      }
-      const delta = ev.clientY - startY.current;
-      const { scrollHeight, clientHeight } = scrollRef.current;
-      const newTop = Math.max(0, Math.min(clientHeight - thumbHeight, startTop.current + delta));
-      scrollRef.current.scrollTop = (newTop / clientHeight) * scrollHeight;
-    };
-    const onUp = () => {
-      setIsDragging(false);
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
+  // Reset page and unpause when any filter changes
+  useEffect(() => {
+    setCurrentPage(0);
+    setExpandedBuildingKey(null);
+    setIsPaused(false);
+  }, [densityFilter, themeFilter, assetPackFilter, districtFilter, levelFilter, showSignatureOnly, occupancyStateFilter, minHappiness, maxHappiness, searchText, sortField, sortDir]);
 
   const handleSort = (field: ResBldgSortField) => {
     if (sortField === field) { setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); }
@@ -225,12 +215,9 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     e.preventDefault();
     e.stopPropagation();
     happinessDraggingThumb.current = thumb;
+    startGlobalDrag();
     const onMove = (ev: MouseEvent) => {
       ev.preventDefault();
-      if (ev.buttons !== 1) {
-        onUp();
-        return;
-      }
       const val = happinessFromClientX(ev.clientX);
       if (happinessDraggingThumb.current === 'min') {
         setMinHappiness(Math.min(val, maxHappiness));
@@ -240,6 +227,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     };
     const onUp = () => {
       happinessDraggingThumb.current = null;
+      stopGlobalDrag();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -352,36 +340,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
 
   const safeFilteredBuildings = Array.isArray(filteredBuildings) ? filteredBuildings : [];
 
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [showScrollbar, setShowScrollbar] = useState(false);
-  const [thumbHeight, setThumbHeight] = useState(0);
-  const [thumbTop, setThumbTop] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const startY = useRef(0);
-  const startTop = useRef(0);
 
-  const updateScroll = useCallback(() => {
-    if (!scrollRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    if (scrollHeight <= clientHeight) {
-      setShowScrollbar(false);
-      return;
-    }
-    setShowScrollbar(true);
-    const ratio = clientHeight / scrollHeight;
-    setThumbHeight(Math.max(20, clientHeight * ratio));
-    setThumbTop((scrollTop / scrollHeight) * clientHeight);
-  }, []);
-
-  useLayoutEffect(() => {
-    updateScroll();
-    const el = scrollRef.current;
-    if (el) {
-      const obs = new ResizeObserver(updateScroll);
-      obs.observe(el);
-      return () => obs.disconnect();
-    }
-  }, [safeFilteredBuildings, updateScroll]);
   const themeCounts = useMemo(() => {
     const counts = new Map<string, number>();
     safeBuildings.forEach((b) => {
@@ -570,25 +529,26 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                 </button>
               ))}
             </div>
-            <CycleFilterButton
+            <CustomSelect
               label="Theme"
               value={themeFilter || 'All'}
               options={uniqueThemes || ['All']}
               onChange={setThemeFilter}
-              icon={(v) => v === 'All' ? null : <ThemeIcon theme={v} size={FILTER_ICON_SIZE} />}
+              displayValue={(v) => v === 'All' ? 'All Themes' : v}
             />
-            <CycleFilterButton
+            <CustomSelect
               label="District"
               value={districtFilter || 'All'}
               options={uniqueDistricts || ['All']}
               onChange={setDistrictFilter}
-              icon={(v) => v === 'All' ? null : <DistrictIcon district={v} size={FILTER_ICON_SIZE} />}
+              displayValue={(v) => v === 'All' ? 'All Districts' : v}
             />
-            <CycleFilterButton
+            <CustomSelect
               label="Pack"
               value={assetPackFilter || 'All'}
               options={uniqueAssetPacks || ['All']}
               onChange={setAssetPackFilter}
+              displayValue={(v) => v === 'All' ? 'All Packs' : formatPackName(v)}
               icon={(v) => v === 'All' ? null : <PackIcon pack={v} size={FILTER_ICON_SIZE} />}
             />
             <CycleFilterButton
@@ -611,13 +571,15 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                 <span className="res-happy-value">{maxHappiness}%</span>
               </div>
             </div>
-            <label className="res-signature-checkbox">
-              <input type="checkbox" checked={showSignatureOnly} onChange={(e: any) => setShowSignatureOnly(e.target.checked || false)} />
-              <span>Signature Only</span>
-            </label>
+            <button
+              className={`res-density-tab${showSignatureOnly ? ' res-density-active' : ''}`}
+              onClick={() => setShowSignatureOnly((v) => !v)}
+              title="Filter to Signature Buildings only"
+            >
+              ★ Sig Only
+            </button>
             <span className="res-bldg-count">{safeFilteredBuildings.length} buildings</span>
           </div>
-
           {/* Sticky table header — outside scroll body */}
           <div className="res-bldg-table">
             <div className="res-bldg-header">
@@ -632,45 +594,50 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
               <div className="res-bcol-happy">Happy</div>
               <div className="res-bcol-action">Go</div>
             </div>
-
             {/* Scrollable body with custom scrollbar */}
             <div className="res-bldg-scroll-wrap">
-              <div ref={scrollRef} className="res-bldg-body" onScroll={onScroll}>
-                {showScrollbar && (
-                  <div className="res-scrollbar-track">
-                    <div
-                      className="res-scrollbar-thumb"
-                      style={{ height: `${thumbHeight}rem`, top: `${thumbTop}rem` }}
-                      onMouseDown={onThumbMouseDown}
-                    />
-                  </div>
-                )}
+              <Scrollable vertical={true} className="res-bldg-body" trackVisibility="scrollable">
                 {safeFilteredBuildings.length === 0 && (
                   <div className="res-panel-empty">No buildings match the filter.</div>
                 )}
-                {safeFilteredBuildings.map((b, i) => {
-                  const occPct = b.capacity > 0 ? pct(b.occupied, b.capacity) : (b.occupied > 0 ? 100 : 0);
+                {(() => {
+                  const totalPages = Math.max(1, Math.ceil(safeFilteredBuildings.length / RES_PAGE_SIZE));
+                  const safePage = Math.min(currentPage, totalPages - 1);
+                  return safeFilteredBuildings.slice(safePage * RES_PAGE_SIZE, safePage * RES_PAGE_SIZE + RES_PAGE_SIZE);
+                })().map((b) => {
+                  if (!b) return null;
+                  const occPct = (b.capacity || 0) > 0 ? pct(b.occupied, b.capacity) : (b.occupied > 0 ? 100 : 0);
                   const occColor = occPct >= 80 ? '#8bdb46' : occPct >= 40 ? '#50b8e9' : '#e88c3a';
                   const isExpanded = expandedBuildingKey === b.entityKey;
                   return (
                     <React.Fragment key={b.entityKey}>
-                      <div className={`res-bldg-row${i % 2 === 0 ? '' : ' res-bldg-row-alt'}${selectedBuildingKey === b.entityKey ? ' res-bldg-row-selected' : ''}`}
+                      <div className={`res-bldg-row${b.entityKey.charCodeAt(0) % 2 === 0 ? '' : ' res-bldg-row-alt'}${selectedBuildingKey === b.entityKey || isExpanded ? ' res-bldg-row-selected' : ''}`}
                         title={getResidentialRowTooltip(b, data)}
                          onClick={() => {
                            setSelectedBuildingKey(b.entityKey);
-                           setExpandedBuildingKey((prev) => prev === b.entityKey ? null : b.entityKey);
+                           if (isExpanded) {
+                             setExpandedBuildingKey(null);
+                             setIsPaused(false);
+                           } else {
+                             setExpandedBuildingKey(b.entityKey);
+                             setIsPaused(true);
+                           }
                          }}>
                         <div className="res-bcol-address">
-                          <img className="res-row-icon" src={RESIDENTIAL_ICON} alt="" />
-                          {b.isSignature && <span className="res-signature-badge" title="Signature Building">★</span>}
-                          {b.address}
+                           <span className="res-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
+                           {b.isSignature && <span className="res-signature-badge" title="Signature Building">★</span>}
+                           <img className="res-row-icon" src={RESIDENTIAL_ICON} alt="" />
+                           {b.address}
                         </div>
                         <div className="res-bcol-density" style={{ color: getSafeColor(DENSITY_COLORS[b.density] || 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>{b.density}</div>
                         <div className="res-bcol-level">
-                          <span className="res-level-badge">Lv {b.level}</span>
+                           <span className="res-level-badge">Lv {b.level}</span>
                         </div>
                         <div className="res-bcol-theme">{normalizeTheme(b)}</div>
-                        <div className="res-bcol-assetpack">{b.assetPack || 'Base Game'}</div>
+                          <div className="res-bcol-assetpack" style={{ display: 'flex', alignItems: 'center' }}>
+                            <PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={24} style={{ marginRight: '6rem' }} />
+                            {b.assetPack || 'Base Game'}
+                          </div>
                         <div className="res-bcol-occupied">{b.occupied}</div>
                         <div className="res-bcol-capacity">{b.capacity > 0 ? b.capacity : '\u2014'}</div>
                         <div className="res-bcol-occupancy" style={{ color: getSafeColor(occColor) }}>{occPct}%</div>
@@ -695,8 +662,8 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                                 const idx = Number(parts[0]) || 0;
                                 const ver = Number(parts[1]) || 0;
                                 const entity = { index: idx, version: ver };
-                                trigger('camera', 'focusEntity', entity);
-                                trigger('selectedInfo', 'selectEntity', entity);
+                                camera.focusEntity(entity);
+                                selectedInfo.selectEntity(entity);
                               } catch {}
                             }}
                             title="Focus camera on this building"
@@ -707,22 +674,56 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                       </div>
                       {isExpanded && (
                         <div className="res-bldg-detail-row">
+                          <div className="res-entity-id-header">
+                            <span className="res-entity-id-label">Entity ID:</span>
+                            <span className="res-entity-id-badge">{b.entityKey}</span>
+                          </div>
                           <div className="res-bldg-detail-grid">
                             <div><span className="res-bldg-detail-label">Address</span><span className="res-bldg-detail-value">{b.address}</span></div>
                             <div><span className="res-bldg-detail-label">Density</span><span className="res-bldg-detail-value">{b.density}</span></div>
                             <div><span className="res-bldg-detail-label">Theme</span><span className="res-bldg-detail-value">{normalizeTheme(b)}</span></div>
-                            <div><span className="res-bldg-detail-label">Pack</span><span className="res-bldg-detail-value">{b.assetPack || 'Base Game'}</span></div>
+                             <div><span className="res-bldg-detail-label">Pack</span><span className="res-bldg-detail-value" style={{ display: 'flex', alignItems: 'center' }}><PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={20} style={{ marginRight: '6rem' }} />{b.assetPack || 'Base Game'}</span></div>
                             <div><span className="res-bldg-detail-label">Level</span><span className="res-bldg-detail-value">{`Lv ${b.level}`}</span></div>
                             <div><span className="res-bldg-detail-label">Occupancy</span><span className="res-bldg-detail-value">{`${b.occupied}/${b.capacity || 0} (${occPct}%)`}</span></div>
                             <div><span className="res-bldg-detail-label">Signature</span><span className="res-bldg-detail-value">{b.isSignature ? 'Yes' : 'No'}</span></div>
-                            <div><span className="res-bldg-detail-label">Entity</span><span className="res-bldg-detail-value">{b.entityKey}</span></div>
                           </div>
                         </div>
                       )}
                     </React.Fragment>
                   );
                 })}
-              </div>
+                {safeFilteredBuildings.length > 300 && (
+                  <div className="res-truncation-notice" style={{ padding: '10rem', textAlign: 'center', fontSize: '11rem', color: 'rgba(255,255,255,0.4)', borderTop: '1rem solid rgba(255,255,255,0.1)' }}>
+                    Showing top 300 of {safeFilteredBuildings.length} buildings. Use search or filters to narrow down.
+                  </div>
+                )}
+              </Scrollable>
+              {/* Pagination controls */}
+              {safeFilteredBuildings.length > RES_PAGE_SIZE && (() => {
+                const totalPages = Math.max(1, Math.ceil(safeFilteredBuildings.length / RES_PAGE_SIZE));
+                const safePage = Math.min(currentPage, totalPages - 1);
+                return (
+                  <div className="panel-pagination">
+                    <button
+                      className="panel-pagination-btn"
+                      onClick={() => { setCurrentPage((p) => Math.max(0, p - 1)); setExpandedBuildingKey(null); setIsPaused(false); }}
+                      disabled={safePage === 0}
+                    >
+                      ◀ Prev
+                    </button>
+                    <span className="panel-pagination-label">
+                      Page{' '}{safePage + 1}{' '}of{' '}{totalPages}{isPaused ? ' ⏸' : ''}
+                    </span>
+                    <button
+                      className="panel-pagination-btn"
+                      onClick={() => { setCurrentPage((p) => Math.min(totalPages - 1, p + 1)); setExpandedBuildingKey(null); setIsPaused(false); }}
+                      disabled={safePage >= totalPages - 1}
+                    >
+                      Next ▶
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

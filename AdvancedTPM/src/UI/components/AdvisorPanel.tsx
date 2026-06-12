@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import { Scrollable } from 'cs2/ui';
 import './AdvisorPanel.css';
 import { getSafeColor } from '../../mods/apiSafe';
 
@@ -310,109 +311,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'profiles'>('overview');
   const [confirmReset, setConfirmReset] = useState(false);
 
-  // Overlay scrollbar refs — left col (recommendations), right col (decisions)
-  const leftBodyRef = useRef<HTMLDivElement | null>(null);
-  const leftTrackRef = useRef<HTMLDivElement | null>(null);
-  const leftThumbRef = useRef<HTMLDivElement | null>(null);
-  const [leftThumbTop, setLeftThumbTop] = useState(0);
-  const [leftThumbHeight, setLeftThumbHeight] = useState(48);
 
-  const rightBodyRef = useRef<HTMLDivElement | null>(null);
-  const rightTrackRef = useRef<HTMLDivElement | null>(null);
-  const rightThumbRef = useRef<HTMLDivElement | null>(null);
-  const [rightThumbTop, setRightThumbTop] = useState(0);
-  const [rightThumbHeight, setRightThumbHeight] = useState(48);
-
-  const profilesBodyRef = useRef<HTMLDivElement | null>(null);
-  const profilesTrackRef = useRef<HTMLDivElement | null>(null);
-  const profilesThumbRef = useRef<HTMLDivElement | null>(null);
-  const [profilesThumbTop, setProfilesThumbTop] = useState(0);
-  const [profilesThumbHeight, setProfilesThumbHeight] = useState(48);
-
-  const makeUpdate = useCallback((
-    bodyRef: React.RefObject<HTMLDivElement>,
-    trackRef: React.RefObject<HTMLDivElement>,
-    setThumbH: (h: number) => void,
-    setThumbT: (t: number) => void,
-  ) => () => {
-    const body = bodyRef.current;
-    const track = trackRef.current;
-    if (!body || !track) return;
-    const visible = body.clientHeight;
-    const total = body.scrollHeight || 1;
-    if (visible >= total || !Number.isFinite(visible) || !Number.isFinite(total)) {
-      try { track.style.display = 'none'; } catch {}
-      return;
-    }
-    try { track.style.display = 'block'; } catch {}
-    const ratio = Math.max(0.03, Math.min(1, visible / total));
-    const trackH = track.clientHeight;
-    const thumbH = Math.max(16, Math.round(trackH * ratio));
-    const maxScroll = total - visible;
-    const top = maxScroll > 0 ? Math.round((body.scrollTop / maxScroll) * (trackH - thumbH)) : 0;
-    setThumbH(thumbH);
-    setThumbT(top);
-  }, []);
-
-  const updateLeft = useCallback(makeUpdate(leftBodyRef, leftTrackRef, setLeftThumbHeight, setLeftThumbTop), []);
-  const updateRight = useCallback(makeUpdate(rightBodyRef, rightTrackRef, setRightThumbHeight, setRightThumbTop), []);
-  const updateProfiles = useCallback(makeUpdate(profilesBodyRef, profilesTrackRef, setProfilesThumbHeight, setProfilesThumbTop), []);
-
-  const makeDragHandler = (
-    thumbRef: React.RefObject<HTMLDivElement>,
-    trackRef: React.RefObject<HTMLDivElement>,
-    bodyRef: React.RefObject<HTMLDivElement>,
-    thumbTopVal: number,
-    thumbHeightVal: number,
-    setThumbTop: (t: number) => void,
-    onUpdate: () => void,
-  ) => {
-    useEffect(() => {
-      let dragging = false;
-      let startY = 0;
-      let startTop = 0;
-      const thumb = thumbRef.current;
-      const track = trackRef.current;
-      const body = bodyRef.current;
-      if (!thumb || !track || !body) return;
-      const onDown = (ev: any) => {
-        try { ev.stopPropagation?.(); } catch {}
-        dragging = true;
-        startY = ev.clientY || (ev.touches?.[0]?.clientY) || 0;
-        startTop = thumbTopVal;
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-        ev.preventDefault();
-      };
-      const onMove = (ev: MouseEvent) => {
-        if (!dragging) return;
-        const dy = ev.clientY - startY;
-        const maxTop = track.clientHeight - thumbHeightVal;
-        const newTop = Math.max(0, Math.min(maxTop, startTop + dy));
-        const maxScroll = body.scrollHeight - body.clientHeight;
-        body.scrollTop = maxScroll > 0 ? Math.round((newTop / Math.max(1, maxTop)) * maxScroll) : 0;
-        setThumbTop(newTop);
-      };
-      const onUp = () => {
-        dragging = false;
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        onUpdate();
-      };
-      try { thumb.addEventListener('pointerdown', onDown as any); } catch {}
-      try { thumb.addEventListener('mousedown', onDown as any); } catch {}
-      return () => {
-        try { thumb.removeEventListener('pointerdown', onDown as any); } catch {}
-        try { thumb.removeEventListener('mousedown', onDown as any); } catch {}
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-      };
-    }, [thumbTopVal, thumbHeightVal]);
-  };
-
-  makeDragHandler(leftThumbRef, leftTrackRef, leftBodyRef, leftThumbTop, leftThumbHeight, setLeftThumbTop, updateLeft);
-  makeDragHandler(rightThumbRef, rightTrackRef, rightBodyRef, rightThumbTop, rightThumbHeight, setRightThumbTop, updateRight);
-  makeDragHandler(profilesThumbRef, profilesTrackRef, profilesBodyRef, profilesThumbTop, profilesThumbHeight, setProfilesThumbTop, updateProfiles);
 
   const { profiles, recommendations } = useMemo(() => parseAdvisorData(advisorData), [advisorData]);
   const decisions = useMemo(() => parseDecisionLog(decisionLogData), [decisionLogData]);
@@ -423,16 +322,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
     [profiles]
   );
 
-  useLayoutEffect(() => {
-    if (activeTab === 'overview') { updateLeft(); updateRight(); }
-    else if (activeTab === 'profiles') updateProfiles();
-  }, [activeTab, profiles.length, decisions.length, recommendations.length, sortedProfiles.length]);
 
-  useEffect(() => {
-    const onResize = () => { updateLeft(); updateRight(); updateProfiles(); };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [updateLeft, updateRight, updateProfiles]);
 
   const handleReset = () => {
     if (confirmReset) {
@@ -534,7 +424,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                   </div>
                 ) : (
                   <>
-                    <div ref={leftBodyRef} className="advisor-overview-scroll" onScroll={updateLeft}>
+                    <Scrollable vertical={true} className="advisor-overview-scroll" trackVisibility="scrollable">
                       <div className="advisor-rec-list">
                         {recommendations.map((rec) => {
                           const recIcon = getResourceIconSrc(rec.key);
@@ -553,10 +443,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                           );
                         })}
                       </div>
-                    </div>
-                    <div ref={leftTrackRef} className="advisor-scrollbar-track" aria-hidden>
-                      <div ref={leftThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${leftThumbTop}px`, height: `${leftThumbHeight}px` }} />
-                    </div>
+                    </Scrollable>
                   </>
                 )}
               </div>
@@ -570,7 +457,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                   <div className="advisor-empty">No decisions logged yet.</div>
                 ) : (
                   <>
-                    <div ref={rightBodyRef} className="advisor-overview-scroll" onScroll={updateRight}>
+                    <Scrollable vertical={true} className="advisor-overview-scroll" trackVisibility="scrollable">
                       <div className="advisor-decision-list">
                         {[...decisions].reverse().map((d, i) => {
                           const decisionIcon = getResourceIconSrc(d.key);
@@ -591,10 +478,7 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
                           );
                         })}
                       </div>
-                    </div>
-                    <div ref={rightTrackRef} className="advisor-scrollbar-track" aria-hidden>
-                      <div ref={rightThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${rightThumbTop}px`, height: `${rightThumbHeight}px` }} />
-                    </div>
+                    </Scrollable>
                   </>
                 )}
               </div>
@@ -607,16 +491,13 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
           {sortedProfiles.length === 0 && (
             <div className="advisor-empty">No learning profiles yet. Data will appear after tax adjustments are observed.</div>
           )}
-          <div ref={profilesBodyRef} className="advisor-tab-scroll" onScroll={updateProfiles} style={{ paddingRight: '18rem' }}>
+          <Scrollable vertical={true} className="advisor-tab-scroll" style={{ paddingRight: '18rem' }} trackVisibility="scrollable">
             <div className="advisor-profile-list">
               {sortedProfiles.map((p) => (
                 <ProfileRow key={p.key} p={p} />
               ))}
             </div>
-          </div>
-          <div ref={profilesTrackRef} className="advisor-scrollbar-track" aria-hidden>
-            <div ref={profilesThumbRef} className="advisor-scrollbar-thumb" style={{ top: `${profilesThumbTop}px`, height: `${profilesThumbHeight}px` }} />
-          </div>
+          </Scrollable>
         </div>
 
       </div>

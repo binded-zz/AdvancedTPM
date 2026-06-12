@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { trigger } from 'cs2/api';
+import { camera, selectedInfo } from 'cs2/bindings';
+import { Scrollable } from 'cs2/ui';
 // Removed invalid imports from 'cs2/bindings'.
 import { resourceCategories, ResourceCategory } from '../data/resourceTaxonomy';
 import AutoTaxSettingsPanel from './AutoTaxSettingsPanel';
@@ -9,11 +11,12 @@ import ResidentialPanel from './ResidentialPanel';
 import ServicesPanel from './ServicesPanel';
 import DistrictsPanel from './DistrictsPanel';
 import ServiceIcon from '../assets/ServiceIcon';
-import ThemeIcon from '../assets/ThemeIcon';
 import PackIcon from '../assets/PackIcon';
 import { ModDebugPanel } from './ModDebugPanel';
 import { getSafeColor } from '../../mods/apiSafe';
+import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import './AdvancedTPMWindow.css';
+import CustomSelect from './CustomSelect';
 
 interface TaxResourceKey {
   resource: number;
@@ -39,6 +42,12 @@ interface ResourceRowVm {
   demand?: number;
 }
 
+const formatPackName = (name: string): string => {
+  if (!name || name === 'Base Game' || name === 'Custom' || name === 'DLC') return name;
+  if (name.includes(' ')) return name;
+  return name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+};
+
 interface AdvancedTPMWindowProps {
   selectedCategory: string;
   rows: ResourceRowVm[];
@@ -47,6 +56,7 @@ interface AdvancedTPMWindowProps {
   autoTaxStatus: string;
   autoTaxSettings: string;
   companyBrowserData: string;
+  companyBrowserSummary?: string;
   companySummaries?: string;
   companyDetail?: string;
   companyPerf?: string;
@@ -200,11 +210,13 @@ const CustomSlider: React.FC<CustomSliderProps> = ({ value, min, max, onChange }
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
+    startGlobalDrag();
     onChange(calculateValue(e.clientX));
 
     const onMove = (ev: MouseEvent) => onChange(calculateValue(ev.clientX));
     const onUp = () => {
       setIsDragging(false);
+      stopGlobalDrag();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -557,6 +569,7 @@ const AdvancedTPMWindow: React.FC<AdvancedTPMWindowProps> = ({
   autoTaxStatus,
   autoTaxSettings,
   companyBrowserData,
+  companyBrowserSummary,
   companyHappinessData,
   advisorData,
   decisionLogData,
@@ -665,7 +678,16 @@ districtPoliciesData,
     }).filter(Boolean) as Array<{ entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; }>;
   }, [residentialSignatureBuildingsData]);
 
-  signatureCount = signatureCompanies.length + residentialSignatureBuildings.length;
+  const serviceSignatureCount = useMemo(() => {
+    if (!servicesBuildingsData) return 0;
+    try {
+      const arr = JSON.parse(servicesBuildingsData);
+      if (!Array.isArray(arr)) return 0;
+      return arr.filter((s: any) => s.isSignature).length;
+    } catch { return 0; }
+  }, [servicesBuildingsData]);
+
+  signatureCount = signatureCompanies.length + residentialSignatureBuildings.length + serviceSignatureCount;
 
   // Parse panel opacity from autoTaxSettings (slot 8: ...||profitWeight|opacity)
   const panelOpacity = useMemo(() => {
@@ -769,7 +791,7 @@ districtPoliciesData,
   return (
     <>
     <div className={`adv-window${collapsed ? ' adv-window-collapsed' : ''}`} style={{ opacity: panelOpacity }}>
-      <div className="adv-window-header">
+      <div className="adv-window-header tpm-drag-handle">
         <div className="adv-window-title">Advanced Tax & Production Manager</div>
         <button
           className={`adv-learn-toggle${learningEnabled ? ' adv-learn-active' : ''}`}
@@ -925,7 +947,7 @@ districtPoliciesData,
       {/* Businesses view */}
       {viewMode === 'businesses' && (
         <div className="adv-table-section">
-          <CompanyBrowser companies={businessCompanies} happinessData={companyHappinessData} isSignatureView={false} />
+          <CompanyBrowser companies={businessCompanies} summaryData={companyBrowserSummary} happinessData={companyHappinessData} isSignatureView={false} />
         </div>
       )}
 
@@ -990,8 +1012,8 @@ districtPoliciesData,
           {/* Legend removed - colors shown inline on bars and footer */}
         </div>
 
-      <div className="adv-table-content-wrapper" ref={tableWrapperRef}>
-        <div className="adv-table-content" ref={tableBodyRef}>
+      <div className="adv-table-content-wrapper" ref={tableWrapperRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <Scrollable vertical={true} className="adv-table-content" trackVisibility="scrollable" style={{ flex: 1, minHeight: 0 }}>
             {displayCategories.map((cat, idx) => {
               const catRows = getCategoryRows(cat);
               if (catRows.length === 0) return null;
@@ -1013,14 +1035,7 @@ districtPoliciesData,
                 />
               );
             })}
-          </div>
-
-          <div className="adv-table-lines">
-            <div className="adv-table-lines-name" />
-            <div className="adv-table-lines-rate" />
-            <div className="adv-table-lines-production" />
-            <div className="adv-table-lines-income" />
-          </div>
+        </Scrollable>
         </div>
       </div>
       )}
@@ -1093,7 +1108,9 @@ type SigSortField = 'name' | 'type' | 'theme' | 'assetPack' | 'level';
 const focusSignatureEntity = (entityKey: string) => {
   try {
     const parts = String(entityKey || '').split(',');
-    trigger('camera', 'focusEntity', { index: Number(parts[0]) || 0, version: Number(parts[1]) || 0 });
+    const entity = { index: Number(parts[0]) || 0, version: Number(parts[1]) || 0 };
+    camera.focusEntity(entity);
+    selectedInfo.selectEntity(entity);
   } catch {}
 };
 
@@ -1112,7 +1129,11 @@ const SignatureUnifiedView: React.FC<{
   const [sortField, setSortField] = useState<SigSortField>('name');
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
-  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [frozenItems, setFrozenItems] = useState<typeof allItems>([]);
+  const SIG_PAGE_SIZE = 50;
+
 
   // Parse services
   const serviceSignatures = useMemo(() => {
@@ -1120,18 +1141,23 @@ const SignatureUnifiedView: React.FC<{
     try {
       const arr = JSON.parse(servicesBuildingsData);
       if (!Array.isArray(arr)) return [];
-      return arr.filter((s: any) => s.isSignature).map((s: any) => ({
-        entityKey: s.entityKey,
-        name: s.name,
-        address: s.address,
-        type: s.category || 'Service',
-        theme: s.theme || 'USA',
-        assetPack: s.assetPack || 'Base Game',
-        level: s.level || 0,
-        extraInfo: `Efficiency: ${Math.round(s.efficiency || 0)}%`,
-        district: s.district || 'City',
-        resourceKey: '',
-      }));
+      return arr.filter((s: any) => s.isSignature).map((s: any) => {
+        const [bIdx, bVer] = (s.entityKey || '').split(',').map(Number);
+        return {
+          entityKey: s.entityKey,
+          name: s.name,
+          address: s.address,
+          type: s.isLandmark ? 'Landmark' : 'Services',
+          theme: s.theme || 'USA',
+          assetPack: s.assetPack || 'Base Game',
+          level: s.level || 0,
+          extraInfo: `Efficiency: ${Math.round(s.efficiency || 0)}%`,
+          district: s.district || 'City',
+          resourceKey: '',
+          buildingIndex: bIdx || 0,
+          buildingVersion: bVer || 0,
+        };
+      });
     } catch { return []; }
   }, [servicesBuildingsData]);
 
@@ -1148,23 +1174,29 @@ const SignatureUnifiedView: React.FC<{
       if (profit !== 0) extra += ` \u2022 Profit: ${profit > 0 ? '+' : ''}${profit.toFixed(1)}`;
       if (happiness > 0) extra += ` \u2022 Happy: ${Math.round(happiness)}%`;
 
+      const rawType = c.zoneType || c.companyKind || 'Commercial';
+      const mappedType = ['Residential', 'Commercial', 'Industrial', 'Office'].includes(rawType) ? rawType : 'Services';
+
       return {
         entityKey: `${c.entityIndex},${c.entityVersion}`,
         name: c.name || c.companyName || '',
         address: c.address || '',
-        type: (c.zoneType || c.companyKind || 'Commercial'),
+        type: mappedType,
         theme: c.theme || 'USA',
         assetPack: c.assetPack || 'Base Game',
         level: c.level || 0,
         extraInfo: extra,
         district: c.district || 'City',
         resourceKey: c.resourceKey || '',
+        buildingIndex: c.buildingIndex,
+        buildingVersion: c.buildingVersion,
         // Carry over metrics for tooltip
         workers, maxWorkers, profit, happiness
       };
     });
     const residential = residentialSignatureBuildings.map((b) => {
       const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : 0;
+      const [bIdx, bVer] = (b.entityKey || '').split(',').map(Number);
       return {
         entityKey: b.entityKey,
         name: b.address,
@@ -1178,10 +1210,38 @@ const SignatureUnifiedView: React.FC<{
           : (b.occupied > 0 ? `${b.occupied} Residents` : 'Empty'),
         district: (b as any).district || 'City',
         resourceKey: '',
+        buildingIndex: bIdx || 0,
+        buildingVersion: bVer || 0,
       };
     });
     return [...commercial, ...residential, ...serviceSignatures];
   }, [signatureCompanies, residentialSignatureBuildings, serviceSignatures]);
+
+  const focusCompany = (entityKey: string) => {
+    try {
+      const parts = entityKey.split(',');
+      const entity = { index: Number(parts[0]) || 0, version: Number(parts[1]) || 0 };
+      camera.focusEntity(entity);
+      selectedInfo.selectEntity(entity);
+    } catch {}
+  };
+
+  const focusBuilding = (index: number, version: number) => {
+    try {
+      const entity = { index, version };
+      camera.focusEntity(entity);
+      selectedInfo.selectEntity(entity);
+    } catch {}
+  };
+
+  const focusEntityOnly = (entityKey: string) => {
+    try {
+      const parts = entityKey.split(',');
+      const entity = { index: Number(parts[0]) || 0, version: Number(parts[1]) || 0 };
+      camera.focusEntity(entity);
+      selectedInfo.selectEntity(entity);
+    } catch {}
+  };
 
   const [distFilter, setDistFilter] = useState('All');
   const [resFilter, setResFilter] = useState('All');
@@ -1211,6 +1271,15 @@ const SignatureUnifiedView: React.FC<{
     });
   }, [allItems, typeFilter, themeFilter, packFilter, distFilter, resFilter, sortField, sortDir]);
 
+  // Reset page + unpause when filters or sort change
+  useEffect(() => {
+    setCurrentPage(0);
+    setExpandedEntity(null);
+    setIsPaused(false);
+  }, [typeFilter, themeFilter, packFilter, distFilter, resFilter, sortField, sortDir]);
+
+  // Freeze the displayed list while a row is expanded
+  const displayItems = isPaused ? frozenItems : filtered;
 
   const handleSort = (f: SigSortField) => {
     if (sortField === f) setSortDir((d) => (d === 1 ? -1 : 1) as 1 | -1);
@@ -1225,7 +1294,7 @@ const SignatureUnifiedView: React.FC<{
     ...(item.address && item.address !== item.name ? [`Address: ${item.address}`] : []),
     ...(item.extraInfo ? [item.extraInfo] : []),
     `Entity: ${item.entityKey}`,
-    'Click row or GO to focus camera',
+    'Click row to expand details or use GO/CO/BLDG to focus camera',
   ].join('\n');
 
   const SortHdr: React.FC<{ field: SigSortField; label: string; style?: React.CSSProperties }> = ({ field, label, style }) => (
@@ -1260,37 +1329,33 @@ const SignatureUnifiedView: React.FC<{
               onClick={() => setTypeFilter(t)}
             >
               {t !== 'All' && <ServiceIcon category={t.toLowerCase() === 'residential' ? 'residential' : t} size={14} style={{ marginRight: '6rem' }} />}
-              {t}
+              {t === 'Landmark' ? 'Landmarks' : t}
             </button>
           ))}
         </div>
-        <div className="sig-filter-selects">
-          <div className="sig-filter-pill-row">
-            <span className="sig-filter-pill-label">Theme</span>
-            {themes.map((t) => (
-              <button key={`theme-${t}`} className={`sig-filter-pill${themeFilter === t ? ' sig-filter-pill-active' : ''}`} onClick={() => setThemeFilter(t)}>
-                {t !== 'All' && <ThemeIcon theme={t} size={14} style={{ marginRight: '4rem' }} />}
-                {t}
-              </button>
-            ))}
-          </div>
-          <div className="sig-filter-pill-row">
-            <span className="sig-filter-pill-label">Pack</span>
-            {packs.map((p) => (
-              <button key={`pack-${p}`} className={`sig-filter-pill${packFilter === p ? ' sig-filter-pill-active' : ''}`} onClick={() => setPackFilter(p)}>
-                {p !== 'All' && <PackIcon pack={p} size={14} style={{ marginRight: '4rem' }} />}
-                {p}
-              </button>
-            ))}
-          </div>
-          {districts.length > 2 && (
-            <div className="sig-filter-pill-row">
-              <span className="sig-filter-pill-label">District</span>
-              {districts.map((d) => (
-                <button key={`dist-${d}`} className={`sig-filter-pill${distFilter === d ? ' sig-filter-pill-active' : ''}`} onClick={() => setDistFilter(d)}>{d}</button>
-              ))}
-            </div>
-          )}
+        <div className="sig-filter-selects" style={{ display: 'flex', gap: '8rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <CustomSelect
+            label="Theme"
+            value={themeFilter}
+            options={themes}
+            onChange={setThemeFilter}
+            displayValue={(v) => v === 'All' ? 'All Themes' : v}
+          />
+          <CustomSelect
+            label="Pack"
+            value={packFilter}
+            options={packs}
+            onChange={setPackFilter}
+            displayValue={(v) => v === 'All' ? 'All Packs' : formatPackName(v)}
+            icon={(v) => v === 'All' ? null : <PackIcon pack={v} size={24} />}
+          />
+          <CustomSelect
+            label="District"
+            value={distFilter}
+            options={districts}
+            onChange={setDistFilter}
+            displayValue={(v) => v === 'All' ? 'All Districts' : v}
+          />
           {resources.length > 2 && (
             <div className="sig-filter-pill-row" style={{ flexWrap: 'wrap' }}>
               <span className="sig-filter-pill-label">Resource</span>
@@ -1317,14 +1382,14 @@ const SignatureUnifiedView: React.FC<{
                     title={g.label} 
                     style={{ padding: '2rem 4rem' }}
                   >
-                    <img src={resourceIconSrc(g.icon)} alt="" style={{ width: '16rem', height: '16rem' }} />
+                    <img src={resourceIconSrc(g.icon)} alt="" style={{ width: '24rem', height: '24rem' }} />
                   </button>
                 ));
               })()}
             </div>
           )}
           <div className="sig-summary-row" style={{ display: 'flex', alignItems: 'center', padding: '4rem 10rem', borderTopWidth: '1rem', borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.05)', marginTop: '4rem' }}>
-            <span className="sig-count" style={{ fontSize: '11rem', opacity: 0.6 }}>{filtered.length} buildings shown</span>
+            <span className="sig-count" style={{ fontSize: '11rem', opacity: 0.6 }}>{filtered.length}{'\u00a0'}buildings shown</span>
           </div>
         </div>
       </div>
@@ -1337,49 +1402,141 @@ const SignatureUnifiedView: React.FC<{
         <SortHdr field="assetPack" label="Pack" style={{ width: '80rem', textAlign: 'center' }} />
         <SortHdr field="level" label="Lv" style={{ width: '36rem', textAlign: 'center' }} />
         <div className="sig-col-hdr" style={{ width: '60rem', textAlign: 'center' }}>District</div>
+        <div className="sig-col-hdr" style={{ width: '80rem', textAlign: 'center' }}>GO</div>
       </div>
 
       {/* Scrollable rows */}
-      <div className="sig-rows-wrap" style={{ flex: 1, minHeight: 0 }}>
-        <div ref={bodyRef} className="sig-rows-scroll" style={{ overflowY: 'auto' }}>
-          {filtered.map((item) => (
-            <div key={item.entityKey} className="sig-row-container" style={{ borderBottomWidth: '1rem', borderBottomStyle: 'solid', borderBottomColor: 'rgba(255,255,255,0.05)' }}>
-              <div className={`sig-row${expandedEntity === item.entityKey ? ' sig-row-active' : ''}`} 
+      <div className="sig-rows-wrap" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Scrollable vertical={true} className="sig-rows-scroll" trackVisibility="scrollable">
+          {(() => {
+            const totalPages = Math.max(1, Math.ceil(displayItems.length / SIG_PAGE_SIZE));
+            const safePage = Math.min(currentPage, totalPages - 1);
+            const pageItems = displayItems.slice(safePage * SIG_PAGE_SIZE, (safePage + 1) * SIG_PAGE_SIZE);
+            return pageItems;
+          })().map((item) => (
+            <div key={item.entityKey} className="sig-row-container" style={{ display: 'flex', flexDirection: 'column', width: '100%', borderBottomWidth: '1rem', borderBottomStyle: 'solid', borderBottomColor: 'rgba(255,255,255,0.05)' }}>
+              <div className={`sig-row${expandedEntity === item.entityKey ? (String(item.type).toLowerCase() === 'residential' ? ' sig-row-active-res' : ' sig-row-active') : ''}`} 
                   onClick={() => {
-                    focusSignatureEntity(item.entityKey);
-                    setExpandedEntity(prev => prev === item.entityKey ? null : item.entityKey);
+                    const isOpening = expandedEntity !== item.entityKey;
+                    setExpandedEntity(isOpening ? item.entityKey : null);
+                    if (isOpening) { setFrozenItems(filtered); setIsPaused(true); }
+                    else { setIsPaused(false); }
                   }} 
                   title={getItemTooltip(item)}
-                  style={{ display: 'flex', alignItems: 'center', padding: '6rem 10rem', cursor: 'pointer' }}
+                  style={{ display: 'flex', alignItems: 'center', padding: '6rem 10rem', cursor: 'pointer', fontSize: '12rem' }}
               >
                 <div className="sig-col-name" style={{ flex: 3, display: 'flex', alignItems: 'center' }}>
-                  <ServiceIcon category={String(item.type).toLowerCase() === 'residential' ? 'residential' : item.type} size={14} />
+                  <span className="sig-expand-arrow">{expandedEntity === item.entityKey ? '\u25BC' : '\u25B6'}</span>
+                  <ServiceIcon category={String(item.type).toLowerCase() === 'residential' ? 'residential' : item.type} size={24} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: '6rem' }}>{item.name}</span>
                 </div>
                 <div className="sig-col-type" style={{ width: '80rem' }}>
-                  <span className={`sig-type-badge sig-type-${String(item.type).toLowerCase()}`} style={{ fontSize: '9rem', padding: '1rem 4rem' }}>
+                  <span className={`sig-type-badge sig-type-${String(item.type).toLowerCase()}`} style={{ fontSize: '11rem', fontWeight: 600, padding: '2rem 6rem', textTransform: 'uppercase', letterSpacing: '0.3rem', borderRadius: '2rem' }}>
                     {item.type}
                   </span>
                 </div>
                 <div className="sig-col-theme" style={{ width: '80rem', textAlign: 'center' }}>
-                  <ThemeIcon theme={item.theme} size={14} />
+                  {item.theme}
                 </div>
-                <div className="sig-col-pack" style={{ width: '80rem', textAlign: 'center' }}>
-                  <PackIcon pack={item.assetPack} size={14} />
+                <div className="sig-col-pack" style={{ width: '80rem', display: 'flex', justifyContent: 'center' }}>
+                  <PackIcon pack={item.assetPack} size={24} />
                 </div>
                 <div className="sig-col-level" style={{ width: '36rem', textAlign: 'center', color: getSafeColor('rgba(255,255,255,0.75)') }}>{item.level > 0 ? item.level : '-'}</div>
-                <div className="sig-col-dist" style={{ width: '60rem', textAlign: 'center', opacity: 0.8, fontSize: '10rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.district}</div>
+                <div className="sig-col-dist" style={{ width: '60rem', textAlign: 'center', opacity: 0.8, fontSize: '12rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.district}</div>
+                <div className="sig-col-action" style={{ width: '80rem', display: 'flex', gap: '3rem', justifyContent: 'center' }}>
+                  {item.buildingIndex && item.buildingIndex > 0 && item.entityKey !== `${item.buildingIndex},${item.buildingVersion}` ? (
+                    <>
+                      <button
+                        className="cb-locate-btn cb-locate-co"
+                        onClick={(e) => { e.stopPropagation(); focusCompany(item.entityKey); }}
+                        title="Focus camera and inspect Company"
+                        style={{ padding: '2rem 5rem', fontSize: '9rem', letterSpacing: '0' }}
+                      >
+                        GO
+                      </button>
+                      <button
+                        className="cb-locate-btn cb-locate-bldg"
+                        onClick={(e) => { e.stopPropagation(); focusBuilding(item.buildingIndex, item.buildingVersion); }}
+                        title="Focus camera and inspect Building"
+                        style={{ padding: '2rem 5rem', fontSize: '9rem', letterSpacing: '0' }}
+                      >
+                        BLD
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="res-locate-btn"
+                      onClick={(e) => { e.stopPropagation(); focusEntityOnly(item.entityKey); }}
+                      title="Focus camera on this building"
+                      style={{ padding: '2rem 14rem', fontSize: '10rem', fontWeight: 'bold' }}
+                    >
+                      GO
+                    </button>
+                  )}
+                </div>
               </div>
               {expandedEntity === item.entityKey && (
-                <div className="sig-row-details" style={{ padding: '4rem 10rem 8rem 34rem', backgroundColor: getSafeColor('rgba(0,0,0,0.15)'), fontSize: '10rem', color: getSafeColor('rgba(255,255,255,0.6)') }}>
-                  <div className="sig-detail-line" style={{ marginBottom: '2rem' }}>{item.address}</div>
-                  {item.extraInfo && <div className="sig-detail-line sig-detail-extra" style={{ color: getSafeColor('#50b8e9') }}>{item.extraInfo}</div>}
-                  <div className="sig-detail-line" style={{ marginTop: '4rem', fontStyle: 'italic' }}>Entity: {item.entityKey}</div>
+                <div className="res-bldg-detail-row" style={{ padding: '8rem 10rem 8rem 34rem', backgroundColor: 'rgba(12,18,28,0.7)', borderTop: '1rem solid rgba(255,255,255,0.04)' }}>
+                  <div className="res-entity-id-header" style={{ marginBottom: '6rem', paddingBottom: '4rem', borderBottom: '1rem solid rgba(255, 255, 255, 0.08)', display: 'flex', alignItems: 'center' }}>
+                    <span className="res-entity-id-label" style={{ fontSize: '11rem', color: 'rgba(255, 255, 255, 0.5)', marginRight: '6rem', textTransform: 'uppercase', fontWeight: 700 }}>Entity ID:</span>
+                    {item.buildingIndex && item.buildingIndex > 0 && item.entityKey !== `${item.buildingIndex},${item.buildingVersion}` ? (
+                      <>
+                        <span className="cb-entity-id-badge" title="Company Entity ID">CO {item.entityKey}</span>
+                        <span className="cb-entity-id-badge cb-entity-id-bldg-badge" title="Building Entity ID" style={{ marginLeft: '6rem' }}>
+                          BLDG {item.buildingIndex}:{item.buildingVersion}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="res-entity-id-badge">{item.entityKey}</span>
+                    )}
+                  </div>
+                  <div className="res-bldg-detail-grid" style={{ display: 'flex', flexWrap: 'wrap' }}>
+                    <div style={{ width: '200rem', marginRight: '8rem', marginBottom: '4rem' }}><span className="res-bldg-detail-label" style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.5)', marginRight: '4rem', textTransform: 'uppercase', fontWeight: 700 }}>Name</span><span className="res-bldg-detail-value" style={{ fontSize: '12rem', color: 'rgba(255,255,255,0.85)' }}>{item.name}</span></div>
+                    {item.address && item.address !== item.name && (
+                      <div style={{ width: '200rem', marginRight: '8rem', marginBottom: '4rem' }}><span className="res-bldg-detail-label" style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.5)', marginRight: '4rem', textTransform: 'uppercase', fontWeight: 700 }}>Address</span><span className="res-bldg-detail-value" style={{ fontSize: '12rem', color: 'rgba(255,255,255,0.85)' }}>{item.address}</span></div>
+                    )}
+                    <div style={{ width: '200rem', marginRight: '8rem', marginBottom: '4rem' }}><span className="res-bldg-detail-label" style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.5)', marginRight: '4rem', textTransform: 'uppercase', fontWeight: 700 }}>Type</span><span className="res-bldg-detail-value" style={{ fontSize: '12rem', color: 'rgba(255,255,255,0.85)' }}>{item.type}</span></div>
+                    <div style={{ width: '200rem', marginRight: '8rem', marginBottom: '4rem' }}><span className="res-bldg-detail-label" style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.5)', marginRight: '4rem', textTransform: 'uppercase', fontWeight: 700 }}>Theme</span><span className="res-bldg-detail-value" style={{ fontSize: '12rem', color: 'rgba(255,255,255,0.85)' }}>{item.theme}</span></div>
+                    <div style={{ width: '200rem', marginRight: '8rem', marginBottom: '4rem' }}><span className="res-bldg-detail-label" style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.5)', marginRight: '4rem', textTransform: 'uppercase', fontWeight: 700 }}>Pack</span><span className="res-bldg-detail-value" style={{ fontSize: '12rem', color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center' }}><PackIcon pack={item.assetPack} size={20} style={{ marginRight: '6rem' }} />{item.assetPack || 'Base Game'}</span></div>
+                    {item.level > 0 && (
+                      <div style={{ width: '200rem', marginRight: '8rem', marginBottom: '4rem' }}><span className="res-bldg-detail-label" style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.5)', marginRight: '4rem', textTransform: 'uppercase', fontWeight: 700 }}>Level</span><span className="res-bldg-detail-value" style={{ fontSize: '12rem', color: 'rgba(255,255,255,0.85)' }}>{`Lv ${item.level}`}</span></div>
+                    )}
+                    <div style={{ width: '200rem', marginRight: '8rem', marginBottom: '4rem' }}><span className="res-bldg-detail-label" style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.5)', marginRight: '4rem', textTransform: 'uppercase', fontWeight: 700 }}>District</span><span className="res-bldg-detail-value" style={{ fontSize: '12rem', color: 'rgba(255,255,255,0.85)' }}>{item.district}</span></div>
+                    {item.extraInfo && (
+                      <div style={{ width: '400rem', marginRight: '8rem', marginBottom: '4rem' }}><span className="res-bldg-detail-label" style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.5)', marginRight: '4rem', textTransform: 'uppercase', fontWeight: 700 }}>Status / Info</span><span className="res-bldg-detail-value" style={{ fontSize: '12rem', color: '#50b8e9', fontWeight: 'bold' }}>{item.extraInfo}</span></div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           ))}
-        </div>
+        </Scrollable>
+        {/* Pagination controls */}
+        {displayItems.length > SIG_PAGE_SIZE && (() => {
+          const totalPages = Math.max(1, Math.ceil(displayItems.length / SIG_PAGE_SIZE));
+          const safePage = Math.min(currentPage, totalPages - 1);
+          return (
+            <div className="panel-pagination">
+              <button
+                className="panel-pagination-btn"
+                onClick={() => { setCurrentPage((p) => Math.max(0, p - 1)); setExpandedEntity(null); setIsPaused(false); }}
+                disabled={safePage === 0}
+              >
+                ◀ Prev
+              </button>
+              <span className="panel-pagination-label">
+                Page{' '}{safePage + 1}{' '}of{' '}{totalPages}{isPaused ? ' ⏸' : ''}
+              </span>
+              <button
+                className="panel-pagination-btn"
+                onClick={() => { setCurrentPage((p) => Math.min(totalPages - 1, p + 1)); setExpandedEntity(null); setIsPaused(false); }}
+                disabled={safePage >= totalPages - 1}
+              >
+                Next ▶
+              </button>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

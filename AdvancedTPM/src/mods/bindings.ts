@@ -26,6 +26,7 @@ export const autoTaxEnabled$ = bindValue<boolean>(G, 'autoTaxEnabled');
 export const autoTaxStatus$ = bindValue<string>(G, 'autoTaxStatus');
 export const autoTaxSettings$ = bindValue<string>(G, 'autoTaxSettings');
 export const companyBrowserData$ = bindValue<string>(G, 'companyBrowserData');
+export const companyBrowserSummary$ = bindValue<string>(G, 'companyBrowserSummary');
 export const companyHappinessData$ = bindValue<string>(G, 'companyHappinessData');
 export const signaturePrefabs$ = bindValue<string>(G, 'signaturePrefabs');
 export const signatureCompanies$ = bindValue<string>(G, 'signatureCompanies');

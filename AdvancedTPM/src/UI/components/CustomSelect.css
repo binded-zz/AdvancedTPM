@@ -1,0 +1,78 @@
+.custom-select-container {
+  position: relative;
+  display: inline-block;
+}
+
+.custom-select-trigger {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1rem solid rgba(124, 152, 189, 0.3);
+  color: rgba(233, 243, 255, 0.85);
+  font-size: 11rem;
+  padding: 4rem 10rem;
+  border-radius: 4rem;
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: 120rem;
+  justify-content: space-between;
+  text-align: left;
+  width: 100%;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.custom-select-trigger:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(124, 152, 189, 0.5);
+}
+
+.custom-select-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9998;
+  background: transparent;
+  cursor: default;
+}
+
+.custom-select-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4rem;
+  background: #121822;
+  border: 1rem solid rgba(124, 152, 189, 0.4);
+  border-radius: 4rem;
+  box-shadow: 0 4rem 12rem rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  min-width: 100%;
+  max-height: 180rem;
+  overflow-y: auto;
+}
+
+.custom-select-option {
+  padding: 6rem 10rem;
+  font-size: 11rem;
+  color: rgba(233, 243, 255, 0.85);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.1s ease;
+}
+
+.custom-select-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.custom-select-option-active {
+  color: #50b8e9 !important;
+  background: rgba(80, 184, 233, 0.12) !important;
+}
+
+.custom-select-option-active:hover {
+  background: rgba(80, 184, 233, 0.18) !important;
+}

@@ -5,7 +5,7 @@ import AdvancedTPMWindow from "../UI/components/AdvancedTPMWindow";
 import ErrorBoundary from "../UI/components/ErrorBoundary";
 import DebugPanel from "../UI/components/DebugPanel";
 import TPMWindowShell from "../UI/components/TPMWindowShell";
-import { districtBrowserData$, districtPoliciesData$, advancedVisible$, selectedResourceCategory$, debugEnabled$, debugPanelVisible$, showTips$, debugLastAction$, advancedWindowX$, advancedWindowY$, advancedWindowWidth$, advancedWindowHeight$, resourceRowsData$, autoTaxEnabled$, autoTaxStatus$, autoTaxSettings$, companyBrowserData$, companyHappinessData$, companySummaries$, companyDetail$, companyPerf$, overviewTwoColumn$, signaturePrefabs$, signatureCompanies$, signatureCacheStatus$, signatureInfo$, learningEnabled$, advisorData$, decisionLogData$, learningStats$, residentialBrowserData$, residentialBuildingsData$, residentialSignatureBuildingsData$, educationBrowserData$, administrationBrowserData$, servicesBrowserData$, servicesBuildingsData$, debugFileContents$, debugWindowX$, debugWindowY$, debugWindowWidth$, debugWindowHeight$ } from "./bindings";
+import { districtBrowserData$, districtPoliciesData$, advancedVisible$, selectedResourceCategory$, debugEnabled$, debugPanelVisible$, showTips$, debugLastAction$, advancedWindowX$, advancedWindowY$, advancedWindowWidth$, advancedWindowHeight$, resourceRowsData$, autoTaxEnabled$, autoTaxStatus$, autoTaxSettings$, companyBrowserData$, companyBrowserSummary$, companyHappinessData$, companySummaries$, companyDetail$, companyPerf$, overviewTwoColumn$, signaturePrefabs$, signatureCompanies$, signatureCacheStatus$, signatureInfo$, learningEnabled$, advisorData$, decisionLogData$, learningStats$, residentialBrowserData$, residentialBuildingsData$, residentialSignatureBuildingsData$, educationBrowserData$, administrationBrowserData$, servicesBrowserData$, servicesBuildingsData$, debugFileContents$, debugWindowX$, debugWindowY$, debugWindowWidth$, debugWindowHeight$ } from "./bindings";
 
 interface ResourceRowVm {
     key: string;
@@ -75,6 +75,7 @@ const TaxWindowContent: React.FC<{
     const autoTaxStatus = getSafeValue(apiSafe.useValue<string>(autoTaxStatus$), '');
     const autoTaxSettings = getSafeValue(apiSafe.useValue<string>(autoTaxSettings$), '5|0|25|50|2|');
     const companyBrowserData = getSafeValue(apiSafe.useValue<string>(companyBrowserData$), '');
+    const companyBrowserSummary = getSafeValue(apiSafe.useValue<string>(companyBrowserSummary$), '');
     const companyHappinessData = getSafeValue(apiSafe.useValue<string>(companyHappinessData$), '');
     const learningEnabled = getSafeValue(apiSafe.useValue<boolean>(learningEnabled$), false);
     const companySummaries = getSafeValue(apiSafe.useValue<string>(companySummaries$), '');
@@ -105,7 +106,7 @@ const TaxWindowContent: React.FC<{
     // Debug dump removed: console output routes to UI.log in Cohtml and spams 60x/sec.
 
     return (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 99999 }}>
+        <div id="tpm-root-container" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 99999, pointerEvents: 'none' }}>
             {advancedVisible && (
                 <div>
                     <TPMWindowShell
@@ -126,6 +127,7 @@ const TaxWindowContent: React.FC<{
                             autoTaxStatus={autoTaxStatus}
                             autoTaxSettings={autoTaxSettings}
                             companyBrowserData={companyBrowserData}
+                            companyBrowserSummary={companyBrowserSummary}
                             companySummaries={companySummaries}
                             companyDetail={companyDetail}
                             companyPerf={companyPerf}

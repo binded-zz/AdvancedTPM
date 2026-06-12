@@ -64,10 +64,7 @@
 .ats-resource-item-wrap { margin-bottom:2rem; }
 .ats-resource-custom-badge { font-size:9rem; font-weight:600; color:#e88c3a; background:rgba(232,140,58,0.15); border:1rem solid rgba(232,140,58,0.35); border-radius:2rem; padding:1rem 5rem; margin-left:auto; text-transform:uppercase; letter-spacing:0.3rem; }
 
-/* Custom scrollbar */
-.ats-scrollbar-track { position:absolute; top:0; right:0; bottom:0; width:6rem; background:rgba(15,24,37,0.5); border-radius:3rem; z-index:2; }
-.ats-scrollbar-thumb { position:absolute; top:0; right:0; width:6rem; min-height:20rem; background:rgba(80,140,200,0.55); border-radius:3rem; cursor:grab; transition:background-color 0.15s; }
-.ats-scrollbar-thumb:hover { background:rgba(80,160,220,0.8); }
+
 
 /* Per-resource range slider */
 .ats-range-row { display:flex; align-items:center; padding:2rem 6rem 4rem 28rem; }

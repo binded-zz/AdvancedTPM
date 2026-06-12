@@ -1,6 +1,9 @@
 import React, { useMemo, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { parseCompanies } from './CompanyBrowser';
 import apiSafe, { getSafeColor } from '../../mods/apiSafe';
+import { camera, selectedInfo } from 'cs2/bindings';
+import { Scrollable } from 'cs2/ui';
+import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import ErrorBoundary from './ErrorBoundary';
 import './DistrictsPanel.css';
 
@@ -290,7 +293,7 @@ export const DistrictsPanel: React.FC<Props> = ({
   const focusEntity = (ek: string) => {
     if (!ek) return;
     const p = ek.split(',');
-    apiSafe.trigger('camera', 'focusEntity', { index: parseInt(p[0]) || 0, version: parseInt(p[1]) || 0 });
+    camera.focusEntity({ index: parseInt(p[0]) || 0, version: parseInt(p[1]) || 0 });
   };
 
   const handleSort = (f: DistrictSortField) => {
@@ -303,8 +306,8 @@ export const DistrictsPanel: React.FC<Props> = ({
     if (dk && dk !== 'city') {
       const p = dk.split(',');
       const entity = { index: parseInt(p[0]) || 0, version: parseInt(p[1]) || 0 };
-      apiSafe.trigger('camera', 'focusEntity', entity);
-      apiSafe.trigger('selectedInfo', 'selectEntity', entity);
+      camera.focusEntity(entity);
+      selectedInfo.selectEntity(entity);
     }
   };
 
@@ -424,61 +427,7 @@ export const DistrictsPanel: React.FC<Props> = ({
     </div>
   );
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [showScrollbar, setShowScrollbar] = useState(false);
-  const [thumbHeight, setThumbHeight] = useState(0);
-  const [thumbTop, setThumbTop] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const startY = useRef(0);
-  const startTop = useRef(0);
 
-  const updateScroll = useCallback(() => {
-    if (!scrollRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    if (scrollHeight <= clientHeight) {
-      setShowScrollbar(false);
-      return;
-    }
-    setShowScrollbar(true);
-    const ratio = clientHeight / scrollHeight;
-    setThumbHeight(Math.max(20, clientHeight * ratio));
-    setThumbTop((scrollTop / scrollHeight) * clientHeight);
-  }, []);
-
-  useLayoutEffect(() => {
-    updateScroll();
-    const el = scrollRef.current;
-    if (el) {
-      const obs = new ResizeObserver(updateScroll);
-      obs.observe(el);
-      return () => obs.disconnect();
-    }
-  }, [rows, expandedRow, updateScroll]);
-
-  const onThumbMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    startY.current = e.clientY;
-    startTop.current = thumbTop;
-    const onMove = (ev: MouseEvent) => {
-      if (!scrollRef.current) return;
-      if (ev.buttons !== 1) {
-        onUp();
-        return;
-      }
-      const delta = ev.clientY - startY.current;
-      const { scrollHeight, clientHeight } = scrollRef.current;
-      const newTop = Math.max(0, Math.min(clientHeight - thumbHeight, startTop.current + delta));
-      scrollRef.current.scrollTop = (newTop / clientHeight) * scrollHeight;
-    };
-    const onUp = () => {
-      setIsDragging(false);
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
 
   const MiniBar: React.FC<{ items: { label: string; value: number; color: string }[] }> = ({ items }) => {
     const total = items.reduce((s, i) => s + i.value, 0);
@@ -572,7 +521,7 @@ export const DistrictsPanel: React.FC<Props> = ({
         <div className="dp-col-go">Go</div>
       </div>
       <div className="dp-body-wrapper" style={{ flex: 1, position: 'relative', display: 'flex', overflow: 'hidden' }}>
-        <div className="dp-body" ref={scrollRef} onScroll={updateScroll} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        <Scrollable vertical={true} className="dp-body" style={{ flex: 1 }} trackVisibility="scrollable">
           {rows.map(r => {
           const hI = happinessInfo(r.avgHappiness);
           const isExp = expandedRow === r.name;
@@ -629,6 +578,12 @@ export const DistrictsPanel: React.FC<Props> = ({
                         <span className="dp-expanded-name" style={{ color: getSafeColor(r.isCity ? '#50b8e9' : '#fff') }}>
                           {r.isCity ? `City (${r.cityName})` : r.name}
                         </span>
+                        {r.entityKey && (
+                          <div className="dp-entity-id-header">
+                            <span className="dp-entity-id-label">Entity ID:</span>
+                            <span className="dp-entity-id-badge">{r.entityKey}</span>
+                          </div>
+                        )}
                         {r.entityKey && !r.isCity && (
                           <button className="dp-edit-btn" onClick={() => { setTempName(r.name); setEditingName(r.name); }}>RENAME</button>
                         )}
@@ -863,17 +818,7 @@ export const DistrictsPanel: React.FC<Props> = ({
             </React.Fragment>
           );
         })}
-        </div>
-        {/* Custom scrollbar */}
-        {showScrollbar && (
-          <div className="cb-scrollbar-track" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '8rem', backgroundColor: getSafeColor('rgba(0,0,0,0.3)') }}>
-            <div
-              className="cb-scrollbar-thumb"
-              style={{ position: 'absolute', right: 0, width: '8rem', backgroundColor: getSafeColor(isDragging ? 'rgba(80,184,233,0.8)' : 'rgba(80,184,233,0.5)'), borderRadius: '4rem', height: `${thumbHeight}px`, top: `${thumbTop}px`, cursor: 'pointer' }}
-              onMouseDown={onThumbMouseDown}
-            />
-          </div>
-        )}
+        </Scrollable>
       </div>
     </div>
   );

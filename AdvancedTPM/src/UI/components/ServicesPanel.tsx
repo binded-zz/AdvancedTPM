@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
-import { trigger } from 'cs2/api';
+import { camera, selectedInfo } from 'cs2/bindings';
+import { Scrollable } from 'cs2/ui';
 import { getSafeColor } from '../../mods/apiSafe';
 import './ServicesPanel.css';
+import CustomSelect from './CustomSelect';
 import ServiceIcon from '../assets/ServiceIcon';
-import ThemeIcon from '../assets/ThemeIcon';
 import PackIcon from '../assets/PackIcon';
 
 interface ServiceBuildingInfo {
@@ -14,10 +15,14 @@ interface ServiceBuildingInfo {
   district: string;
   theme: string;
   assetPack: string;
+  assetPackIcon?: string;
   level: number;
   capacity: number;
   usage: number;
   efficiency: number;
+  workers: number;
+  workersMax: number;
+  detailInfo: string;
   isSignature: boolean;
 }
 
@@ -48,18 +53,17 @@ const CATEGORIES = [
   'Parks & Recreation', 
   'Communications', 
   'Welfare',
-  'Other'
+  'Other',
 ];
 
-type SortField = 'name' | 'address' | 'category' | 'district' | 'theme' | 'assetPack' | 'level' | 'capacity' | 'usage' | 'efficiency';
+type SortField = 'name' | 'address' | 'category' | 'assetPack' | 'level' | 'capacity' | 'usage' | 'efficiency';
 type SortDir = 'asc' | 'desc';
 
-const parseServiceBuildingsData = (payload: string): ServiceBuildingInfo[] => {
-  if (!payload) return [];
+const parseServiceBuildingsData = (raw: string): ServiceBuildingInfo[] => {
+  if (!raw) return [];
   try {
-    const arr = JSON.parse(payload);
-    if (!Array.isArray(arr)) return [];
-    return arr.map((s: any) => ({
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list.map((s: any) => ({
       entityKey: String(s.entityKey || ''),
       name: String(s.name || ''),
       address: String(s.address || ''),
@@ -67,62 +71,61 @@ const parseServiceBuildingsData = (payload: string): ServiceBuildingInfo[] => {
       district: String(s.district || 'City'),
       theme: String(s.theme || 'USA'),
       assetPack: String(s.assetPack || 'Base Game'),
+      assetPackIcon: String(s.assetPackIcon || ''),
       level: Number(s.level) || 0,
       capacity: Number(s.capacity) || 0,
       usage: Number(s.usage) || 0,
       efficiency: Number(s.efficiency) || 0,
+      workers: Number(s.workers) || 0,
+      workersMax: Number(s.workersMax) || 0,
+      detailInfo: String(s.detailInfo || ''),
       isSignature: !!s.isSignature,
-    } as ServiceBuildingInfo));
-  } catch {
+    } as ServiceBuildingInfo)) : [];
+  } catch (e) {
     return [];
   }
 };
 
-const parseServiceSummaries = (payload: string): ServiceSummary[] => {
-  if (!payload) return [];
+const parseServiceSummaries = (raw: string): ServiceSummary[] => {
+  if (!raw) return [];
   try {
-    const arr = JSON.parse(payload);
-    if (!Array.isArray(arr)) return [];
-    return arr as ServiceSummary[];
-  } catch {
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
     return [];
   }
+};
+
+const getServiceRowTooltip = (b: ServiceBuildingInfo, labels?: any) => {
+  const capLabel = labels?.cap || 'Capacity';
+  const useLabel = labels?.use || 'Usage';
+  const effLabel = labels?.eff || 'Efficiency';
+  return `${b.address || b.name}\nLevel: ${b.level > 0 ? b.level : 'N/A'}\n${capLabel}: ${b.capacity.toFixed(0)}\n${useLabel}: ${b.usage.toFixed(0)}\n${effLabel}: ${b.efficiency.toFixed(0)}%\nTheme/Pack: ${b.theme || 'Base'} / ${b.assetPack || 'Base'}`;
 };
 
 const focusEntityKey = (entityKey: string) => {
   try {
-    const parts = String(entityKey || '').split(',');
-    const entity = {
-      index: Number(parts[0]) || 0,
-      version: Number(parts[1]) || 0,
-    };
-    trigger('camera', 'focusEntity', entity);
-    trigger('selectedInfo', 'selectEntity', entity);
-  } catch {}
+    const parts = entityKey.split(',');
+    const idx = Number(parts[0]) || 0;
+    const ver = Number(parts[1]) || 0;
+    const entity = { index: idx, version: ver };
+    camera.focusEntity(entity);
+    selectedInfo.selectEntity(entity);
+  } catch (ex) {}
 };
 
-const getServiceRowTooltip = (b: ServiceBuildingInfo) => {
-  const loadPct = b.capacity > 0 ? Math.round((b.usage / b.capacity) * 100) : 0;
-  return [
-    `<b>${b.address || b.name}</b>`,
-    `<br/>Category: ${b.category || 'Unknown'}`,
-    `District: ${b.district || 'City'}`,
-    `Theme: ${b.theme || 'USA'} • Pack: ${b.assetPack || 'Base Game'}`,
-    `Level: ${b.level > 0 ? `Lv ${b.level}` : '-'}`,
-    `<br/><b>Capacity: ${b.capacity.toFixed(0)}</b>`,
-    `<b>Usage: ${b.usage.toFixed(0)} (${loadPct}%)</b>`,
-    `<b>Efficiency: ${b.efficiency.toFixed(0)}%</b>`,
-    `<br/>Entity: ${b.entityKey}`,
-    `<br/><i>Click row or GO to focus camera</i>`,
-  ].join('\n');
+const formatPackName = (name: string): string => {
+  if (!name || name === 'Base Game' || name === 'Custom' || name === 'DLC') return name;
+  if (name.includes(' ')) return name;
+  return name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
 };
 
 interface CycleFilterButtonProps {
   label: string;
   value: string;
   options: string[];
-  onChange: (value: string) => void;
-  displayValue?: (value: string) => string;
+  onChange: (val: string) => void;
+  displayValue?: (val: string) => string;
 }
 
 const CycleFilterButton: React.FC<CycleFilterButtonProps> = ({ label, value, options, onChange, displayValue }) => {
@@ -143,26 +146,33 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
    const summaries = useMemo(() => parseServiceSummaries(servicesBrowserData || ''), [servicesBrowserData]);
    const safeBuildings = Array.isArray(buildings) ? buildings : [];
    const [categoryFilter, setCategoryFilter] = useState('All');
-   const [districtFilter, setDistrictFilter] = useState('All');
    const [packFilter, setPackFilter] = useState('All');
-   const [themeFilter, setThemeFilter] = useState('All');
+   const [districtFilter, setDistrictFilter] = useState('All');
    const [loadFilter, setLoadFilter] = useState<'All' | 'Empty' | 'Underused' | 'Busy' | 'Full'>('All');
    const [searchText, setSearchText] = useState('');
    const [sortField, setSortField] = useState<SortField>('name');
    const [sortDir, setSortDir] = useState<SortDir>('asc');
    const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
+   const [isPaused, setIsPaused] = useState(false);
+   const [currentPage, setCurrentPage] = useState(0);
+   const SVC_PAGE_SIZE = 50;
+
+   // Reset page and unpause when any filter/sort changes
+   useEffect(() => {
+     setCurrentPage(0);
+     setExpandedEntity(null);
+     setIsPaused(false);
+   }, [categoryFilter, packFilter, districtFilter, loadFilter, searchText, sortField, sortDir]);
 
    const categories = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.category).filter(Boolean))).sort()], [safeBuildings]);
-   const districts = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.district).filter(Boolean))).sort()], [safeBuildings]);
    const packs = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.assetPack).filter(Boolean))).sort()], [safeBuildings]);
-   const themes = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.theme).filter(Boolean))).sort()], [safeBuildings]);
+   const uniqueDistricts = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.district || 'City').filter(Boolean))).sort()], [safeBuildings]);
 
    const filtered = useMemo(() => {
      let list = safeBuildings;
      if (categoryFilter !== 'All') list = list.filter((b) => b.category === categoryFilter);
-     if (districtFilter !== 'All') list = list.filter((b) => b.district === districtFilter);
      if (packFilter !== 'All') list = list.filter((b) => b.assetPack === packFilter);
-     if (themeFilter !== 'All') list = list.filter((b) => b.theme === themeFilter);
+     if (districtFilter !== 'All') list = list.filter((b) => (b.district || 'City').trim() === districtFilter.trim());
      if (loadFilter !== 'All') {
        list = list.filter((b) => {
          const load = b.capacity > 0 ? b.usage / b.capacity : 0;
@@ -185,8 +195,6 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
          case 'name': return dir * (a.name || '').localeCompare(b.name || '');
          case 'address': return dir * (a.address || '').localeCompare(b.address || '');
          case 'category': return dir * (a.category || '').localeCompare(b.category || '');
-         case 'district': return dir * (a.district || '').localeCompare(b.district || '');
-         case 'theme': return dir * (a.theme || '').localeCompare(b.theme || '');
          case 'assetPack': return dir * (a.assetPack || '').localeCompare(b.assetPack || '');
          case 'level': return dir * (a.level - b.level);
          case 'capacity': return dir * (a.capacity - b.capacity);
@@ -195,12 +203,11 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
          default: return 0;
        }
      });
-   }, [safeBuildings, categoryFilter, districtFilter, packFilter, themeFilter, loadFilter, searchText, sortField, sortDir]);
+   }, [safeBuildings, categoryFilter, packFilter, districtFilter, loadFilter, searchText, sortField, sortDir]);
 
-   // using native scrollbar
    const handleSort = (field: SortField) => {
      if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
-     else { setSortField(field); setSortDir(field === 'name' || field === 'address' || field === 'category' || field === 'district' || field === 'theme' || field === 'assetPack' ? 'asc' : 'desc'); }
+     else { setSortField(field); setSortDir(field === 'name' || field === 'address' || field === 'category' || field === 'assetPack' ? 'asc' : 'desc'); }
    };
    const sortIndicator = (field: SortField) => sortField === field ? (sortDir === 'asc' ? ' (asc)' : ' (desc)') : '';
 
@@ -229,17 +236,38 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
    return (
      <div className="svc-panel">
        <div className="svc-filters">
-         <div className="svc-category-tabs">
-           {categories.map((c) => <button key={c} className={`svc-category-tab${categoryFilter === c ? ' svc-category-active' : ''}`} onClick={() => setCategoryFilter(c)}>{c}</button>)}
-         </div>
+          <div className="svc-category-tabs">
+            {categories.map((c) => (
+              <button
+                key={c}
+                className={`svc-category-tab${categoryFilter === c ? ' svc-category-active' : ''}`}
+                onClick={() => setCategoryFilter(c)}
+              >
+                {c !== 'All' && <ServiceIcon category={c} size={16} style={{ marginRight: '6rem' }} />}
+                {c}
+              </button>
+            ))}
+          </div>
          <div className="svc-controls">
            <input className="svc-search" placeholder="Search service buildings..." value={searchText} onInput={(e: any) => setSearchText(e.target.value || '')} />
-           <div className="svc-filter-group">
-             <CycleFilterButton label="District" value={districtFilter} options={districts} onChange={setDistrictFilter} displayValue={(v) => v === 'All' ? 'All Districts' : v} />
-             <CycleFilterButton label="Theme" value={themeFilter} options={themes} onChange={setThemeFilter} displayValue={(v) => v === 'All' ? 'All Themes' : v} />
-             <CycleFilterButton label="Pack" value={packFilter} options={packs} onChange={setPackFilter} displayValue={(v) => v === 'All' ? 'All Packs' : v} />
-             <CycleFilterButton label="Load" value={loadFilter} options={['All', 'Empty', 'Underused', 'Busy', 'Full']} onChange={(v) => setLoadFilter(v as any)} displayValue={(v) => v === 'All' ? 'All Load' : v} />
-           </div>
+             <div className="svc-filter-group">
+                <CustomSelect
+                  label="Pack"
+                  value={packFilter}
+                  options={packs}
+                  onChange={setPackFilter}
+                  displayValue={(v) => v === 'All' ? 'All Packs' : formatPackName(v)}
+                  icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={safeBuildings.find(b => b.assetPack === v)?.assetPackIcon} size={24} />}
+                />
+                <CustomSelect
+                  label="District"
+                  value={districtFilter || 'All'}
+                  options={uniqueDistricts}
+                  onChange={setDistrictFilter}
+                  displayValue={(v) => v === 'All' ? 'All Districts' : v}
+                />
+                <CycleFilterButton label="Load" value={loadFilter} options={['All', 'Empty', 'Underused', 'Busy', 'Full']} onChange={(v) => setLoadFilter(v as any)} displayValue={(v) => v === 'All' ? 'All Load' : v} />
+             </div>
          </div>
        </div>
 
@@ -283,9 +311,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
          <div className="svc-table-header">
            <div className="svc-col-name svc-sortable" onClick={() => handleSort('name')}>Building{sortIndicator('name')}</div>
            {categoryFilter === 'All' && <div className="svc-col-category svc-sortable" onClick={() => handleSort('category')}>Category{sortIndicator('category')}</div>}
-           <div className="svc-col-theme svc-sortable" onClick={() => handleSort('theme')}><ThemeIcon theme="All" size={14} />{sortIndicator('theme')}</div>
-           <div className="svc-col-pack svc-sortable" onClick={() => handleSort('assetPack')}><PackIcon pack="All" size={14} />{sortIndicator('assetPack')}</div>
-           <div className="svc-col-district svc-sortable" onClick={() => handleSort('district')}>District{sortIndicator('district')}</div>
+           <div className="svc-col-pack svc-sortable" onClick={() => handleSort('assetPack')}>Pack{sortIndicator('assetPack')}</div>
            <div className="svc-col-level svc-sortable" onClick={() => handleSort('level')}>Lv{sortIndicator('level')}</div>
            <div className="svc-col-cap svc-sortable" onClick={() => handleSort('capacity')}>{serviceLabels.cap}{sortIndicator('capacity')}</div>
            <div className="svc-col-usage svc-sortable" onClick={() => handleSort('usage')}>{serviceLabels.use}{sortIndicator('usage')}</div>
@@ -293,20 +319,32 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
            <div className="svc-col-go">Go</div>
          </div>
          <div className="svc-table-scroll-wrap">
-           <div className="svc-table-body">
-             {filtered.slice(0, 400).map((b) => (
-               <React.Fragment key={b.entityKey}>
-                 <div className={`svc-table-row${expandedEntity === b.entityKey ? ' svc-row-expanded' : ''}`} onClick={() => setExpandedEntity(expandedEntity === b.entityKey ? null : b.entityKey)} title={getServiceRowTooltip(b)}>
-                   <div className="svc-col-name">
-                     <ServiceIcon category={b.category} />
-                     <ThemeIcon theme={b.theme} />
-                     <PackIcon pack={b.assetPack} />
-                     <span>{b.address || b.name}</span>
-                   </div>
+           <Scrollable vertical={true} className="svc-table-body" trackVisibility="scrollable">
+              {(() => {
+                const totalPages = Math.max(1, Math.ceil(filtered.length / SVC_PAGE_SIZE));
+                const safePage = Math.min(currentPage, totalPages - 1);
+                return filtered.slice(safePage * SVC_PAGE_SIZE, safePage * SVC_PAGE_SIZE + SVC_PAGE_SIZE);
+              })().map((b) => (
+                <React.Fragment key={b.entityKey}>
+                  <div className={`svc-table-row${expandedEntity === b.entityKey ? ' svc-row-expanded' : ''}`}
+                    onClick={() => {
+                      if (expandedEntity === b.entityKey) {
+                        setExpandedEntity(null);
+                        setIsPaused(false);
+                      } else {
+                        setExpandedEntity(b.entityKey);
+                        setIsPaused(true);
+                      }
+                    }}
+                    title={getServiceRowTooltip(b, serviceLabels)}>
+                    <div className="svc-col-name">
+                      <span className="svc-expand-arrow">{expandedEntity === b.entityKey ? '\u25BC' : '\u25B6'}</span>
+                      {b.isSignature && <span className="svc-signature-badge" title="Signature Building">★</span>}
+                      <ServiceIcon category={b.category} size={24} />
+                      <span>{b.address || b.name}</span>
+                    </div>
                    {categoryFilter === 'All' && <div className="svc-col-category">{b.category}</div>}
-                   <div className="svc-col-theme"><ThemeIcon theme={b.theme} size={18} /></div>
-                   <div className="svc-col-pack"><PackIcon pack={b.assetPack} size={18} /></div>
-                   <div className="svc-col-district">{b.district || 'City'}</div>
+                   <div className="svc-col-pack" style={{ display: 'flex', alignItems: 'center' }}><PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={24} /></div>
                    <div className="svc-col-level">{b.level > 0 ? `Lv ${b.level}` : '—'}</div>
                    <div className="svc-col-cap">{b.capacity.toFixed(0)}</div>
                    <div className="svc-col-usage">{b.usage.toFixed(0)}</div>
@@ -315,43 +353,80 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                      <button className="svc-go-btn" onClick={(e) => { e.stopPropagation(); focusEntityKey(b.entityKey); }}>GO</button>
                    </div>
                  </div>
-                 {expandedEntity === b.entityKey && (
-                   <div className="svc-row-details">
-                     <div className="svc-detail-group">
-                       <span className="svc-detail-label">Service Category</span>
-                       <span className="svc-detail-value">{b.category}</span>
-                     </div>
-                     <div className="svc-detail-group">
-                       <span className="svc-detail-label">Building Name</span>
-                       <span className="svc-detail-value">{b.name}</span>
-                     </div>
-                     <div className="svc-detail-group">
-                       <span className="svc-detail-label">District</span>
-                       <span className="svc-detail-value">{b.district}</span>
-                     </div>
-                     <div className="svc-detail-group">
-                       <span className="svc-detail-label">{serviceLabels.cap}</span>
-                       <span className="svc-detail-value">{b.capacity.toFixed(0)}</span>
-                     </div>
-                     <div className="svc-detail-group">
-                       <span className="svc-detail-label">{serviceLabels.use}</span>
-                       <span className="svc-detail-value">{b.usage.toFixed(0)} ({b.capacity > 0 ? Math.round(b.usage / b.capacity * 100) : 0}%)</span>
-                     </div>
-                     <div className="svc-detail-group">
-                       <span className="svc-detail-label">Asset Level</span>
-                       <span className="svc-detail-value">{b.level > 0 ? `Level ${b.level}` : 'N/A'}</span>
-                     </div>
-                     <div className="svc-detail-group">
-                       <span className="svc-detail-label">Theme / Pack</span>
-                       <span className="svc-detail-value">{b.theme} / {b.assetPack}</span>
-                     </div>
-                   </div>
-                 )}
+                 {expandedEntity === b.entityKey && (() => {
+                    // Parse detailInfo "Workers:2/4;Students:10/20;Maintenance:80%" into key/value pairs
+                    const details: { label: string; value: string }[] = [];
+                    if (b.detailInfo) {
+                      b.detailInfo.split(';').forEach(seg => {
+                        const col = seg.indexOf(':');
+                        if (col > 0) details.push({ label: seg.slice(0, col), value: seg.slice(col + 1) });
+                      });
+                    }
+                    return (
+                      <div className="svc-row-details">
+                        <div className="svc-entity-id-header">
+                          <span className="svc-entity-id-label">Entity ID:</span>
+                          <span className="svc-entity-id-badge">{b.entityKey}</span>
+                        </div>
+                        <div className="svc-detail-grid">
+                          <div><span className="svc-detail-label">Category</span><span className="svc-detail-value">{b.category}</span></div>
+                          <div><span className="svc-detail-label">Building</span><span className="svc-detail-value">{b.name}</span></div>
+                          <div><span className="svc-detail-label">District</span><span className="svc-detail-value">{b.district}</span></div>
+                          <div><span className="svc-detail-label">Theme / Pack</span><span className="svc-detail-value" style={{ display: 'flex', alignItems: 'center' }}>{b.theme} / <PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={20} style={{ marginLeft: '6rem', marginRight: '4rem' }} />{b.assetPack}</span></div>
+                          {b.level > 0 && <div><span className="svc-detail-label">Level</span><span className="svc-detail-value">Lv {b.level}</span></div>}
+                          {b.capacity > 0 && <div><span className="svc-detail-label">{serviceLabels.cap}</span><span className="svc-detail-value">{b.capacity.toFixed(0)}</span></div>}
+                          {b.usage > 0 && <div><span className="svc-detail-label">{serviceLabels.use}</span><span className="svc-detail-value">{b.usage.toFixed(0)}{b.capacity > 0 ? ` (${Math.round(b.usage / b.capacity * 100)}%)` : ''}</span></div>}
+                          <div><span className="svc-detail-label">Efficiency</span><span className="svc-detail-value" style={{ color: getSafeColor(b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#e88c3a' : '#e05050') }}>{b.efficiency.toFixed(0)}%</span></div>
+                          {details.filter(d => d.label !== 'EffFactors').map((d, i) => (
+                            <div key={`det-${i}`}><span className="svc-detail-label">{d.label}</span><span className="svc-detail-value">{d.value}</span></div>
+                          ))}
+                          {details.filter(d => d.label === 'EffFactors').map((d, i) => (
+                            <div key={`eff-${i}`} style={{ width: '400rem' }}>
+                              <span className="svc-detail-label">Eff. Factors</span>
+                              <span className="svc-detail-value">
+                                {d.value.split('|').map((f, fi) => {
+                                  const pct = parseInt(f, 10);
+                                  const col = pct >= 100 ? '#8bdb46' : pct >= 60 ? '#e88c3a' : '#e05050';
+                                  return <span key={fi} style={{ color: getSafeColor(col), marginRight: '8rem', fontWeight: 700 }}>{f}</span>;
+                                })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                </React.Fragment>
              ))}
              {filtered.length === 0 && <div className="svc-panel-empty">No buildings match filter.</div>}
-          </div>
-        </div>
+            </Scrollable>
+            {/* Pagination controls */}
+            {filtered.length > SVC_PAGE_SIZE && (() => {
+              const totalPages = Math.max(1, Math.ceil(filtered.length / SVC_PAGE_SIZE));
+              const safePage = Math.min(currentPage, totalPages - 1);
+              return (
+                <div className="panel-pagination">
+                  <button
+                    className="panel-pagination-btn"
+                    onClick={() => { setCurrentPage((p) => Math.max(0, p - 1)); setExpandedEntity(null); setIsPaused(false); }}
+                    disabled={safePage === 0}
+                  >
+                    ◀ Prev
+                  </button>
+                  <span className="panel-pagination-label">
+                    Page{' '}{safePage + 1}{' '}of{' '}{totalPages}{isPaused ? ' ⏸' : ''}
+                  </span>
+                  <button
+                    className="panel-pagination-btn"
+                    onClick={() => { setCurrentPage((p) => Math.min(totalPages - 1, p + 1)); setExpandedEntity(null); setIsPaused(false); }}
+                    disabled={safePage >= totalPages - 1}
+                  >
+                    Next ▶
+                  </button>
+                </div>
+              );
+            })()}
+         </div>
       </div>
     </div>
   );

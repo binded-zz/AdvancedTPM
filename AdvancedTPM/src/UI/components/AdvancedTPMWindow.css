@@ -38,32 +38,6 @@
 
 /* Visible scrollbar styling for resources/advisor pages */
 
-.adv-table-lines { flex:1 0 0; display:flex; overflow:hidden; }
-
-/* Overlay scrollbar track positioned in the table wrapper; shown only when needed */
-.adv-scrollbar-track {
-  position: absolute;
-  right: 8rem;
-  width: 12rem;
-  top: 0;
-  height: 100%;
-  display: none;
-  z-index: 30;
-}
-.adv-scrollbar-thumb {
-  position: absolute;
-  right: 0.5rem;
-  width: 8rem;
-  background: rgba(80,120,160,0.85);
-  border-radius: 6rem;
-  box-shadow: 0 2rem 6rem rgba(0,0,0,0.5);
-  cursor: grab;
-  z-index: 31;
-}
-.adv-table-lines-name { flex:1; border-top:2rem solid rgba(255,255,255,0.1); }
-.adv-table-lines-rate { width:420rem; border-left:2rem solid rgba(255,255,255,0.1); border-top:2rem solid rgba(255,255,255,0.1); }
-.adv-table-lines-production { width:240rem; border-left:2rem solid rgba(255,255,255,0.1); border-top:2rem solid rgba(255,255,255,0.1); }
-.adv-table-lines-income { width:140rem; border-left:2rem solid rgba(255,255,255,0.1); border-top:2rem solid rgba(255,255,255,0.1); }
 .adv-category-group { display:flex; flex-direction:column; width:100%; position:relative; }
 .adv-category-group-border { border-top:2rem solid rgba(255,255,255,0.1); }
 .adv-category-header { display:flex; align-items:center; cursor:pointer; transition:background-color 0.15s; min-height:56rem; }
@@ -202,23 +176,65 @@
 .sig-filter-pill:hover { background:rgba(255,255,255,0.12); }
 .sig-filter-pill-active { background:rgba(80,160,220,0.3); border-color:rgba(80,160,220,0.7); color:#80d0ff; }
 .sig-count { margin-left:auto; font-size:12rem; color:rgba(255,255,255,0.6); padding-left: 12rem; border-left: 1rem solid rgba(255,255,255,0.1); }
-.sig-table-header { display:flex; align-items:center; padding:5rem 10rem; font-size:11rem; color:rgba(255,255,255,0.6); text-transform:uppercase; letter-spacing:0.4px; border-bottom:1rem solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.15); }
+.sig-table-header { display:flex; align-items:center; padding:5rem 24rem 5rem 10rem; font-size:11rem; color:rgba(255,255,255,0.6); text-transform:uppercase; letter-spacing:0.4px; border-bottom:1rem solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.15); }
 .sig-col-hdr { display:flex; align-items:center; }
 .sig-rows-wrap { position:relative; flex:1; min-height:0; overflow:hidden; }
 .sig-rows-scroll { flex:1; min-height:0; height:100%; overflow-y:scroll; padding-right:14rem; }
-.sig-scrollbar-track { position:absolute; right:2rem; top:0; width:8rem; background:rgba(12,18,24,0.55); border-radius:4rem; }
-.sig-scrollbar-thumb { position:absolute; left:1rem; width:6rem; background:rgba(80,140,200,0.75); border-radius:3rem; cursor:pointer; min-height:16rem; }
-.sig-row { display:flex; align-items:center; padding:5rem 10rem; font-size:13rem; border-bottom:1rem solid rgba(255,255,255,0.04); cursor:pointer; }
+
+.sig-row { display:flex; align-items:center; padding:5rem 10rem; font-size:12rem; border-bottom:1rem solid rgba(255,255,255,0.04); cursor:pointer; }
 .sig-row:hover { background:rgba(255,255,255,0.04); }
 .sig-col-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:rgba(255,255,255,0.92); display:flex; align-items:center; }
-.sig-star { color:#f0c040; margin-right:5rem; font-size:12rem; flex-shrink:0; }
+.sig-star { color:#f0c040; margin-right:5rem; font-size:18rem; flex-shrink:0; }
 .sig-type-badge { font-size:10rem; padding:2rem 6rem; border-radius:3rem; font-weight:600; display:flex; align-items:center; }
 .sig-type-icon { width:14rem; height:14rem; margin-right:6rem; opacity:0.95; }
 .sig-type-commercial { background:rgba(80,184,233,0.22); color:#80d0ff; }
-.sig-type-residential { background:rgba(80,140,220,0.25); color:#80b8f0; }
+.sig-type-residential { background: rgba(139, 219, 70, 0.2); color: #8bdb46; }
 .sig-type-industrial { background:rgba(232,140,58,0.22); color:#f0ba74; }
 .sig-type-office { background:rgba(160,100,220,0.22); color:#c4a4f0; }
 .sig-type-storage { background:rgba(120,130,150,0.22); color:#c6d4ea; }
+.sig-type-services { background:rgba(80,184,233,0.22); color:#80d0ff; }
+
+.sig-row-active {
+  border-left: 2rem solid #50b8e9;
+  background: rgba(80,184,233,0.08) !important;
+}
+.sig-row-active-res {
+  border-left: 2rem solid #8bdb46;
+  background: rgba(139, 219, 70, 0.08) !important;
+}
+
+.sig-district-select {
+  background: rgba(255,255,255,0.08);
+  border: 1rem solid rgba(124,152,189,0.3);
+  color: rgba(233,243,255,0.85);
+  font-size: 11rem;
+  padding: 3rem 8rem;
+  border-radius: 4rem;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s;
+}
+.sig-district-select:hover {
+  background: rgba(80,184,233,0.15);
+  border-color: rgba(80,184,233,0.5);
+  color: #fff;
+}
+.sig-district-select option {
+  background: #121822;
+  color: #fff;
+}
+
+.sig-expand-arrow {
+  display: inline-block;
+  width: 12rem;
+  margin-right: 4rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 8rem;
+  transition: transform 0.2s ease, color 0.15s;
+}
+.sig-row:hover .sig-expand-arrow {
+  color: #fff;
+}
 
 /* Cycle Buttons (replacing unstable selects) */
 .svc-cycle-btn, .cb-cycle-btn { 

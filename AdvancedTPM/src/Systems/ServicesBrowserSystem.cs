@@ -1,6 +1,8 @@
 using Colossal.UI.Binding;
 using Game.Buildings;
+using Game.Citizens;
 using Game.City;
+using Game.Companies;
 using Game.Prefabs;
 using Game.Simulation;
 using Game.UI;
@@ -8,7 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Reflection;
+using System.Text;
 using Unity.Collections;
 using Unity.Entities;
 
@@ -19,7 +21,7 @@ namespace AdvancedTPM
         public static bool IsSystemActive = false;
         private ValueBinding<string> _servicesBrowserData;
         private ValueBinding<string> _servicesBuildingsData;
-        private HashSet<int> _signaturePrefabIndices = new HashSet<int>();
+        // Caching signature prefabs via unstable reflection is disabled.
         private CitySystem _citySystem;
         private NameSystem _nameSystem;
         private PrefabSystem _prefabSystem;
@@ -27,6 +29,7 @@ namespace AdvancedTPM
         private EntityQuery _serviceBuildingQuery;
         private float m_UpdateTimer = 0f;
         private bool m_WasPanelOpen = false;
+        private string m_LastViewMode = "";
         private string m_LastServicesBrowserData = "[]";
         private string m_LastServicesBuildingsData = "[]";
 
@@ -51,6 +54,7 @@ namespace AdvancedTPM
                     ComponentType.ReadOnly<Game.Buildings.ResidentialProperty>(),
                     ComponentType.ReadOnly<Game.Companies.IndustrialCompany>(),
                     ComponentType.ReadOnly<Game.Companies.CommercialCompany>(),
+                    ComponentType.ReadOnly<Game.Buildings.ExtractorFacility>(),
                 }
             });
 
@@ -69,14 +73,19 @@ namespace AdvancedTPM
             }
             // ── Global UI Sleep Gate ──────────────────────────────────────────────────
             // Building queries and JSON serialization serve no purpose while the panel is hidden.
-            if (_taxingProductionUISystem == null || !_taxingProductionUISystem.IsPanelOpen || _taxingProductionUISystem.ActiveViewMode != "services")
+            if (_taxingProductionUISystem == null || !_taxingProductionUISystem.IsPanelOpen || (_taxingProductionUISystem.ActiveViewMode != "services" && _taxingProductionUISystem.ActiveViewMode != "signature"))
             {
                 m_WasPanelOpen = false;
+                m_LastViewMode = "";
                 this.Dependency = Dependency;
                 return;
             }
 
-            bool justOpened = !m_WasPanelOpen;
+            string currentViewMode = _taxingProductionUISystem.ActiveViewMode;
+            bool viewModeChanged = (currentViewMode != m_LastViewMode);
+            m_LastViewMode = currentViewMode;
+
+            bool justOpened = !m_WasPanelOpen || viewModeChanged;
             m_WasPanelOpen = true;
 
             if (m_FrameCounter++ % 600 == 0) Mod.log.Info("ServicesBrowserSystem Heartbeat");
@@ -95,11 +104,18 @@ namespace AdvancedTPM
             m_UpdateTimer = 0f;
 
             Mod.log.Info("ServicesBrowserSystem OnUpdate triggered");
-            try { UpdateServicesData(); } catch (Exception ex) { try { Mod.log.Warn($"ServicesBrowserSystem UpdateServicesData Error: {ex.Message}"); } catch { } }
-            try { if (_signaturePrefabIndices.Count == 0) RefreshSignatureCache(); UpdateServicesBuildingsData(); } catch (Exception ex) { try { Mod.log.Warn($"ServicesBrowserSystem UpdateServicesBuildingsData Error: {ex.Message}"); } catch { } }
+            if (currentViewMode == "signature")
+            {
+                try { UpdateServicesBuildingsData(justOpened); } catch (Exception ex) { try { Mod.log.Warn($"ServicesBrowserSystem UpdateServicesBuildingsData Error: {ex.Message}"); } catch { } }
+            }
+            else
+            {
+                try { UpdateServicesData(justOpened); } catch (Exception ex) { try { Mod.log.Warn($"ServicesBrowserSystem UpdateServicesData Error: {ex.Message}"); } catch { } }
+                try { UpdateServicesBuildingsData(justOpened); } catch (Exception ex) { try { Mod.log.Warn($"ServicesBrowserSystem UpdateServicesBuildingsData Error: {ex.Message}"); } catch { } }
+            }
         }
 
-        private void UpdateServicesBuildingsData()
+        private void UpdateServicesBuildingsData(bool forceUpdate = false)
         {
             if (_servicesBuildingsData == null) return;
             var em = EntityManager;
@@ -115,8 +131,24 @@ namespace AdvancedTPM
                         var prefabRef = em.GetComponentData<PrefabRef>(ent);
                         var prefab = prefabRef.m_Prefab;
 
-                        // Exclude zoned buildings (residential, commercial, industrial, office)
-                        if (em.HasComponent<Game.Prefabs.BuildingPropertyData>(prefab)) continue;
+                        bool isSignature = false;
+                        bool isLandmark = false;
+                        try
+                        {
+                            isSignature = em.HasComponent<Game.Buildings.Signature>(ent) || 
+                                          em.HasComponent<Game.Objects.UniqueObject>(ent) || 
+                                          em.HasComponent<Game.Prefabs.SignatureBuildingData>(prefab) || 
+                                          em.HasComponent<Game.Prefabs.UniqueObjectData>(prefab);
+                            isLandmark = em.HasComponent<Game.Objects.UniqueObject>(ent) || 
+                                         em.HasComponent<Game.Prefabs.UniqueObjectData>(prefab);
+                        }
+                        catch { }
+
+                        // Exclude zoned buildings (residential, commercial, industrial, office) unless it is a signature or unique building
+                        if (em.HasComponent<Game.Prefabs.BuildingPropertyData>(prefab) && !isSignature) continue;
+
+                        // Exclude raw industrial / fishing buildings — these belong in the Businesses tab
+                        if (em.HasComponent<Game.Prefabs.IndustrialProcessData>(prefab)) continue;
 
                         string name = "";
                         try { if (_prefabSystem != null) name = _prefabSystem.GetPrefabName(prefab); } catch { }
@@ -135,7 +167,7 @@ namespace AdvancedTPM
                         else if (lowerName.Contains("fire") || lowerName.Contains("rescue") || lowerName.Contains("emergency")) category = "Fire & Rescue";
                         else if (lowerName.Contains("police") || lowerName.Contains("prison") || lowerName.Contains("administration") || lowerName.Contains("jail") || lowerName.Contains("court")) category = "Police & Administration";
                         else if (lowerName.Contains("school") || lowerName.Contains("college") || lowerName.Contains("university") || lowerName.Contains("education") || lowerName.Contains("library")) category = "Education & Research";
-                        else if (lowerName.Contains("transport") || lowerName.Contains("bus") || lowerName.Contains("train") || lowerName.Contains("metro") || lowerName.Contains("tram") || lowerName.Contains("airport") || lowerName.Contains("harbor") || lowerName.Contains("depot")) category = "Transportation";
+                        else if (lowerName.Contains("transport") || lowerName.Contains("bus") || lowerName.Contains("train") || lowerName.Contains("metro") || lowerName.Contains("tram") || lowerName.Contains("airport") || lowerName.Contains("depot")) category = "Transportation";
                         else if (lowerName.Contains("park") || lowerName.Contains("plaza") || lowerName.Contains("playground") || lowerName.Contains("recreation") || lowerName.Contains("stadium")) category = "Parks & Recreation";
                         else if (lowerName.Contains("post") || lowerName.Contains("telecom") || lowerName.Contains("radio") || lowerName.Contains("server") || lowerName.Contains("tower")) category = "Communications";
                         else if (lowerName.Contains("welfare") || lowerName.Contains("homeless") || lowerName.Contains("center")) category = "Welfare";
@@ -172,8 +204,12 @@ namespace AdvancedTPM
 
                         string theme = "USA";
                         string assetPack = "Base Game";
+                        string assetPackIcon = "";
                         int capacity = 0;
                         int usage = 0;
+                        int workers = 0;
+                        int workersMax = 0;
+                        var detailParts = new List<string>();
 
                         if (_prefabSystem != null)
                         {
@@ -183,19 +219,124 @@ namespace AdvancedTPM
                                 if (pb != null)
                                 {
                                     string pn = pb.name ?? "";
-                                    if (pn.Contains("European")) theme = "European";
-                                    else if (pn.Contains("NorthAmerican")) theme = "North American";
+                                    if (pn.Contains("European") || pn.Contains("EU_") || pn.StartsWith("EU_")) theme = "European";
+                                    else if (pn.Contains("NorthAmerican") || pn.Contains("NA_") || pn.StartsWith("NA_") || pn.Contains("USA_") || pn.StartsWith("USA_")) theme = "North American";
                                     
                                     if (pb.TryGet<ContentPrerequisite>(out var cp) && cp.m_ContentPrerequisite.TryGet<DlcRequirement>(out var dlc))
                                     {
-                                        try { assetPack = Colossal.PSI.Common.PlatformManager.instance.GetDlcName(dlc.m_Dlc) ?? "DLC"; }
-                                        catch { assetPack = "DLC"; }
+                                        try
+                                        {
+                                            string dlcName = Colossal.PSI.Common.PlatformManager.instance.GetDlcName(dlc.m_Dlc) ?? "DLC";
+                                            assetPack = dlcName;
+                                            assetPackIcon = $"Media/DLC/{System.Text.RegularExpressions.Regex.Replace(dlcName, @"[^a-zA-Z0-9]", "")}.svg";
+                                        }
+                                        catch { assetPack = "DLC"; assetPackIcon = ""; }
                                     }
-                                    else if (pn.StartsWith("DLC") || pn.Contains("_DLC")) assetPack = "DLC";
+                                    else
+                                    {
+                                        var assetPackItem = pb.GetComponent<AssetPackItem>();
+                                        if (assetPackItem != null && assetPackItem.m_Packs != null && assetPackItem.m_Packs.Length > 0)
+                                        {
+                                            var pack = assetPackItem.m_Packs[0];
+                                            if (pack != null)
+                                            {
+                                                assetPack = pack.name ?? "Custom";
+                                                try { assetPackIcon = ImageSystem.GetThumbnail(pack) ?? ""; } catch { assetPackIcon = ""; }
+                                            }
+                                        }
+                                        else if (pn.StartsWith("DLC") || pn.Contains("_DLC"))
+                                        {
+                                            assetPack = "DLC";
+                                        }
+                                    }
                                 }
                             }
                             catch { }
                         }
+
+                        // ── Workers (Employee buffer + WorkProvider) ─────────────────────────────
+                        try
+                        {
+                            if (em.TryGetBuffer<Employee>(ent, true, out var empBuf))
+                                workers = empBuf.Length;
+                            if (em.TryGetComponent<WorkProvider>(ent, out var wp))
+                                workersMax = wp.m_MaxWorkers;
+                            if (workersMax > 0)
+                                detailParts.Add($"Workers:{workers}/{workersMax}");
+                        }
+                        catch { }
+
+                        // ── School: students / capacity (SchoolData + Student buffer) ───────────
+                        try
+                        {
+                            if (em.TryGetComponent<SchoolData>(prefab, out var sd))
+                            {
+                                capacity = sd.m_StudentCapacity;
+                                if (em.TryGetBuffer<Student>(ent, true, out var stuBuf))
+                                    usage = stuBuf.Length;
+                                detailParts.Add($"Students:{usage}/{capacity}");
+                            }
+                        }
+                        catch { }
+
+                        // ── Hospital: patient capacity (Game.Buildings.Hospital) ─────────────────
+                        try
+                        {
+                            if (em.TryGetComponent<Game.Buildings.Hospital>(ent, out var hosp))
+                            {
+                                if (capacity == 0) capacity = hosp.m_PatientCapacity;
+                                if (usage == 0) usage = hosp.m_Patients;
+                                detailParts.Add($"Patients:{hosp.m_Patients}/{hosp.m_PatientCapacity}");
+                            }
+                        }
+                        catch { }
+
+                        // ── Park maintenance ────────────────────────────────────────────────────
+                        try
+                        {
+                            if (em.TryGetComponent<Game.Buildings.Park>(ent, out var park) &&
+                                em.TryGetComponent<ParkData>(prefab, out var parkData) && parkData.m_MaintenancePool > 0)
+                            {
+                                int maint = (int)Math.Round((park.m_Maintenance / (float)parkData.m_MaintenancePool) * 100f);
+                                detailParts.Add($"Maintenance:{maint}%");
+                            }
+                        }
+                        catch { }
+
+                        // ── Garbage facility throughput ──────────────────────────────────────────
+                        try
+                        {
+                            if (em.TryGetComponent<GarbageFacility>(ent, out var gf))
+                            {
+                                if (capacity == 0) capacity = gf.m_GarbageCapacity;
+                                if (usage == 0) usage = gf.m_CurrentGarbage;
+                            }
+                        }
+                        catch { }
+
+                        // ── Efficiency breakdown (same as ExtendedTooltip EfficiencyTooltipBuilder) ──
+                        try
+                        {
+                            if (em.TryGetBuffer<Game.Buildings.Efficiency>(ent, true, out var effBuf))
+                            {
+                                float combined = 1f;
+                                var factors = new List<string>();
+                                for (int fi = 0; fi < effBuf.Length; fi++)
+                                {
+                                    if (effBuf[fi].m_Efficiency > 0)
+                                    {
+                                        combined *= effBuf[fi].m_Efficiency;
+                                        // Include factor name if it has a type field
+                                        string ftype = effBuf[fi].m_Efficiency < 1f ? "low" : "ok";
+                                        factors.Add($"{(int)Math.Round(effBuf[fi].m_Efficiency * 100f)}%");
+                                    }
+                                }
+                                efficiency = combined * 100f;
+                                if (factors.Count > 0 && factors.Count <= 4)
+                                    detailParts.Add($"EffFactors:{string.Join("|", factors)}");
+                            }
+                        }
+                        catch { }
 
                         // JSON escape strings
                         name = (name ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
@@ -203,16 +344,11 @@ namespace AdvancedTPM
                         districtName = (districtName ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
                         category = (category ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
 
-                        bool isSignature = false;
-                        try
-                        {
-                            if (_signaturePrefabIndices.Contains(prefab.Index)) isSignature = true;
-                        }
-                        catch { }
-
+                        string escapedIcon = (assetPackIcon ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
+                        string detailInfo = string.Join(";", detailParts).Replace("\\", "\\\\").Replace("\"", "\\\"");
                         list.Add(string.Format(CultureInfo.InvariantCulture,
-                            "{{\"entityKey\":\"{0},{1}\",\"name\":\"{2}\",\"address\":\"{3}\",\"district\":\"{4}\",\"category\":\"{5}\",\"theme\":\"{6}\",\"assetPack\":\"{7}\",\"level\":{8},\"efficiency\":{9:0.##},\"capacity\":{10},\"usage\":{11},\"isSignature\":{12}}}",
-                            ent.Index, ent.Version, name, address, districtName, category, theme, assetPack, level, efficiency, capacity, usage, isSignature ? "true" : "false"));
+                            "{{\"entityKey\":\"{0},{1}\",\"name\":\"{2}\",\"address\":\"{3}\",\"district\":\"{4}\",\"category\":\"{5}\",\"theme\":\"{6}\",\"assetPack\":\"{7}\",\"assetPackIcon\":\"{8}\",\"level\":{9},\"efficiency\":{10:0.##},\"capacity\":{11},\"usage\":{12},\"workers\":{13},\"workersMax\":{14},\"detailInfo\":\"{15}\",\"isSignature\":{16},\"isLandmark\":{17}}}",
+                            ent.Index, ent.Version, name, address, districtName, category, theme, assetPack, escapedIcon, level, efficiency, capacity, usage, workers, workersMax, detailInfo, isSignature ? "true" : "false", isLandmark ? "true" : "false"));
                         
                         if (list.Count >= 1000) break; // Safety limit
                     }
@@ -222,7 +358,7 @@ namespace AdvancedTPM
             finally { entities.Dispose(); }
 
             var payload = "[" + string.Join(",", list) + "]";
-            if (payload != m_LastServicesBuildingsData)
+            if (payload != m_LastServicesBuildingsData || forceUpdate)
             {
                 _servicesBuildingsData.Update(payload);
                 m_LastServicesBuildingsData = payload;
@@ -235,7 +371,7 @@ namespace AdvancedTPM
             // Neutralized to prevent native crashes.
         }
 
-        private void UpdateServicesData()
+        private void UpdateServicesData(bool forceUpdate = false)
         {
             if (_servicesBrowserData == null || _citySystem == null) return;
             var em = EntityManager;
@@ -277,7 +413,7 @@ namespace AdvancedTPM
             var list = map.Values.OrderBy(v => v.ServiceId).ToList();
             if (list.Count == 0) return;
             var payload = "[" + string.Join(",", list.Select(i => i.ToJson(serviceEnumType))) + "]";
-            if (_servicesBrowserData != null && payload != m_LastServicesBrowserData)
+            if (_servicesBrowserData != null && (payload != m_LastServicesBrowserData || forceUpdate))
             {
                 _servicesBrowserData.Update(payload);
                 m_LastServicesBrowserData = payload;

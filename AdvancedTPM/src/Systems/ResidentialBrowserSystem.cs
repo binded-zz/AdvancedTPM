@@ -27,12 +27,11 @@ namespace AdvancedTPM
         private NameSystem _nameSystem;
         private PrefabSystem _prefabSystem;
         private TaxingProductionUISystem _taxingProductionUISystem;
-        private Game.UI.InGame.SignatureBuildingUISystem _signatureSystem = null;
-        private FieldInfo _signatureQueryField = null;
         private readonly HashSet<int> _signaturePrefabIndices = new HashSet<int>();
         private EntityQuery _residentialBuildingQuery;
         private float m_UpdateTimer = 0f;
         private bool m_WasPanelOpen = false;
+        private string m_LastViewMode = "";
         private string m_LastResidentialBrowserData = "{}";
         private string m_LastResidentialBuildingsData = "[]";
         private string m_LastResidentialSignatureBuildingsData = "[]";
@@ -47,18 +46,7 @@ namespace AdvancedTPM
             try { _nameSystem = World.GetOrCreateSystemManaged<NameSystem>(); } catch { }
             try { _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>(); } catch { }
             try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch { }
-            // CRITICAL: Reflection-based signature query is unstable.
-            /*
-            try
-            {
-                _signatureSystem = World.GetOrCreateSystemManaged<Game.UI.InGame.SignatureBuildingUISystem>();
-                if (_signatureSystem != null)
-                {
-                    _signatureQueryField = _signatureSystem.GetType().GetField("m_UnlockedSignatureBuildingQuery", BindingFlags.NonPublic | BindingFlags.Instance);
-                }
-            }
-            catch { }
-            */
+
 
             // Query residential buildings: any building entity with a ResidentialProperty tag/component
             try
@@ -90,14 +78,19 @@ namespace AdvancedTPM
             }
             // ── Global UI Sleep Gate ──────────────────────────────────────────────────
             // Building queries and JSON serialization serve no purpose while the panel is hidden.
-            if (_taxingProductionUISystem == null || !_taxingProductionUISystem.IsPanelOpen || _taxingProductionUISystem.ActiveViewMode != "residential")
+            if (_taxingProductionUISystem == null || !_taxingProductionUISystem.IsPanelOpen || (_taxingProductionUISystem.ActiveViewMode != "residential" && _taxingProductionUISystem.ActiveViewMode != "signature"))
             {
                 m_WasPanelOpen = false;
+                m_LastViewMode = "";
                 this.Dependency = Dependency;
                 return;
             }
 
-            bool justOpened = !m_WasPanelOpen;
+            string currentViewMode = _taxingProductionUISystem.ActiveViewMode;
+            bool viewModeChanged = (currentViewMode != m_LastViewMode);
+            m_LastViewMode = currentViewMode;
+
+            bool justOpened = !m_WasPanelOpen || viewModeChanged;
             m_WasPanelOpen = true;
 
             if (m_FrameCounter++ % 600 == 0 && Mod.log != null) Mod.log?.Info("ResidentialBrowserSystem Heartbeat");
@@ -116,14 +109,18 @@ namespace AdvancedTPM
             m_UpdateTimer = 0f;
             
             if (Mod.log != null) Mod.log?.Info("ResidentialBrowserSystem OnUpdate triggered");
-            try
+            
+            if (currentViewMode == "signature")
             {
-                UpdateResidentialData();
+                try { UpdateSignatureResidentialBuildings(justOpened); } catch (Exception ex) { try { Mod.log?.Warn($"ResidentialBrowserSystem UpdateSignatureResidentialBuildings Error: {ex.Message}"); } catch { } }
             }
-            catch (Exception ex) { Mod.log?.Warn($"ResidentialBrowserSystem UpdateResidentialData Error: {ex.Message}"); }
+            else
+            {
+                try { UpdateResidentialData(justOpened); } catch (Exception ex) { try { Mod.log?.Warn($"ResidentialBrowserSystem UpdateResidentialData Error: {ex.Message}"); } catch { } }
+            }
         }
 
-        private void UpdateResidentialData()
+        private void UpdateResidentialData(bool forceUpdate = false)
         {
             if (_residentialBrowserData == null) return;
 
@@ -186,7 +183,7 @@ namespace AdvancedTPM
                 avgHappiness, unemploymentRate,
                 homelessHouseholds, movedInHouseholds);
 
-            if (payload != m_LastResidentialBrowserData)
+            if (payload != m_LastResidentialBrowserData || forceUpdate)
             {
                 _residentialBrowserData.Update(payload);
                 m_LastResidentialBrowserData = payload;
@@ -194,11 +191,11 @@ namespace AdvancedTPM
             try { Mod.log?.Info($"ResidentialBrowserSystem: summary payload len={payload?.Length ?? 0} totalUnits={lowTotal+medTotal+highTotal} occupied={lowOccupied+medOccupied+highOccupied}"); } catch { }
 
             // Per-building data: entityKey|address|density|level|occupied|capacity|theme|assetPack|isSignature
-            UpdatePerBuildingData();
-            UpdateSignatureResidentialBuildings();
+            UpdatePerBuildingData(forceUpdate);
+            UpdateSignatureResidentialBuildings(forceUpdate);
         }
 
-        private void UpdatePerBuildingData()
+        private void UpdatePerBuildingData(bool forceUpdate = false)
         {
             if (_residentialBuildingsData == null || _residentialBuildingQuery == null) return;
             if (_residentialBuildingQuery.IsEmptyIgnoreFilter) { _residentialBuildingsData.Update(""); return; }
@@ -211,7 +208,7 @@ namespace AdvancedTPM
             var entities = _residentialBuildingQuery.ToEntityArray(Allocator.Temp);
             try
             {
-                for (int i = 0; i < entities.Length && parts.Count < 500; i++)
+                for (int i = 0; i < entities.Length && parts.Count < 150; i++)
                 {
                     var ent = entities[i];
                     try
@@ -230,6 +227,7 @@ namespace AdvancedTPM
                         string density = "Residential";
                         string theme = "Unknown";
                         string assetPack = "Base Game";
+                        string assetPackIcon = "";
                         bool isSignature = false;
                         try
                         {
@@ -239,7 +237,10 @@ namespace AdvancedTPM
                                 var prefab = pr.m_Prefab;
 
                                 // Check if signature building
-                                isSignature = _signaturePrefabIndices.Contains(prefab.Index);
+                                isSignature = em.HasComponent<Game.Buildings.Signature>(ent) || 
+                                              em.HasComponent<Game.Objects.UniqueObject>(ent) || 
+                                              em.HasComponent<Game.Prefabs.SignatureBuildingData>(prefab) || 
+                                              em.HasComponent<Game.Prefabs.UniqueObjectData>(prefab);
 
                                 if (em.HasComponent<BuildingPropertyData>(prefab))
                                 {
@@ -253,7 +254,7 @@ namespace AdvancedTPM
                                 }
 
                                 // Extract theme and asset pack
-                                ExtractThemeAndAssetPack(em, prefab, out theme, out assetPack);
+                                ExtractThemeAndAssetPack(em, prefab, out theme, out assetPack, out assetPackIcon);
                             }
                         }
                         catch { }
@@ -293,10 +294,11 @@ namespace AdvancedTPM
                         // Clean pipe and semicolon from theme/assetPack to prevent parsing issues
                         theme = (theme ?? "Unknown").Replace("|", "-").Replace(";", "-");
                         assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
+                        assetPackIcon = (assetPackIcon ?? "").Replace("|", "").Replace(";", "");
 
                         parts.Add(string.Format(CultureInfo.InvariantCulture,
-                            "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}",
-                            ent.Index, ent.Version, address, districtName, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0"));
+                            "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}",
+                            ent.Index, ent.Version, address, districtName, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0", assetPackIcon));
                     }
                     catch { }
                 }
@@ -304,7 +306,7 @@ namespace AdvancedTPM
             finally { entities.Dispose(); }
 
             string payload = string.Join(";", parts);
-            if (payload != m_LastResidentialBuildingsData)
+            if (payload != m_LastResidentialBuildingsData || forceUpdate)
             {
                 _residentialBuildingsData.Update(payload);
                 m_LastResidentialBuildingsData = payload;
@@ -314,39 +316,13 @@ namespace AdvancedTPM
 
         private void RefreshSignatureCache()
         {
-            try
-            {
-                _signaturePrefabIndices.Clear();
-                if (_signatureSystem == null || _signatureQueryField == null) return;
-
-                var query = _signatureQueryField.GetValue(_signatureSystem) as EntityQuery?;
-                if (query == null || !query.HasValue) return;
-
-                var entities = query.Value.ToEntityArray(Allocator.Temp);
-                try
-                {
-                    foreach (var ent in entities)
-                    {
-                        try
-                        {
-                            if (EntityManager.HasComponent<PrefabRef>(ent))
-                            {
-                                var pr = EntityManager.GetComponentData<PrefabRef>(ent);
-                                _signaturePrefabIndices.Add(pr.m_Prefab.Index);
-                            }
-                        }
-                        catch { }
-                    }
-                }
-                finally { entities.Dispose(); }
-            }
-            catch { }
         }
 
-        private void ExtractThemeAndAssetPack(EntityManager em, Entity prefabEntity, out string theme, out string assetPack)
+        private void ExtractThemeAndAssetPack(EntityManager em, Entity prefabEntity, out string theme, out string assetPack, out string assetPackIcon)
         {
             theme = "Unknown";
             assetPack = "Base Game";
+            assetPackIcon = "";
 
             try
             {
@@ -361,33 +337,56 @@ namespace AdvancedTPM
                 // Extract theme from prefab name patterns
                 if (theme == "Unknown")
                 {
-                    if (prefabName.Contains("European")) theme = "European";
-                    else if (prefabName.Contains("NorthAmerican")) theme = "North American";
+                    if (prefabName.Contains("European") || prefabName.Contains("EU_") || prefabName.StartsWith("EU_")) theme = "European";
+                    else if (prefabName.Contains("NorthAmerican") || prefabName.Contains("NA_") || prefabName.StartsWith("NA_") || prefabName.Contains("USA_") || prefabName.StartsWith("USA_")) theme = "North American";
                     else if (prefabName.Contains("Asian")) theme = "Asian";
                     else if (prefabName.Contains("Modern")) theme = "Modern";
                     else theme = "Mixed";
                 }
 
-                // Detect asset pack from prefab name or asset source
-                if (prefabName.StartsWith("DLC") || prefabName.Contains("_DLC"))
+                // Detect asset pack using PrefabBase component helpers
+                if (prefabBase.TryGet<ContentPrerequisite>(out var cp) && cp.m_ContentPrerequisite.TryGet<DlcRequirement>(out var dlc))
                 {
-                    if (prefabName.Contains("DLC1")) assetPack = "DLC 1";
-                    else if (prefabName.Contains("DLC2")) assetPack = "DLC 2";
-                    else assetPack = "DLC";
-                }
-                else if (prefabName.Contains("Mod_") || prefabName.Contains("Custom"))
-                {
-                    assetPack = "Custom";
+                    // Official DLC / Region Pack - use the DLC's named SVG from the game's Media/DLC/ folder
+                    try
+                    {
+                        string dlcName = Colossal.PSI.Common.PlatformManager.instance.GetDlcName(dlc.m_Dlc) ?? "DLC";
+                        assetPack = dlcName;
+                        // Strip spaces/special chars to get the SVG filename (e.g. "Bridges & Ports" -> "BridgesandPorts")
+                        assetPackIcon = $"Media/DLC/{System.Text.RegularExpressions.Regex.Replace(dlcName, @"[^a-zA-Z0-9]", "")}.svg";
+                    }
+                    catch { assetPack = "DLC"; assetPackIcon = ""; }
                 }
                 else
                 {
-                    assetPack = "Base Game";
+                    var assetPackItem = prefabBase.GetComponent<AssetPackItem>();
+                    if (assetPackItem != null && assetPackItem.m_Packs != null && assetPackItem.m_Packs.Length > 0)
+                    {
+                        var pack = assetPackItem.m_Packs[0];
+                        if (pack != null)
+                        {
+                            // PDX Mod / user asset pack - use ImageSystem to get the pack's uploaded thumbnail
+                            assetPack = pack.name ?? "Custom";
+                            try { assetPackIcon = ImageSystem.GetThumbnail(pack) ?? ""; } catch { assetPackIcon = ""; }
+                        }
+                    }
+                    else if (prefabName.StartsWith("DLC") || prefabName.Contains("_DLC"))
+                    {
+                        if (prefabName.Contains("DLC1")) assetPack = "DLC 1";
+                        else if (prefabName.Contains("DLC2")) assetPack = "DLC 2";
+                        else assetPack = "DLC";
+                    }
+                    else if (prefabName.Contains("Mod_") || prefabName.Contains("Custom"))
+                    {
+                        assetPack = "Custom";
+                    }
+                    // else: Base Game, icon stays empty
                 }
             }
             catch { }
         }
 
-        private void UpdateSignatureResidentialBuildings()
+        private void UpdateSignatureResidentialBuildings(bool forceUpdate = false)
         {
             if (_residentialSignatureBuildingsData == null) return;
 
@@ -402,11 +401,15 @@ namespace AdvancedTPM
                     {
                         try
                         {
-                            if (!em.HasComponent<PrefabRef>(ent)) continue;
-                            var pr = em.GetComponentData<PrefabRef>(ent);
-                            var prefab = pr.m_Prefab;
+                             if (!em.HasComponent<PrefabRef>(ent)) continue;
+                             var pr = em.GetComponentData<PrefabRef>(ent);
+                             var prefab = pr.m_Prefab;
 
-                            if (!_signaturePrefabIndices.Contains(prefab.Index)) continue;
+                             bool isSig = em.HasComponent<Game.Buildings.Signature>(ent) || 
+                                          em.HasComponent<Game.Objects.UniqueObject>(ent) || 
+                                          em.HasComponent<Game.Prefabs.SignatureBuildingData>(prefab) || 
+                                          em.HasComponent<Game.Prefabs.UniqueObjectData>(prefab);
+                             if (!isSig) continue;
 
                             string address = "";
                             try { if (_nameSystem != null) address = (_nameSystem.GetRenderedLabelName(ent) ?? "").Replace("|", " ").Replace(";", " "); } catch { }
@@ -431,7 +434,7 @@ namespace AdvancedTPM
                                 level = sbd.m_Level;
                             }
 
-                            ExtractThemeAndAssetPack(em, prefab, out theme, out assetPack);
+                            ExtractThemeAndAssetPack(em, prefab, out theme, out assetPack, out _);
 
                             theme = (theme ?? "Unknown").Replace("|", "-").Replace(";", "-");
                             assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
@@ -446,7 +449,7 @@ namespace AdvancedTPM
                 finally { entities.Dispose(); }
 
                 string payload = string.Join(";", signatureBuildings);
-                if (payload != m_LastResidentialSignatureBuildingsData)
+                if (payload != m_LastResidentialSignatureBuildingsData || forceUpdate)
                 {
                     _residentialSignatureBuildingsData.Update(payload);
                     m_LastResidentialSignatureBuildingsData = payload;

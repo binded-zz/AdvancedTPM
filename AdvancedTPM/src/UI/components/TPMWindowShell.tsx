@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getSafeColor } from '../../mods/apiSafe';
+import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 
 interface TPMWindowShellProps {
   x: number;
@@ -36,10 +37,6 @@ const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, co
   const visibleHeight = safeNum(collapsed ? collapsedHeight : rect.height, 420);
 
   const onMove = (e: MouseEvent) => {
-    if (e.buttons !== 1) {
-      stopInteraction();
-      return;
-    }
     const { mode, startX, startY, ox, oy, ow, oh } = interactRef.current;
     if (mode === 'none') return;
 
@@ -86,7 +83,11 @@ const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, co
   };
 
   useEffect(() => {
-    if (activeMode === 'none') return;
+    if (activeMode === 'none') {
+      stopGlobalDrag();
+      return;
+    }
+    startGlobalDrag();
     const onWindowMove = (e: MouseEvent) => onMove(e);
     const onWindowUp = () => stopInteraction();
     
@@ -94,6 +95,7 @@ const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, co
     document.addEventListener('mouseup', onWindowUp);
     
     return () => {
+      stopGlobalDrag();
       document.removeEventListener('mousemove', onWindowMove);
       document.removeEventListener('mouseup', onWindowUp);
     };
@@ -103,18 +105,17 @@ const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, co
     <div
       ref={containerRef}
       style={{ position: 'absolute', left: safeNum(rect.x, 140), top: safeNum(rect.y, 150), width: safeNum(rect.width, 520), height: visibleHeight, display: 'flex', flexDirection: 'column', pointerEvents: 'auto' }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onMouseUp={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div
-        style={{ height: 24, flexShrink: 0, cursor: 'move', opacity: 1, backgroundColor: getSafeColor('rgba(47,83,127,0.92)'), borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: getSafeColor('rgba(160,200,240,0.55)'), display: 'flex', alignItems: 'center', paddingLeft: 10, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: getSafeColor('#e9f3ff'), textShadow: '0 1px 1px rgba(0,0,0,0.45)' }}
-        onMouseDown={(e) => {
-          e.preventDefault(); e.stopPropagation();
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        const target = e.target as HTMLElement;
+        if (target.closest('.tpm-drag-handle') && !target.closest('button') && !target.closest('input')) {
+          e.preventDefault();
           interactRef.current = { mode: 'drag', startX: e.clientX, startY: e.clientY, ox: draggingRectRef.current.x, oy: draggingRectRef.current.y, ow: draggingRectRef.current.width, oh: draggingRectRef.current.height };
           setActiveMode('drag');
-        }}
-      >DRAG WINDOW</div>
+        }
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
       <div className="tpm-window-shell" style={{ flexGrow: 1, width: '100%', position: 'relative' }}>
         {children}
       </div>

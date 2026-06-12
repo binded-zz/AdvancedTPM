@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getSafeColor } from '../../mods/apiSafe';
+import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 
 interface DebugPanelProps {
   debugEnabled: boolean;
@@ -42,14 +43,14 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAct
   }, [pos]);
 
   useEffect(() => {
-    if (!isDragging) return;
+    if (!isDragging) {
+      stopGlobalDrag();
+      return;
+    }
+    startGlobalDrag();
 
     const mm = (e: MouseEvent) => {
       if (!drag.current.active) return;
-      if (e.buttons !== 1) {
-        mu();
-        return;
-      }
       const nx = Math.max(0, drag.current.ox + (e.clientX - drag.current.sx));
       const ny = Math.max(0, drag.current.oy + (e.clientY - drag.current.sy));
       setPos({ x: nx, y: ny });
@@ -66,13 +67,14 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ debugEnabled, showTips, lastAct
     document.addEventListener('mouseup', mu);
 
     return () => {
+      stopGlobalDrag();
       document.removeEventListener('mousemove', mm);
       document.removeEventListener('mouseup', mu);
     };
   }, [isDragging]);
 
   return (
-    <div style={{ position: 'absolute', top: pos.y, right: 'auto', left: pos.x, width: debugW || 280, backgroundColor: getSafeColor('rgba(16,20,28,0.98)'), borderWidth: 1, borderStyle: 'solid', borderColor: getSafeColor('rgba(255,255,255,0.2)'), color: getSafeColor('#dce6f2'), borderRadius: 6, overflow: 'hidden' }}>
+    <div style={{ position: 'absolute', top: pos.y, right: 'auto', left: pos.x, width: debugW || 280, backgroundColor: getSafeColor('rgba(16,20,28,0.98)'), borderWidth: 1, borderStyle: 'solid', borderColor: getSafeColor('rgba(255,255,255,0.2)'), color: getSafeColor('#dce6f2'), borderRadius: 6, overflow: 'hidden', pointerEvents: 'auto' }}>
       <div
         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8rem', backgroundColor: getSafeColor('rgba(35,46,64,0.95)'), cursor: 'move' }}
         onMouseDown={(e) => {

@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { trigger } from 'cs2/api';
+import { Scrollable } from 'cs2/ui';
 import { resourceCategories } from '../data/resourceTaxonomy';
+import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import './AutoTaxSettingsPanel.css';
 
 interface ResourceRange { min: number; max: number; }
@@ -112,6 +114,7 @@ const SliderRow: React.FC<{
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    startGlobalDrag();
     onChange(calculateValue(e.clientX));
 
     const onMove = (ev: MouseEvent) => {
@@ -119,6 +122,7 @@ const SliderRow: React.FC<{
       onChange(calculateValue(ev.clientX));
     };
     const onUp = () => {
+      stopGlobalDrag();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -196,6 +200,7 @@ const RangeSliderRow: React.FC<{
     e.preventDefault();
     e.stopPropagation();
     dragging.current = thumb;
+    startGlobalDrag();
     const onMove = (ev: MouseEvent) => {
       ev.preventDefault();
       const val = valFromX(ev.clientX);
@@ -207,6 +212,7 @@ const RangeSliderRow: React.FC<{
     };
     const onUp = () => {
       dragging.current = null;
+      stopGlobalDrag();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -250,6 +256,20 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
   const [interval, setInterval_] = useState(parsed.interval);
   const [minRate, setMinRate] = useState(parsed.minRate);
   const [maxRate, setMaxRate] = useState(parsed.maxRate);
+
+  const handleMinRateChange = useCallback((newMin: number) => {
+    setMinRate(newMin);
+    if (newMin > maxRate) {
+      setMaxRate(newMin);
+    }
+  }, [maxRate]);
+
+  const handleMaxRateChange = useCallback((newMax: number) => {
+    setMaxRate(newMax);
+    if (newMax < minRate) {
+      setMinRate(newMax);
+    }
+  }, [minRate]);
   const [happinessWeight, setHappinessWeight] = useState(parsed.happinessWeight);
   const [updateSpeed, setUpdateSpeed] = useState(parsed.updateSpeed);
   const [excluded, setExcluded] = useState<Set<string>>(new Set(parsed.excluded));
@@ -262,75 +282,7 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
   const [panelPos, setPanelPos] = useState({ x: 0, y: 0 });
   const dragRef = useRef({ active: false, startX: 0, startY: 0, ox: 0, oy: 0 });
 
-  // Custom scrollbar refs
-  const scrollBodyRef = useRef<HTMLDivElement>(null);
-  const scrollTrackRef = useRef<HTMLDivElement>(null);
-  const scrollThumbRef = useRef<HTMLDivElement>(null);
 
-  const updateScrollThumb = useCallback(() => {
-    const body = scrollBodyRef.current;
-    const thumb = scrollThumbRef.current;
-    const track = scrollTrackRef.current;
-    if (!body || !thumb || !track) return;
-    const ratio = body.clientHeight / body.scrollHeight;
-    if (ratio >= 1 || !Number.isFinite(ratio)) { track.style.display = 'none'; return; }
-    track.style.display = 'block';
-    const trackH = track.clientHeight;
-    if (trackH <= 0) return;
-    const thumbH = Math.max(20, trackH * ratio);
-    const denom = body.scrollHeight - body.clientHeight;
-    const scrollPct = denom > 0 ? body.scrollTop / denom : 0;
-    const thumbTop = Math.max(0, Math.min(trackH - thumbH, scrollPct * (trackH - thumbH)));
-    thumb.style.height = `${thumbH}px`;
-    thumb.style.top = `${thumbTop}px`;
-  }, []);
-
-  useEffect(() => {
-    const body = scrollBodyRef.current;
-    if (!body) return;
-    body.addEventListener('scroll', updateScrollThumb);
-    updateScrollThumb();
-    return () => body.removeEventListener('scroll', updateScrollThumb);
-  }, [updateScrollThumb]);
-
-  // Re-measure scrollbar when collapsed sections change
-  useEffect(() => { updateScrollThumb(); });
-
-  const handleScrollTrackMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const body = scrollBodyRef.current;
-    const track = scrollTrackRef.current;
-    if (!body || !track) return;
-    const rect = track.getBoundingClientRect();
-    const pct = (e.clientY - rect.top) / rect.height;
-    body.scrollTop = pct * (body.scrollHeight - body.clientHeight);
-  }, []);
-
-  const handleScrollThumbMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const body = scrollBodyRef.current;
-    const track = scrollTrackRef.current;
-    const thumb = scrollThumbRef.current;
-    if (!body || !track || !thumb) return;
-    const startY = e.clientY;
-    const startTop = parseFloat(thumb.style.top || '0');
-    const trackH = track.clientHeight;
-    const thumbH = thumb.clientHeight;
-    const onMove = (ev: MouseEvent) => {
-      ev.preventDefault();
-      const delta = ev.clientY - startY;
-      const newTop = Math.max(0, Math.min(trackH - thumbH, startTop + delta));
-      const pct = newTop / (trackH - thumbH);
-      body.scrollTop = pct * (body.scrollHeight - body.clientHeight);
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }, []);
 
   // Ref to hold current settings for push Î“Ã‡Ã¶ avoids stale closures
   const settingsRef = useRef({ interval, minRate, maxRate, happinessWeight, updateSpeed, excluded, perResourceRanges, profitWeight, opacity });
@@ -392,19 +344,17 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
     e.preventDefault();
     e.stopPropagation();
     dragRef.current = { active: true, startX: e.clientX, startY: e.clientY, ox: panelPos.x, oy: panelPos.y };
+    startGlobalDrag();
 
     const onMove = (ev: MouseEvent) => {
       if (!dragRef.current.active) return;
-      if (ev.buttons !== 1) {
-        onUp();
-        return;
-      }
       const dx = ev.clientX - dragRef.current.startX;
       const dy = ev.clientY - dragRef.current.startY;
       setPanelPos({ x: dragRef.current.ox + dx, y: dragRef.current.oy + dy });
     };
     const onUp = () => {
       dragRef.current.active = false;
+      stopGlobalDrag();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -436,14 +386,14 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
         <button className="ats-close-btn" onMouseDown={(e) => e.stopPropagation()} onClick={onClose}>X</button>
       </div>
 
-      <div className="ats-body-wrapper">
-        <div ref={scrollBodyRef} className="ats-body">
+      <div className="ats-body-wrapper" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <Scrollable vertical={true} className="ats-body" trackVisibility="scrollable">
         {/* Global sliders */}
         <div className="ats-section">
           <div className="ats-section-title">Tuning Parameters</div>
           <SliderRow label="Adjustment Speed" value={interval} min={1} max={5} step={1} tooltip="How frequently auto-tax adjusts rates. Very Fast = ~5s, Fast = ~10s, Normal = ~20s, Slow = ~45s, Very Slow = ~90s" displayValue={SPEED_LABELS[interval] || `${interval}`} onChange={setInterval_} />
-          <SliderRow label="Minimum Tax Rate" value={minRate} min={-10} max={30} step={1} unit="%" tooltip="The lowest tax rate auto-tax will set for any resource (global default)" onChange={setMinRate} />
-          <SliderRow label="Maximum Tax Rate" value={maxRate} min={-10} max={30} step={1} unit="%" tooltip="The highest tax rate auto-tax will set for any resource (global default)" onChange={setMaxRate} />
+          <SliderRow label="Minimum Tax Rate" value={minRate} min={-10} max={30} step={1} unit="%" tooltip="The lowest tax rate auto-tax will set for any resource (global default)" onChange={handleMinRateChange} />
+          <SliderRow label="Maximum Tax Rate" value={maxRate} min={-10} max={30} step={1} unit="%" tooltip="The highest tax rate auto-tax will set for any resource (global default)" onChange={handleMaxRateChange} />
           <SliderRow label="Happiness Weight" value={happinessWeight} min={0} max={100} step={5} unit="%" tooltip="How much citizen happiness influences tax decisions" infoTooltip={"At 0%: Happiness has no effect on tax decisions.\nAt 50% (default): Moderate influence - low happiness (<50%) applies strong downward pressure to cut taxes; high happiness (>70%) gives mild permission to raise.\nAt 100%: Maximum influence - unhappy citizens force aggressive tax cuts; happy citizens allow raises but don't force them.\n\nHappiness acts as an asymmetric gate: it punishes high taxes when citizens are unhappy, but only mildly rewards when they're happy."} onChange={setHappinessWeight} />
           <SliderRow label="Profit Weight" value={profitWeight} min={0} max={100} step={5} unit="%" tooltip="Balance between macro signals and real company profit data" infoTooltip={"Controls the balance between macro economic signals and real company profitability data.\n\nAt 0%: Tax decisions based entirely on macro signals (production/consumption balance, demand, taxable income).\nAt 50% (default): Equal mix of macro signals and real company profits from ECS data.\nAt 100%: Tax decisions driven entirely by actual company profitability - if companies are profitable, taxes can rise; if losing money, taxes drop.\n\nHigher values make the system more responsive to individual company health."} onChange={setProfitWeight} />
           <SliderRow label="UI Update Speed" value={updateSpeed} min={1} max={3} step={1} tooltip="How often the UI refreshes data. 1 = Slow, 2 = Normal, 3 = Fast" displayValue={updateSpeed === 1 ? 'Slow' : updateSpeed === 2 ? 'Normal' : 'Fast'} onChange={setUpdateSpeed} />
@@ -508,10 +458,7 @@ const AutoTaxSettingsPanel: React.FC<AutoTaxSettingsPanelProps> = ({ settingsPay
             })}
           </div>
         </div>
-        </div>
-        <div ref={scrollTrackRef} className="ats-scrollbar-track" onMouseDown={handleScrollTrackMouseDown}>
-          <div ref={scrollThumbRef} className="ats-scrollbar-thumb" onMouseDown={handleScrollThumbMouseDown} />
-        </div>
+        </Scrollable>
       </div>
 
       <div className="ats-footer">

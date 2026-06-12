@@ -1,11 +1,16 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 // React hooks are provided by the environment. Do not import to avoid duplicate type declarations.
 import { trigger } from 'cs2/api';
+import { camera, selectedInfo } from 'cs2/bindings';
 import { Entity } from 'cs2/utils';
+import { Scrollable } from 'cs2/ui';
 import { getSafeValue, getSafeColor } from '../../mods/apiSafe';
+import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import { resourceCategories } from '../data/resourceTaxonomy';
 import ServiceIcon from '../assets/ServiceIcon';
+import PackIcon from '../assets/PackIcon';
 import './CompanyBrowser.css';
+import CustomSelect from './CustomSelect';
 
 export interface CompanyVm {
   entityIndex: number;
@@ -43,12 +48,15 @@ export interface CompanyVm {
   district?: string;
   theme?: string;
   assetPack?: string;
+  assetPackIcon?: string;
   companyKind?: string;
   electricityConsumption?: number;
   waterConsumption?: number;
   garbageAccumulation?: number;
   mailAccumulation?: number;
   crimeProbability?: number;
+  buildingIndex?: number;
+  buildingVersion?: number;
 }
 
 const isRawResource = (resourceKey: string): boolean => {
@@ -60,6 +68,18 @@ const isRawResource = (resourceKey: string): boolean => {
 export interface CompanyHappinessMap {
   [key: string]: Record<string, number>;
 }
+
+/** Convert camelCase / PascalCase internal pack names to readable display names.
+ *  e.g. "BridgesAndPorts" → "Bridges And Ports", "SanFranciscoSet" → "San Francisco Set"
+ *  Names that already contain spaces or & (DLC display names) are returned unchanged.
+ */
+const formatPackName = (name: string): string => {
+  if (!name || name === 'Base Game' || name === 'Custom' || name === 'DLC') return name;
+  // If it already has spaces it came from GetDlcName() — return as-is
+  if (name.includes(' ')) return name;
+  // PascalCase → spaced: insert space before each uppercase letter that follows a lowercase
+  return name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+};
 
 // parseCompanies
 // Parse a semicolon-separated payload produced by the server containing a compact
@@ -113,10 +133,13 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
       const district = getVal(30);
       const theme = getVal(31);
       const assetPack = getVal(32);
-      const companyKind = getVal(33);
-      const isSignature = getVal(34);
+      const assetPackIcon = getVal(33);
+      const companyKind = getVal(34);
+      const isSignature = getVal(35);
+      const buildingEntityPart = getVal(36);
 
       const [idx, ver] = (entityPart || '').split(',');
+      const [bIdx, bVer] = (buildingEntityPart || '').split(',');
       return {
         entityIndex: Number(idx) || 0,
         entityVersion: Number(ver) || 0,
@@ -152,8 +175,11 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
         district: district || 'City',
         theme: theme || 'USA',
         assetPack: assetPack || 'Base Game',
+        assetPackIcon: assetPackIcon || '',
         companyKind: companyKind || zoneType || 'Unknown',
         isSignature: Number(isSignature) === 1,
+        buildingIndex: Number(bIdx) || 0,
+        buildingVersion: Number(bVer) || 0,
       } as CompanyVm;
     })
     .filter((x): x is CompanyVm => x !== null);
@@ -278,11 +304,11 @@ export const resourceIconSrc = (key: string): string =>
   key === 'All' ? 'Media/Game/Icons/Economy.svg' : `${RESOURCE_ICON_BASE}${resourceIconName(key)}.svg`;
 
 const ZONE_BADGE_LABELS: Record<string, string> = {
-  RawIndustrial: 'RAW IND',
-  Industrial: 'INDUST',
-  Storage: 'STORAGE',
-  Commercial: 'COMMERC',
-  Office: 'OFFICE',
+  RawIndustrial: 'Raw Industrial',
+  Industrial: 'Industrial',
+  Storage: 'Storage',
+  Commercial: 'Commercial',
+  Office: 'Office',
 };
 
 const serviceIcon = (c: string): string | null => {
@@ -307,6 +333,12 @@ export const resourceLabel = (key: string): string => {
   const mapped = RESOURCE_ICON_MAP[key];
   if (mapped) return mapped.replace(/([a-z])([A-Z])/g, '$1 $2');
   return key.replace(/^c_/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (s) => s.toUpperCase());
+};
+
+export const formatCurrency = (val: number): string => {
+  if (val >= 1000000) return (val / 1000000).toFixed(1) + 'M';
+  if (val >= 1000) return (val / 1000).toFixed(1) + 'K';
+  return val.toString();
 };
 
 // Efficiency factor friendly labels (from Game.Buildings.EfficiencyFactor enum)
@@ -403,6 +435,7 @@ const effFactorColor = (change: number): string => {
 
 interface CompanyBrowserProps {
   companies: CompanyVm[];
+  summaryData?: string;
   happinessData?: string;
   // When true, component is rendered from the Signature Buildings view and
   // should show the prefab/building name in the address column instead of street address.
@@ -411,10 +444,92 @@ interface CompanyBrowserProps {
   showFilters?: boolean;
 }
 
-const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happinessData = '', isSignatureView }) => {
-  const dataReady = companies && Array.isArray(companies);
-  if (!dataReady) return null;
-  const safeCompanies = companies;
+interface ParsedSummary {
+  total: number;
+  healthy: number;
+  struggling: number;
+  bankrupt: number;
+  packs: { name: string; icon: string }[];
+  themes: string[];
+  districts: string[];
+  resourceKinds: { zone: string; resourceKey: string; companyKind: string }[];
+}
+
+const parseSummary = (summaryStr: string): ParsedSummary => {
+  const defaultSummary: ParsedSummary = {
+    total: 0,
+    healthy: 0,
+    struggling: 0,
+    bankrupt: 0,
+    packs: [],
+    themes: [],
+    districts: [],
+    resourceKinds: [],
+  };
+  if (!summaryStr) return defaultSummary;
+
+  try {
+    const parts = summaryStr.split('|');
+    if (parts.length < 5) return defaultSummary;
+
+    const counts = parts[0].split(',');
+    const packSection = parts[1];
+    const themeSection = parts[2];
+    const districtSection = parts[3];
+    const rkSection = parts[4];
+
+    const packs = packSection ? packSection.split(';').map(p => {
+      const idx = p.indexOf(':');
+      if (idx === -1) return { name: p, icon: '' };
+      return { name: p.substring(0, idx), icon: p.substring(idx + 1) };
+    }).filter(p => !!p.name) : [];
+
+    const themes = themeSection ? themeSection.split(';').filter(Boolean) : [];
+    const districts = districtSection ? districtSection.split(';').filter(Boolean) : [];
+    
+    const resourceKinds = rkSection ? rkSection.split(';').map(item => {
+      const sub = item.split(',');
+      return { zone: sub[0] || '', resourceKey: sub[1] || '', companyKind: sub[2] || '' };
+    }).filter(x => !!x.zone) : [];
+
+    return {
+      total: Number(counts[0]) || 0,
+      healthy: Number(counts[1]) || 0,
+      struggling: Number(counts[2]) || 0,
+      bankrupt: Number(counts[3]) || 0,
+      packs,
+      themes,
+      districts,
+      resourceKinds,
+    };
+  } catch (e) {
+    console.error("Error parsing company summary", e);
+    return defaultSummary;
+  }
+};
+
+const PAGE_SIZE = 50;
+
+const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summaryData = '', happinessData = '', isSignatureView }) => {
+  // Pause-on-expand: when a row is expanded we freeze incoming data to stop rows jumping
+  const [isPaused, setIsPaused] = useState(false);
+  const [frozenCompanies, setFrozenCompanies] = useState<CompanyVm[]>([]);
+  const [frozenSummary, setFrozenSummary] = useState('');
+
+  // Accept live data only when not paused
+  useEffect(() => {
+    if (!isPaused) {
+      setFrozenCompanies(Array.isArray(companies) ? companies : []);
+    }
+  }, [companies, isPaused]);
+  useEffect(() => {
+    if (!isPaused) {
+      setFrozenSummary(summaryData || '');
+    }
+  }, [summaryData, isPaused]);
+
+  const safeCompanies = frozenCompanies;
+
   const [zoneFilter, setZoneFilter] = useState('All');
   const [tierFilter, setTierFilter] = useState('All');
   const [resourceFilter, setResourceFilter] = useState('All');
@@ -427,20 +542,27 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
   const [searchText, setSearchText] = useState('');
   const [profitMin, setProfitMin] = useState(-100);
   const [profitMax, setProfitMax] = useState(100);
-  // Building level is displayed per-row; level search removed for now
   const LEVEL_MIN_BOUND = 1;
   const LEVEL_MAX_BOUND = 5;
   const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
   const [happinessMap, setHappinessMap] = useState<CompanyHappinessMap>({});
   const [happinessLoading, setHappinessLoading] = useState<Record<string, boolean>>({});
-  const [displayLimit, setDisplayLimit] = useState(50);
+  const [currentPage, setCurrentPage] = useState(0);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
-  // Scroll to top and clear expansion when filters or sort changes so users see results
+  // Trigger C# filter updates when any UI filter/sort state changes
+  useEffect(() => {
+    // Format: zoneFilter|resourceFilter|tierFilter|packFilter|themeFilter|districtFilter|kindFilter|profitMin|profitMax|searchText|sortField|sortDir
+    const payload = `${zoneFilter}|${resourceFilter}|${tierFilter}|${packFilter}|${themeFilter}|${districtFilter}|${kindFilter}|${profitMin}|${profitMax}|${searchText}|${sortField}|${sortDir}`;
+    trigger('taxProduction', 'updateCompanyFilters', payload);
+  }, [zoneFilter, resourceFilter, tierFilter, packFilter, themeFilter, districtFilter, kindFilter, profitMin, profitMax, searchText, sortField, sortDir]);
+
+  // Scroll to top, clear expansion, and resume updates when filters/sort change
   useEffect(() => {
     try { if (bodyRef.current) bodyRef.current.scrollTop = 0; } catch { }
     setExpandedEntity(null);
-    setDisplayLimit(50);
+    setIsPaused(false);
+    setCurrentPage(0);
   }, [zoneFilter, tierFilter, resourceFilter, packFilter, themeFilter, districtFilter, kindFilter, searchText]);
 
   // Merge incoming single-company happiness payloads into local map
@@ -463,21 +585,17 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
     }
   };
 
-  const uniqueResources = useMemo(
-    () => ['All', ...Array.from(new Set(safeCompanies.map((c) => c.resourceKey).filter((k): k is string => !!k))).sort()],
-    [safeCompanies]
-  );
+  const summary = useMemo(() => parseSummary(frozenSummary || ''), [frozenSummary]);
 
   const visibleResourceFilters = useMemo(() => {
-    // Collect all resources currently present in the filtered view
+    // Collect all resources present in the summary for the selected zone
     const availableKeys = new Set(
-      safeCompanies
-        .filter(c => zoneFilter === 'All' || c.zoneType === zoneFilter)
-        .map(c => c.resourceKey)
+      summary.resourceKinds
+        .filter(rk => zoneFilter === 'All' || rk.zone === zoneFilter)
+        .map(rk => rk.resourceKey)
         .filter(Boolean)
     );
 
-    // Group them by their icon name
     const groups: Record<string, { icon: string, label: string, keys: string[] }> = {};
     availableKeys.forEach(key => {
       const icon = resourceIconName(key);
@@ -489,20 +607,20 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
     });
 
     return Object.values(groups).sort((a, b) => a.label.localeCompare(b.label));
-  }, [zoneFilter, safeCompanies]);
+  }, [zoneFilter, summary]);
 
   const visibleKindFilters = useMemo(() => {
     if (zoneFilter === 'All') return ['All'];
     const kinds = new Set(
-      safeCompanies
-        .filter(c => c.zoneType === zoneFilter)
-        .map(c => c.companyKind)
+      summary.resourceKinds
+        .filter(rk => rk.zone === zoneFilter)
+        .map(rk => rk.companyKind)
         .filter((k): k is string => !!k)
     );
     const arr = Array.from(kinds).sort();
     if (arr.length <= 1 && arr[0] === zoneFilter) return ['All'];
     return ['All', ...arr];
-  }, [zoneFilter, safeCompanies]);
+  }, [zoneFilter, summary]);
 
   useEffect(() => {
     if (visibleResourceFilters.length === 0) {
@@ -517,88 +635,20 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
     }
   }, [visibleResourceFilters, resourceFilter, visibleKindFilters, kindFilter]);
 
-  const filtered = useMemo(() => {
-    let list = safeCompanies;
-    if (packFilter !== 'All') {
-      list = list.filter((c) => String(c.assetPack || 'Base Game').trim() === packFilter.trim());
-    }
-    if (zoneFilter !== 'All') {
-      list = list.filter((c) => String(c.zoneType || '').trim() === zoneFilter.trim());
-    }
-    if (themeFilter !== 'All') {
-      list = list.filter((c) => String(c.theme || 'USA').trim() === themeFilter.trim());
-    }
-    if (districtFilter !== 'All') {
-      list = list.filter((c) => String(c.district || 'City').trim() === districtFilter.trim());
-    }
-    if (kindFilter !== 'All') {
-      list = list.filter((c) => String(c.companyKind || '').trim() === kindFilter.trim());
-    }
-    if (resourceFilter !== 'All') {
-      list = list.filter((c) => resourceIconName(c.resourceKey || '') === resourceFilter);
-    }
-    if (tierFilter !== 'All') {
-      list = list.filter((c) => String(c.profitabilityTier || '').trim() === tierFilter.trim());
-    }
-    if (profitMin > -100 || profitMax < 100) {
-      list = list.filter((c) => c.profit >= profitMin && c.profit <= profitMax);
-    }
-    if (searchText) {
-      const lower = searchText.toLowerCase();
-      list = list.filter(
-        (c) =>
-          c.name.toLowerCase().includes(lower) ||
-          c.resourceKey.toLowerCase().includes(lower) ||
-          c.zoneType.toLowerCase().includes(lower)
-      );
-    }
-    return list;
-  }, [companies, zoneFilter, resourceFilter, tierFilter, packFilter, themeFilter, districtFilter, kindFilter, profitMin, profitMax, searchText]);
+  const sorted = safeCompanies;
 
-  const sorted = useMemo(() => {
-    const arr = [...filtered];
-    const dir = sortDir === 'asc' ? 1 : -1;
-    arr.sort((a, b) => {
-      switch (sortField) {
-        case 'name':
-          return dir * a.name.localeCompare(b.name);
-        case 'zoneType':
-          return dir * a.zoneType.localeCompare(b.zoneType);
-        case 'resourceKey':
-          return dir * a.resourceKey.localeCompare(b.resourceKey);
-        case 'profit':
-          return dir * (a.profit - b.profit);
-        case 'profitabilityTier':
-          return dir * ((TIER_ORDER[a.profitabilityTier] ?? -1) - (TIER_ORDER[b.profitabilityTier] ?? -1));
-        case 'workers':
-          return dir * (a.workers - b.workers);
-        case 'tax':
-          return dir * ((a.taxRate || 0) - (b.taxRate || 0));
-        case 'happiness': {
-          const compute = (c: CompanyVm) => {
-            const eff = Math.max(0, c.efficiency || 100);
-            const profitVal = Math.max(-100, Math.min(100, c.profit || 0));
-            const staffPct = c.maxWorkers > 0 ? Math.round((c.workers / c.maxWorkers) * 100) : 0;
-            const tax = c.taxRate || 0;
-            return typeof c.happiness === 'number'
-              ? c.happiness
-              : Math.max(0, Math.min(100, Math.round(50 + (eff - 100) * 0.2 + profitVal * 0.25 + (staffPct - 75) * 0.3 - Math.max(0, tax - 10) * 0.5)));
-          };
-          return dir * (compute(a) - compute(b));
-        }
-        case 'lv':
-          return dir * ((a.buildingLevel || 0) - (b.buildingLevel || 0));
-        default:
-          return 0;
-      }
-    });
-    return arr;
-  }, [filtered, sortField, sortDir]);
-
-  const focusEntity = (c: CompanyVm) => {
+  const focusCompanyEntity = (c: CompanyVm) => {
     const entity: Entity = { index: c.entityIndex, version: c.entityVersion };
-    trigger('camera', 'focusEntity', entity);
-    trigger('selectedInfo', 'selectEntity', entity);
+    camera.focusEntity(entity);
+    selectedInfo.selectEntity(entity);
+  };
+
+  const focusBuildingEntity = (c: CompanyVm) => {
+    if (c.buildingIndex) {
+      const entity: Entity = { index: c.buildingIndex, version: c.buildingVersion || 0 };
+      camera.focusEntity(entity);
+      selectedInfo.selectEntity(entity);
+    }
   };
 
   const sortIndicator = (field: SortField) =>
@@ -622,12 +672,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
     e.preventDefault();
     e.stopPropagation();
     draggingThumb.current = thumb;
+    startGlobalDrag();
     const onMove = (ev: MouseEvent) => {
       ev.preventDefault();
-      if (ev.buttons !== 1) {
-        onUp();
-        return;
-      }
       const val = profitFromClientX(ev.clientX);
       if (draggingThumb.current === 'min') {
         setProfitMin((prev) => Math.min(val, profitMax - 1));
@@ -637,6 +684,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
     };
     const onUp = () => {
       draggingThumb.current = null;
+      stopGlobalDrag();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -663,68 +711,12 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
   // Using native scroll for company list — custom scrollbar removed to avoid conflicts
 
   // Summary stats
-  const totalCount = filtered.length;
-  const healthyCount = filtered.filter((c) => c.profitabilityTier === 'Profitable' || c.profitabilityTier === 'GettingBy').length;
-  const losingCount = filtered.filter((c) => c.profitabilityTier === 'LosingMoney' || c.profitabilityTier === 'BreakingEven').length;
-  const bankruptCount = filtered.filter((c) => c.profitabilityTier === 'Bankrupt').length;
+  const totalCount = summary.total;
+  const healthyCount = summary.healthy;
+  const losingCount = summary.struggling;
+  const bankruptCount = summary.bankrupt;
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [showScrollbar, setShowScrollbar] = useState(false);
-  const [thumbHeight, setThumbHeight] = useState(0);
-  const [thumbTop, setThumbTop] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const startY = useRef(0);
-  const startTop = useRef(0);
 
-  const updateScroll = useCallback(() => {
-    if (!scrollRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    if (scrollHeight <= clientHeight) {
-      setShowScrollbar(false);
-      return;
-    }
-    setShowScrollbar(true);
-    const ratio = clientHeight / scrollHeight;
-    setThumbHeight(Math.max(20, clientHeight * ratio));
-    setThumbTop((scrollTop / scrollHeight) * clientHeight);
-  }, []);
-
-  useLayoutEffect(() => {
-    updateScroll();
-    const el = scrollRef.current;
-    if (el) {
-      const obs = new ResizeObserver(updateScroll);
-      obs.observe(el);
-      return () => obs.disconnect();
-    }
-  }, [sorted, updateScroll]);
-
-  const onScroll = () => updateScroll();
-
-  const onThumbMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    startY.current = e.clientY;
-    startTop.current = thumbTop;
-    const onMove = (ev: MouseEvent) => {
-      if (!scrollRef.current) return;
-      if (ev.buttons !== 1) {
-        onUp();
-        return;
-      }
-      const delta = ev.clientY - startY.current;
-      const { scrollHeight, clientHeight } = scrollRef.current;
-      const newTop = Math.max(0, Math.min(clientHeight - thumbHeight, startTop.current + delta));
-      scrollRef.current.scrollTop = (newTop / clientHeight) * scrollHeight;
-    };
-    const onUp = () => {
-      setIsDragging(false);
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
 
   return (
     <div className="cb-container">
@@ -759,9 +751,28 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
 
         {/* Row 2: Secondary Filters (Pack, Theme, District, Profit, Resource) */}
         <div className="cb-filter-row cb-filter-row-mixed">
-          <CycleFilterButton label="Pack" value={packFilter} options={['All', ...Array.from(new Set(safeCompanies.map(c => c.assetPack || 'Base Game'))).sort()]} onChange={setPackFilter} />
-          <CycleFilterButton label="Theme" value={themeFilter} options={['All', 'USA', 'EU']} onChange={setThemeFilter} />
-          <CycleFilterButton label="District" value={districtFilter} options={['All', ...Array.from(new Set(safeCompanies.map(c => c.district || 'City'))).sort()]} onChange={setDistrictFilter} />
+          <CustomSelect
+            label="Pack"
+            value={packFilter}
+            options={['All', ...summary.packs.map(p => p.name).sort()]}
+            onChange={setPackFilter}
+            displayValue={(v) => v === 'All' ? 'All Packs' : formatPackName(v)}
+            icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={summary.packs.find(p => p.name === v)?.icon} size={24} />}
+          />
+          <CustomSelect
+            label="Theme"
+            value={themeFilter}
+            options={['All', ...summary.themes.sort()]}
+            onChange={setThemeFilter}
+            displayValue={(v) => v === 'All' ? 'All Themes' : v}
+          />
+          <CustomSelect
+            label="District"
+            value={districtFilter || 'All'}
+            options={['All', ...summary.districts.sort()]}
+            onChange={setDistrictFilter}
+            displayValue={(v) => v === 'All' ? 'All Districts' : v}
+          />
           <div className="cb-resource-row-wrap" style={{ flex: '1 1 100%', marginTop: '4rem' }}>
             <div className="cb-dynamic-filter-row">
               <button
@@ -808,7 +819,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
               placeholder="Search..."
             />
           </div>
-          <span className="cb-summary-count" style={{ marginLeft: '12rem', fontSize: '11rem', opacity: 0.6 }}>{sorted.length} results</span>
+          <span className="cb-summary-count" style={{ marginLeft: '12rem', fontSize: '11rem', opacity: 0.6 }}>
+            {sorted.length} results{isPaused ? ' ⏸' : ''}
+          </span>
         </div>
       </div>
 
@@ -835,6 +848,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
           <div className="cb-col-resource cb-sortable" onClick={() => handleSort('resourceKey')}>
             Resource{sortIndicator('resourceKey')}
           </div>
+          <div className="cb-col-pack" title="Asset Pack">
+            Pk
+          </div>
           <div className="cb-col-profit cb-sortable" onClick={() => handleSort('profit')}>
             {'Profit\u00a0%' + sortIndicator('profit')}
           </div>
@@ -851,228 +867,310 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], happine
             <div className="cb-sortable" onClick={() => handleSort('lv')}>Lv{sortIndicator('lv')}</div>
           </div>
           <div className="cb-col-locate">
-            Locate
+            GO
           </div>
         </div>
-        <div ref={scrollRef} className="cb-body" onScroll={onScroll}>
-          {showScrollbar && (
-            <div className="cb-scrollbar-track">
-              <div
-                className="cb-scrollbar-thumb"
-                style={{ height: `${thumbHeight}rem`, top: `${thumbTop}rem` }}
-                onMouseDown={onThumbMouseDown}
-              />
-            </div>
-          )}
-          {sorted.length === 0 && (
-            <div className="cb-empty">No companies found. Companies will appear once the game simulation is running.</div>
-          )}
-          {sorted.slice(0, displayLimit).map((c, i) => {
-            const compKey = `${c.entityIndex},${c.entityVersion}`;
-            const isExpanded = expandedEntity === compKey;
-            const rowClickHandler = (e: React.MouseEvent) => {
-              setExpandedEntity(isExpanded ? null : compKey);
-              if (!isExpanded) {
-                setHappinessLoading((prev) => ({ ...prev, [compKey]: true }));
-                trigger('taxProduction', 'requestCompanyHappiness', compKey);
-              }
-            };
-            const profitColor = c.profit < 0 ? '#e05050' : c.profit > 0 ? '#8bdb46' : 'rgba(255,255,255,0.5)';
-            const tierColor = TIER_COLORS[c.profitabilityTier] || 'transparent';
-            const workerPct = c.maxWorkers > 0 ? Math.round((c.workers / c.maxWorkers) * 100) : 0;
-            const profitDescription = c.profit > 20 ? 'Very profitable — high tax tolerance'
-              : c.profit > 5 ? 'Healthy — moderate tax tolerance'
-                : c.profit > -5 ? 'Marginal — sensitive to tax changes'
-                  : c.profit > -20 ? 'Struggling — consider lowering taxes'
-                    : 'Critical — near bankruptcy, needs tax relief';
-            return (
-              <div key={`${c.entityIndex}-${c.entityVersion}`}>
-                <div
-                  className={`cb-row${i % 2 === 0 ? '' : ' cb-row-alt'}${isExpanded ? ' cb-row-expanded' : ''}`}
-                  onMouseDown={(e: React.MouseEvent) => {
-                    if (e.button !== 0) return;
-                    const tgt = e.target as HTMLElement;
-                    if (tgt && tgt.closest && tgt.closest('.cb-locate-btn')) return;
-                    rowClickHandler(e);
-                  }}
-                  title={isExpanded ? 'Click to collapse' : 'Click to expand details'}
-                >
-                  <div className="cb-col-name">
-                    <span className="cb-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-                    <span className="cb-company-name">{c.brandName || c.name}</span>
-                  </div>
-                  <div className="cb-col-address">
-                    <span className="cb-address-text">
-                      {isSignatureView
-                        ? (c.buildingAddress && /\d|\s/.test(c.buildingAddress)) ? c.buildingAddress : (c.brandName || c.name || '-')
-                        : (c.buildingAddress || '-')}
-                    </span>
-                  </div>
-                  <div className="cb-col-zone">
-                    <span className={`cb-zone-badge cb-zone-${c.zoneType.toLowerCase()}`} title={c.zoneType}>{ZONE_BADGE_LABELS[c.zoneType] || c.zoneType}</span>
-                  </div>
-                  <div className="cb-col-resource">
-                    {c.resourceKey && (
-                      <img className="cb-resource-icon" src={`${RESOURCE_ICON_BASE}${resourceIconName(c.resourceKey)}.svg`} />
-                    )}
-                    <span className={isRawResource(c.resourceKey) ? 'cb-resource-raw' : ''}>{resourceLabel(c.resourceKey)}</span>
-                  </div>
-                  <div className="cb-col-profit">
-                    <span style={{ color: getSafeColor(profitColor) }}>
-                      {`${c.profit > 0 ? '+' : ''}${c.profit}\u00a0%`}
-                    </span>
-                  </div>
-                  <div className="cb-col-tax">
-                    <span style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>
-                      {`${c.taxRate}\u00a0%`}
-                    </span>
-                  </div>
-                  <div className="cb-col-happiness">
-                    {(() => {
-                      const eff = Math.max(0, c.efficiency || 100);
-                      const profitVal = Math.max(-100, Math.min(100, c.profit || 0));
-                      const staffPct = c.maxWorkers > 0 ? Math.round((c.workers / c.maxWorkers) * 100) : 0;
-                      const tax = c.taxRate || 0;
-                      const estimate = (typeof c.happiness === 'number')
-                        ? c.happiness
-                        : Math.max(0, Math.min(100, Math.round(50 + (eff - 100) * 0.2 + profitVal * 0.25 + (staffPct - 75) * 0.3 - Math.max(0, tax - 10) * 0.5)));
-                      const color = estimate >= 75 ? '#8bdb46' : estimate >= 50 ? '#50b8e9' : estimate >= 30 ? '#e88c3a' : '#e05050';
-                      return (
-                        <span style={{ color: getSafeColor(color), fontWeight: 800 }} title={`Estimated company happiness: ${estimate}`}>
-                          {`${estimate}`}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                  <div className="cb-col-tier">
-                    <span style={{ color: getSafeColor(tierColor) }}>
-                      {TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}
-                    </span>
-                  </div>
-                  <div className="cb-col-level">
-                    <span className="cb-level-badge">Lv {c.buildingLevel}</span>
-                  </div>
-                  <div className="cb-col-locate">
-                    <button
-                      className="cb-locate-btn"
-                      onClick={(e) => { e.stopPropagation(); focusEntity(c); }}
-                      title="Focus camera on this company"
-                    >
-                      GO
-                    </button>
-                  </div>
-                </div>
-                {isExpanded && (
-                  <div className="cb-expanded-panel">
-                    <div className="cb-detail-grid">
-                      <div className="cb-detail-main">
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Profitability</span>
-                          <span className="cb-detail-value" style={{ color: getSafeColor(profitColor) }}>{`${c.profit > 0 ? '+' : ''}${c.profit}%`}</span>
-                        </div>
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Status</span>
-                          <span className="cb-detail-value" style={{ color: getSafeColor(tierColor) }}>{TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}</span>
-                        </div>
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Assessment</span>
-                          <span className="cb-detail-value cb-detail-assessment" style={{ color: getSafeColor(profitColor) }}>{profitDescription}</span>
-                        </div>
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Zone</span>
-                          <span className="cb-detail-value">{c.zoneType}</span>
-                        </div>
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Output</span>
-                          <span className="cb-detail-value">
-                            {c.resourceKey && <img className="cb-resource-icon" src={`${RESOURCE_ICON_BASE}${resourceIconName(c.resourceKey)}.svg`} />}
-                            {resourceLabel(c.resourceKey)}
+        <div className="cb-body-wrap" style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <Scrollable vertical={true} className="cb-body" trackVisibility="scrollable">
+            {sorted.length === 0 && (
+              <div className="cb-empty">No companies found. Companies will appear once the game simulation is running.</div>
+            )}
+            {(() => {
+              const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+              const safePage = Math.min(currentPage, totalPages - 1);
+              const pageSlice = sorted.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+              return pageSlice;
+            })().map((c) => {
+              if (!c) return null;
+              const compKey = `${c.entityIndex || 0},${c.entityVersion || 0}`;
+              const isExpanded = expandedEntity === compKey;
+              const rowClickHandler = (e: React.MouseEvent) => {
+                if (isExpanded) {
+                  // Collapsing: resume live updates
+                  setExpandedEntity(null);
+                  setIsPaused(false);
+                } else {
+                  // Expanding: freeze data so row doesn't jump
+                  setExpandedEntity(compKey);
+                  setIsPaused(true);
+                  setHappinessLoading((prev) => ({ ...prev, [compKey]: true }));
+                  trigger('taxProduction', 'requestCompanyHappiness', compKey);
+                }
+              };
+              const profitColor = (c.profit || 0) < 0 ? '#e05050' : (c.profit || 0) > 0 ? '#8bdb46' : 'rgba(255,255,255,0.5)';
+              const tierColor = TIER_COLORS[c.profitabilityTier || ''] || 'transparent';
+              const workerPct = (c.maxWorkers || 0) > 0 ? Math.round(((c.workers || 0) / c.maxWorkers) * 100) : 0;
+              const profitDescription = (c.profit || 0) > 20 ? 'Very profitable — high tax tolerance'
+                : (c.profit || 0) > 5 ? 'Healthy — moderate tax tolerance'
+                  : (c.profit || 0) > -5 ? 'Marginal — sensitive to tax changes'
+                    : (c.profit || 0) > -20 ? 'Struggling — consider lowering taxes'
+                      : 'Critical — near bankruptcy, needs tax relief';
+              return (
+                <div key={`${c.entityIndex}-${c.entityVersion}`}>
+                  <div
+                    className={`cb-row${c.entityIndex % 2 === 0 ? '' : ' cb-row-alt'}${isExpanded ? ' cb-row-expanded' : ''}`}
+                    onMouseDown={(e: React.MouseEvent) => {
+                      const tgt = e.target as HTMLElement;
+                      if (tgt && tgt.closest && tgt.closest('.cb-locate-btn')) return;
+                      rowClickHandler(e);
+                    }}
+                    title={isExpanded ? 'Click to collapse' : 'Click to expand details'}
+                  >
+                    <div className="cb-col-name">
+                      <span className="cb-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
+                      {c.isSignature && <span className="cb-signature-badge" title="Signature Building">★</span>}
+                      <span className="cb-company-name">{c.brandName || c.name}</span>
+                    </div>
+                    <div className="cb-col-address">
+                      <span className="cb-address-text">
+                        {isSignatureView
+                          ? (c.buildingAddress && /\d|\s/.test(c.buildingAddress)) ? c.buildingAddress : (c.brandName || c.name || '-')
+                          : (c.buildingAddress || '-')}
+                      </span>
+                    </div>
+                    <div className="cb-col-zone">
+                      <span className={`cb-zone-badge cb-zone-${c.zoneType.toLowerCase()}`} title={c.zoneType}>{ZONE_BADGE_LABELS[c.zoneType] || c.zoneType}</span>
+                    </div>
+                    <div className="cb-col-resource">
+                      {c.resourceKey && (
+                        <img className="cb-resource-icon" src={`${RESOURCE_ICON_BASE}${resourceIconName(c.resourceKey)}.svg`} />
+                      )}
+                      <span className={isRawResource(c.resourceKey) ? 'cb-resource-raw' : ''}>{resourceLabel(c.resourceKey)}</span>
+                    </div>
+                     <div className="cb-col-pack" title={formatPackName(c.assetPack || 'Base Game')}>
+                       <PackIcon pack={c.assetPack} iconUrl={c.assetPackIcon} size={24} />
+                     </div>
+                    <div className="cb-col-profit">
+                      <span style={{ color: getSafeColor(profitColor) }}>
+                        {`${c.profit > 0 ? '+' : ''}${c.profit}\u00a0%`}
+                      </span>
+                    </div>
+                    <div className="cb-col-tax">
+                      <span style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>
+                        {`${c.taxRate}\u00a0%`}
+                      </span>
+                    </div>
+                    <div className="cb-col-happiness">
+                      {(() => {
+                        const eff = Math.max(0, c.efficiency || 100);
+                        const profitVal = Math.max(-100, Math.min(100, c.profit || 0));
+                        const staffPct = c.maxWorkers > 0 ? Math.round((c.workers / c.maxWorkers) * 100) : 0;
+                        const tax = c.taxRate || 0;
+                        const estimate = (typeof c.happiness === 'number')
+                          ? c.happiness
+                          : Math.max(0, Math.min(100, Math.round(50 + (eff - 100) * 0.2 + profitVal * 0.25 + (staffPct - 75) * 0.3 - Math.max(0, tax - 10) * 0.5)));
+                        const color = estimate >= 75 ? '#8bdb46' : estimate >= 50 ? '#50b8e9' : estimate >= 30 ? '#e88c3a' : '#e05050';
+                        return (
+                          <span style={{ color: getSafeColor(color), fontWeight: 800 }} title={`Estimated company happiness: ${estimate}`}>
+                            {`${estimate}`}
                           </span>
-                        </div>
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Tax Rate</span>
-                          <span className="cb-detail-value" style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.8)') }}>
-                            {`${c.taxRate}%`}
-                          </span>
-                        </div>
-                        {c.buildingLevel > 0 && (
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">Building Level</span>
-                            <span className="cb-detail-value">
-                              <span className="cb-building-level">
-                                {[1, 2, 3, 4, 5].map((lv) => (
-                                  <span key={lv} className={`cb-level-pip${lv <= c.buildingLevel ? ' cb-level-pip-filled' : ''}`} />
-                                ))}
-                              </span>
-                            </span>
-                          </div>
-                        )}
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Workers</span>
-                          <span className="cb-detail-value">
-                            {c.maxWorkers > 0 ? `${c.workers} / ${c.maxWorkers} (${workerPct}%)` : '\u2014'}
-                          </span>
-                        </div>
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Efficiency</span>
-                          <span className="cb-detail-value" style={{ color: getSafeColor(c.efficiency >= 80 ? '#8bdb46' : c.efficiency >= 50 ? '#e88c3a' : '#e05050') }}>
-                            {`${c.efficiency}%`}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="cb-detail-middle">
-                        <div className="cb-detail-section-title">Consumption</div>
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Electricity</span>
-                          <span className="cb-detail-value">{(c as any).electricityConsumption || '—'} kW</span>
-                        </div>
-                        <div className="cb-detail-row">
-                          <span className="cb-detail-label">Water</span>
-                          <span className="cb-detail-value">{(c as any).waterConsumption || '—'} m3</span>
-                        </div>
-                        <div className="cb-detail-divider" />
-                        <div className="cb-detail-section-title">Efficiency Factors</div>
-                        {(() => {
-                          const factors: { label: string; status: string; color: string; level: string; icon?: string; factorName?: string }[] = [];
-                          const effFactors = parseEfficiencyDetails(c.efficiencyDetails);
-                          effFactors.forEach((ef) => {
-                            const col = effFactorColor(ef.change);
-                            const lvl = ef.change > 0 ? 'good' : ef.change >= -10 ? 'good' : ef.change >= -30 ? 'warn' : 'bad';
-                            const sign = ef.change > 0 ? '+' : '';
-                            factors.push({ label: ef.label, status: `${sign}${ef.change}%`, color: col, level: lvl, factorName: ef.name });
-                          });
-                          return factors.map((f, fi) => (
-                            <div key={fi} className="cb-detail-row">
-                              <span className="cb-detail-label">{f.label}</span>
-                              <span className="cb-detail-value" style={{ color: getSafeColor(f.color, '#EAEAEA') }}>{f.status}</span>
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                      <div className="cb-detail-factors">
-                        <div className="cb-detail-section-title">Public Services</div>
-                        {(() => {
-                          const companyHappinessData = getSafeValue(happinessMap[compKey], null);
-                          if (!companyHappinessData) return <div className="cb-detail-loading-placeholder" style={{ opacity: 0.5, fontSize: '11rem', padding: '4rem 0' }}>Loading factor data...</div>;
-                          return (
-                            <>
-                              <div className="cb-detail-row"><span className="cb-detail-label">Crime</span><span className="cb-detail-value">{(companyHappinessData.crimeProbability || 0).toFixed(2)}</span></div>
-                              <div className="cb-detail-row"><span className="cb-detail-label">Healthcare</span><span className="cb-detail-value">{(companyHappinessData.healthcare || 0).toFixed(2)}</span></div>
-                            </>
-                          );
-                        })()}
+                        );
+                      })()}
+                    </div>
+                    <div className="cb-col-tier">
+                      <span style={{ color: getSafeColor(tierColor) }}>
+                        {TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}
+                      </span>
+                    </div>
+                    <div className="cb-col-level">
+                      <span className="cb-level-badge">Lv {c.buildingLevel}</span>
+                    </div>
+                    <div className="cb-col-locate">
+                      <div className="cb-locate-btn-group">
+                        <button
+                          className="cb-locate-btn cb-locate-co"
+                          onClick={(e) => { e.stopPropagation(); focusCompanyEntity(c); }}
+                          title="Focus camera and inspect Company"
+                        >
+                          GO
+                        </button>
+                        {c.buildingIndex && c.buildingIndex > 0 ? (
+                          <button
+                            className="cb-locate-btn cb-locate-bldg"
+                            onClick={(e) => { e.stopPropagation(); focusBuildingEntity(c); }}
+                            title="Focus camera and inspect Building"
+                          >
+                            BLD
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
-                )}
+                  {isExpanded && (
+                    <div className="cb-expanded-panel">
+                      <div className="cb-detail-grid">
+                        <div className="cb-detail-main">
+                          <div className="cb-detail-row cb-detail-entity-id-row">
+                            <span className="cb-detail-label">Entity ID</span>
+                            <span className="cb-detail-value cb-entity-id-badge" title="Company Entity ID">CO {c.entityIndex}:{c.entityVersion}</span>
+                            {c.buildingIndex && c.buildingIndex > 0 ? (
+                              <span className="cb-detail-value cb-entity-id-badge cb-entity-id-bldg-badge" title="Building Entity ID" style={{ marginLeft: '6rem' }}>
+                                BLDG {c.buildingIndex}:{c.buildingVersion}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Profitability</span>
+                            <span className="cb-detail-value" style={{ color: getSafeColor(profitColor) }}>{`${c.profit > 0 ? '+' : ''}${c.profit}%`}</span>
+                          </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Status</span>
+                            <span className="cb-detail-value" style={{ color: getSafeColor(tierColor) }}>{TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}</span>
+                          </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Assessment</span>
+                            <span className="cb-detail-value cb-detail-assessment" style={{ color: getSafeColor(profitColor) }}>{profitDescription}</span>
+                          </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Zone</span>
+                            <span className="cb-detail-value">{c.zoneType}</span>
+                          </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Output</span>
+                            <span className="cb-detail-value">
+                              {c.resourceKey && <img className="cb-resource-icon" src={`${RESOURCE_ICON_BASE}${resourceIconName(c.resourceKey)}.svg`} />}
+                              {resourceLabel(c.resourceKey)}
+                            </span>
+                          </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Tax Rate</span>
+                            <span className="cb-detail-value" style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.8)') }}>
+                              {`${c.taxRate}%`}
+                            </span>
+                          </div>
+                          {c.buildingLevel > 0 && (
+                            <div className="cb-detail-row">
+                              <span className="cb-detail-label">Building Level</span>
+                              <span className="cb-detail-value">
+                                <span className="cb-building-level">
+                                  {[1, 2, 3, 4, 5].map((lv) => (
+                                    <span key={lv} className={`cb-level-pip${lv <= c.buildingLevel ? ' cb-level-pip-filled' : ''}`} />
+                                  ))}
+                                </span>
+                              </span>
+                            </div>
+                          )}
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Workers</span>
+                            <span className="cb-detail-value">
+                              {c.maxWorkers > 0 ? `${c.workers} / ${c.maxWorkers} (${workerPct}%)` : '\u2014'}
+                            </span>
+                          </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Efficiency</span>
+                            <span className="cb-detail-value" style={{ color: getSafeColor(c.efficiency >= 80 ? '#8bdb46' : c.efficiency >= 50 ? '#e88c3a' : '#e05050') }}>
+                              {`${c.efficiency}%`}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="cb-detail-middle">
+                          <div className="cb-detail-section-title">Consumption</div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Electricity</span>
+                            <span className="cb-detail-value">{(c as any).electricityConsumption || '—'} kW</span>
+                          </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Water</span>
+                            <span className="cb-detail-value">{(c as any).waterConsumption || '—'} m3</span>
+                          </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Garbage</span>
+                            <span className="cb-detail-value">{(c as any).garbageAccumulation || 0} t</span>
+                          </div>
+                          <div className="cb-detail-divider" />
+                          <div className="cb-detail-section-title">Efficiency Factors</div>
+                          {(() => {
+                            const factors: { label: string; status: string; color: string; level: string; icon?: string; factorName?: string }[] = [];
+                            const effFactors = parseEfficiencyDetails(c.efficiencyDetails);
+                            effFactors.forEach((ef) => {
+                              const col = effFactorColor(ef.change);
+                              const lvl = ef.change > 0 ? 'good' : ef.change >= -10 ? 'good' : ef.change >= -30 ? 'warn' : 'bad';
+                              const sign = ef.change > 0 ? '+' : '';
+                              factors.push({ label: ef.label, status: `${sign}${ef.change}%`, color: col, level: lvl, factorName: ef.name });
+                            });
+                            return factors.map((f, fi) => (
+                              <div key={fi} className="cb-detail-row">
+                                <span className="cb-detail-label">{f.label}</span>
+                                <span className="cb-detail-value" style={{ color: getSafeColor(f.color, '#EAEAEA') }}>{f.status}</span>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                        <div className="cb-detail-factors">
+                          <div className="cb-detail-section-title">Public Services</div>
+                          {(() => {
+                            const companyHappinessData = getSafeValue(happinessMap[compKey], null);
+                            if (!companyHappinessData) return <div className="cb-detail-loading-placeholder" style={{ opacity: 0.5, fontSize: '11rem', padding: '4rem 0' }}>Loading factor data...</div>;
+
+                            const cond = companyHappinessData.buildingCondition || 0;
+                            const maxCond = companyHappinessData.maxCondition || 0;
+                            const wearPct = maxCond > 0 ? Math.min(100, Math.round((cond / maxCond) * 100)) : 100;
+                            const wearVal = maxCond > 0 ? `${wearPct}% (${formatCurrency(cond)} / ${formatCurrency(maxCond)})` : `${cond} (No Upkeep)`;
+
+                            return (
+                              <>
+                                <div className="cb-detail-row">
+                                  <span className="cb-detail-label">Condition / Wear</span>
+                                  <span className="cb-detail-value">{wearVal}</span>
+                                </div>
+                                <div className="cb-detail-row">
+                                  <span className="cb-detail-label">Crime</span>
+                                  <span className="cb-detail-value">
+                                    {(() => {
+                                      const val = companyHappinessData.crimeProbability || 0;
+                                      if (val <= 0) return 'Safe (0)';
+                                      if (val < 100) return `Low (${val.toFixed(0)})`;
+                                      if (val < 500) return `Moderate (${val.toFixed(0)})`;
+                                      if (val < 1500) return `High (${val.toFixed(0)})`;
+                                      return `Dangerous (${val.toFixed(0)})`;
+                                    })()}
+                                  </span>
+                                </div>
+                                <div className="cb-detail-row">
+                                  <span className="cb-detail-label">Telecom</span>
+                                  <span className="cb-detail-value">
+                                    {companyHappinessData.telecom !== undefined ? `${companyHappinessData.telecom.toFixed(0)}%` : '—'}
+                                  </span>
+                                </div>
+                                <div className="cb-detail-row"><span className="cb-detail-label">Mail Sending</span><span className="cb-detail-value">{companyHappinessData.mailSending || 0}</span></div>
+                                <div className="cb-detail-row"><span className="cb-detail-label">Mail Receiving</span><span className="cb-detail-value">{companyHappinessData.mailReceiving || 0}</span></div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </Scrollable>
+          {/* Pagination controls */}
+          {sorted.length > PAGE_SIZE && (() => {
+            const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+            const safePage = Math.min(currentPage, totalPages - 1);
+            return (
+              <div className="panel-pagination">
+                <button
+                  className="panel-pagination-btn"
+                  onClick={() => { setCurrentPage((p) => Math.max(0, p - 1)); setExpandedEntity(null); setIsPaused(false); }}
+                  disabled={safePage === 0}
+                >
+                  ◀ Prev
+                </button>
+                <span className="panel-pagination-label">
+                  Page{' '}{safePage + 1}{' '}of{' '}{totalPages}{isPaused ? ' ⏸' : ''}
+                </span>
+                <button
+                  className="panel-pagination-btn"
+                  onClick={() => { setCurrentPage((p) => Math.min(totalPages - 1, p + 1)); setExpandedEntity(null); setIsPaused(false); }}
+                  disabled={safePage >= totalPages - 1}
+                >
+                  Next ▶
+                </button>
               </div>
             );
-          })}
-          {displayLimit < sorted.length && (
-            <div className="cb-row" style={{ justifyContent: 'center', padding: '12rem', color: getSafeColor('#50b8e9'), fontWeight: 'bold' }} onClick={() => setDisplayLimit((d) => d + 50)}>
-              Load More ({sorted.length - displayLimit} remaining)
-            </div>
-          )}
+          })()}
         </div>
       </div>
     </div>

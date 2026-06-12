@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Scrollable } from 'cs2/ui';
 import './ModDebugPanel.css';
 
 interface InspectionResult {
@@ -98,7 +99,7 @@ export const ModDebugPanel: React.FC<ModDebugPanelProps> = ({ onClose }) => {
                     <button onClick={doInspect}>Inspect</button>
                 </div>
                 {inspection && (
-                    <div className="result">
+                    <Scrollable vertical={true} className="result" trackVisibility="scrollable">
                         {inspection.error ? (
                             <div className="error">{inspection.error}</div>
                         ) : (
@@ -109,7 +110,7 @@ export const ModDebugPanel: React.FC<ModDebugPanelProps> = ({ onClose }) => {
                                 </ul>
                             </>
                         )}
-                    </div>
+                    </Scrollable>
                 )}
             </div>
 
@@ -119,14 +120,14 @@ export const ModDebugPanel: React.FC<ModDebugPanelProps> = ({ onClose }) => {
                     <input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Keyword..." />
                     <button onClick={doSearch}>Search</button>
                 </div>
-                <div className="search-results">
+                <Scrollable vertical={true} className="search-results" trackVisibility="scrollable">
                     {searchResults.map((r, i) => (
                         <div key={i} className="type-item">
                             <strong>{r.name}</strong> {r.isEnum ? '(Enum)' : ''}
                             <div className="members">{r.members}</div>
                         </div>
                     ))}
-                </div>
+                </Scrollable>
             </div>
 
 

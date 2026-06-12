@@ -388,6 +388,58 @@ namespace AdvancedTPM
                         continue;
                 }
 
+                // Determine per-resource or global min/max
+                int effectiveMin = globalMin;
+                int effectiveMax = globalMax;
+                if (_perResourceRanges.TryGetValue(key, out var customRange))
+                {
+                    effectiveMin = customRange.min;
+                    effectiveMax = customRange.max;
+                    if (effectiveMin > effectiveMax) { int tmp2 = effectiveMin; effectiveMin = effectiveMax; effectiveMax = tmp2; }
+                }
+
+                // Immediately enforce range: if current rate is outside custom bounds, clamp it now
+                if (currentRate > effectiveMax)
+                {
+                    switch (taxArea)
+                    {
+                        case ResourceTaxArea.Industrial:
+                            _taxSystem.SetIndustrialTaxRate(resource, effectiveMax);
+                            break;
+                        case ResourceTaxArea.Commercial:
+                            _taxSystem.SetCommercialTaxRate(resource, effectiveMax);
+                            break;
+                        case ResourceTaxArea.Office:
+                            _taxSystem.SetOfficeTaxRate(resource, effectiveMax);
+                            break;
+                    }
+                    state.Direction = -1;
+                    state.Score = -1f;
+                    adjustCount++;
+                    lowerCount++;
+                    continue;
+                }
+                else if (currentRate < effectiveMin)
+                {
+                    switch (taxArea)
+                    {
+                        case ResourceTaxArea.Industrial:
+                            _taxSystem.SetIndustrialTaxRate(resource, effectiveMin);
+                            break;
+                        case ResourceTaxArea.Commercial:
+                            _taxSystem.SetCommercialTaxRate(resource, effectiveMin);
+                            break;
+                        case ResourceTaxArea.Office:
+                            _taxSystem.SetOfficeTaxRate(resource, effectiveMin);
+                            break;
+                    }
+                    state.Direction = 1;
+                    state.Score = 1f;
+                    adjustCount++;
+                    raiseCount++;
+                    continue;
+                }
+
                 bool useCommercialData = taxArea == ResourceTaxArea.Office || taxArea == ResourceTaxArea.Commercial;
 
                 // Calculate profitability score (-1.0 to +1.0)
@@ -590,58 +642,6 @@ namespace AdvancedTPM
                 state.AvgProfit = rawAvgProfit;
                 state.LearnedFactor = learnedSignal;
 
-                // Determine per-resource or global min/max
-                int effectiveMin = globalMin;
-                int effectiveMax = globalMax;
-                if (_perResourceRanges.TryGetValue(key, out var customRange))
-                {
-                    effectiveMin = customRange.min;
-                    effectiveMax = customRange.max;
-                    if (effectiveMin > effectiveMax) { int tmp2 = effectiveMin; effectiveMin = effectiveMax; effectiveMax = tmp2; }
-                }
-
-                // Immediately enforce range: if current rate is outside custom bounds, clamp it now
-                if (currentRate > effectiveMax)
-                {
-                    switch (taxArea)
-                    {
-                        case ResourceTaxArea.Industrial:
-                            _taxSystem.SetIndustrialTaxRate(resource, effectiveMax);
-                            break;
-                        case ResourceTaxArea.Commercial:
-                            _taxSystem.SetCommercialTaxRate(resource, effectiveMax);
-                            break;
-                        case ResourceTaxArea.Office:
-                            _taxSystem.SetOfficeTaxRate(resource, effectiveMax);
-                            break;
-                    }
-                    state.Direction = -1;
-                    state.Score = finalScore;
-                    adjustCount++;
-                    lowerCount++;
-                    continue;
-                }
-                else if (currentRate < effectiveMin)
-                {
-                    switch (taxArea)
-                    {
-                        case ResourceTaxArea.Industrial:
-                            _taxSystem.SetIndustrialTaxRate(resource, effectiveMin);
-                            break;
-                        case ResourceTaxArea.Commercial:
-                            _taxSystem.SetCommercialTaxRate(resource, effectiveMin);
-                            break;
-                        case ResourceTaxArea.Office:
-                            _taxSystem.SetOfficeTaxRate(resource, effectiveMin);
-                            break;
-                    }
-                    state.Direction = 1;
-                    state.Score = finalScore;
-                    adjustCount++;
-                    raiseCount++;
-                    continue;
-                }
-
                 // Determine direction: only adjust by 1% per interval
                 // Deadzone of ±0.15 prevents oscillation and creates stable hold behavior
                 int direction = 0;
@@ -698,7 +698,7 @@ namespace AdvancedTPM
             if (adjustCount > 0)
             {
                 TaxRatesChanged = true;
-                // Mod.log.Info($"AutoTax: happiness={happiness} adjusted={adjustCount} (raise={raiseCount} lower={lowerCount} hold={holdCount})");
+                Mod.log.Info($"AutoTax: happiness={happiness} adjusted={adjustCount} (raise={raiseCount} lower={lowerCount} hold={holdCount})");
             }
             return true;
         }

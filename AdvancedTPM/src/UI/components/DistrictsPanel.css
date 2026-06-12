@@ -841,4 +841,32 @@
     margin-right: 4rem;
 }
 
+/* Entity ID styling for Expanded Header */
+.dp-entity-id-header {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10rem;
+  vertical-align: middle;
+}
+
+.dp-entity-id-label {
+  font-size: 10rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  margin-right: 4rem;
+  text-transform: uppercase;
+}
+
+.dp-entity-id-badge {
+  font-size: 11rem;
+  font-family: monospace;
+  font-weight: 800;
+  color: #50b8e9;
+  background: rgba(80, 184, 233, 0.12);
+  border: 1px solid rgba(80, 184, 233, 0.3);
+  padding: 1rem 6rem;
+  border-radius: 3rem;
+}
+
+
 

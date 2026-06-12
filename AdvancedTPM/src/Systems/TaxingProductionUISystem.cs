@@ -992,8 +992,8 @@ namespace AdvancedTPM
 
             DistrictBrowserSystem.IsSystemActive = panelOpen && (mode == "district");
             CompanyBrowserSystem.IsSystemActive = panelOpen && (mode == "company");
-            ResidentialBrowserSystem.IsSystemActive = panelOpen && (mode == "residential");
-            ServicesBrowserSystem.IsSystemActive = panelOpen && (mode == "services");
+            ResidentialBrowserSystem.IsSystemActive = panelOpen && (mode == "residential" || mode == "signature");
+            ServicesBrowserSystem.IsSystemActive = panelOpen && (mode == "services" || mode == "signature");
         }
 
         protected override void OnDestroy()

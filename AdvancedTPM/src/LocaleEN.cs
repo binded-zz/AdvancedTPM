@@ -80,6 +80,7 @@ namespace AdvancedTPM
 
                 // About group
                 { _settings.GetOptionLabelLocaleID(nameof(TPMModSettings.AboutText)), "About" },
+                { _settings.GetOptionDescLocaleID(nameof(TPMModSettings.AboutText)), $"AdvancedTPM - Advanced Tax & Production Management\nVersion {Mod.Version}\n\nResource-level tax and production controls with movable/resizable window." },
             };
 
             return entries;

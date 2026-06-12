@@ -3,13 +3,45 @@ import React from 'react';
 const ServiceIcon: React.FC<{ category?: string; size?: number; style?: React.CSSProperties }> = ({ category = 'Other', size = 18, style }) => {
   const c = (category || 'Other').toLowerCase();
 
+  if (c === 'storage') {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ marginRight: '6rem', flexShrink: 0, ...style }}
+      >
+        <path
+          d="M3 10 L12 4 L21 10 V20 C21 20.5523 20.5523 21 20 21 H4 C3.44772 21 3 20.5523 3 20 V10 Z"
+          stroke="#d4a876"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <rect
+          x="8"
+          y="13"
+          width="8"
+          height="8"
+          rx="1"
+          stroke="#d4a876"
+          strokeWidth="2"
+          fill="none"
+        />
+        <line x1="9" y1="16" x2="15" y2="16" stroke="#d4a876" strokeWidth="1.5" />
+        <line x1="9" y1="19" x2="15" y2="19" stroke="#d4a876" strokeWidth="1.5" />
+      </svg>
+    );
+  }
+
   const pickIcon = (): string => {
     // Zones
     if (c === 'residential') return 'Media/Game/Icons/ZoneResidential.svg';
     if (c === 'commercial') return 'Media/Game/Icons/ZoneCommercial.svg';
     if (c === 'industrial') return 'Media/Game/Icons/ZoneIndustrial.svg';
     if (c === 'office') return 'Media/Game/Icons/ZoneOffice.svg';
-    if (c === 'storage') return 'Media/Game/Icons/ZoneIndustrial.svg'; // Reuse industrial for storage
     if (c === 'extraction' || c === 'rawindustrial') return 'Media/Game/Icons/ZoneExtractors.svg';
 
     // Services
@@ -38,7 +70,7 @@ const ServiceIcon: React.FC<{ category?: string; size?: number; style?: React.CS
       src={pickIcon()}
       width={size}
       height={size}
-      style={{ marginRight: 6, flexShrink: 0, ...style }}
+      style={{ marginRight: '6rem', flexShrink: 0, ...style }}
       alt=""
       onError={(e) => {
         const el = e.currentTarget;

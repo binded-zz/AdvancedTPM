@@ -142,26 +142,7 @@
   overflow: hidden; /* Ensure pane itself doesn't scroll, only inner scroll boxes */
 }
 
-/* Overlay scrollbar for advisor content */
-.advisor-scrollbar-track {
-  position: absolute;
-  right: 8rem;
-  width: 12rem;
-  top: 0;
-  height: 100%;
-  display: none;
-  z-index: 30;
-}
-.advisor-scrollbar-thumb {
-  position: absolute;
-  right: 0.5rem;
-  width: 8rem;
-  background: rgba(80,120,160,0.85);
-  border-radius: 6rem;
-  box-shadow: 0 2rem 6rem rgba(0,0,0,0.5);
-  cursor: grab;
-  z-index: 31;
-}
+
 
 /* scroll body used by ScrollContainer */
 .advisor-scroll-body {
