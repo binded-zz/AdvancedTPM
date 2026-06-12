@@ -93,7 +93,6 @@ namespace AdvancedTPM
             bool justOpened = !m_WasPanelOpen || viewModeChanged;
             m_WasPanelOpen = true;
 
-            if (m_FrameCounter++ % 600 == 0 && Mod.log != null) Mod.log?.Info("ResidentialBrowserSystem Heartbeat");
             if (Mod.Settings == null)
             {
                 this.Dependency = Dependency;
@@ -107,8 +106,6 @@ namespace AdvancedTPM
                 return;
             }
             m_UpdateTimer = 0f;
-            
-            if (Mod.log != null) Mod.log?.Info("ResidentialBrowserSystem OnUpdate triggered");
             
             if (currentViewMode == "signature")
             {

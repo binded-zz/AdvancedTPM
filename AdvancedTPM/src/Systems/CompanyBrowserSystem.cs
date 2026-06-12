@@ -234,8 +234,6 @@ namespace AdvancedTPM
             bool justOpened = !m_WasPanelOpen || viewModeChanged;
             m_WasPanelOpen = true;
 
-            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("CompanyBrowserSystem Heartbeat");
-
             m_UpdateTimer += World.Time.DeltaTime;
 
             // ── Fast-path: filter/sort only, no ECS re-scan ──────────────────────────
@@ -624,7 +622,6 @@ namespace AdvancedTPM
         {
             if (query.IsEmptyIgnoreFilter)
             {
-                Mod.log.Info($"CollectFromQuery({defaultZone}): query is empty");
                 return;
             }
 
@@ -652,7 +649,6 @@ namespace AdvancedTPM
                         }
                     }
                 }
-                Mod.log.Info($"CollectFromQuery({defaultZone}): query count = {entities.Length}, successfully parsed = {result.Count - initialCount}");
             }
             finally { entities.Dispose(); }
         }

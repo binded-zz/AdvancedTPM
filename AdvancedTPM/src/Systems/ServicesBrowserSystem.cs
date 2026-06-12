@@ -88,7 +88,6 @@ namespace AdvancedTPM
             bool justOpened = !m_WasPanelOpen || viewModeChanged;
             m_WasPanelOpen = true;
 
-            if (m_FrameCounter++ % 600 == 0) Mod.log.Info("ServicesBrowserSystem Heartbeat");
             if (Mod.Settings == null)
             {
                 this.Dependency = Dependency;
@@ -103,7 +102,6 @@ namespace AdvancedTPM
             }
             m_UpdateTimer = 0f;
 
-            Mod.log.Info("ServicesBrowserSystem OnUpdate triggered");
             if (currentViewMode == "signature")
             {
                 try { UpdateServicesBuildingsData(justOpened); } catch (Exception ex) { try { Mod.log.Warn($"ServicesBrowserSystem UpdateServicesBuildingsData Error: {ex.Message}"); } catch { } }
@@ -257,10 +255,16 @@ namespace AdvancedTPM
                         // ── Workers (Employee buffer + WorkProvider) ─────────────────────────────
                         try
                         {
-                            if (em.TryGetBuffer<Employee>(ent, true, out var empBuf))
+                            if (em.HasBuffer<Employee>(ent))
+                            {
+                                var empBuf = em.GetBuffer<Employee>(ent);
                                 workers = empBuf.Length;
-                            if (em.TryGetComponent<WorkProvider>(ent, out var wp))
+                            }
+                            if (em.HasComponent<WorkProvider>(ent))
+                            {
+                                var wp = em.GetComponentData<WorkProvider>(ent);
                                 workersMax = wp.m_MaxWorkers;
+                            }
                             if (workersMax > 0)
                                 detailParts.Add($"Workers:{workers}/{workersMax}");
                         }
@@ -269,24 +273,36 @@ namespace AdvancedTPM
                         // ── School: students / capacity (SchoolData + Student buffer) ───────────
                         try
                         {
-                            if (em.TryGetComponent<SchoolData>(prefab, out var sd))
+                            if (em.HasComponent<SchoolData>(prefab))
                             {
+                                var sd = em.GetComponentData<SchoolData>(prefab);
                                 capacity = sd.m_StudentCapacity;
-                                if (em.TryGetBuffer<Student>(ent, true, out var stuBuf))
+                                if (em.HasBuffer<Game.Buildings.Student>(ent))
+                                {
+                                    var stuBuf = em.GetBuffer<Game.Buildings.Student>(ent);
                                     usage = stuBuf.Length;
+                                }
                                 detailParts.Add($"Students:{usage}/{capacity}");
                             }
                         }
                         catch { }
 
-                        // ── Hospital: patient capacity (Game.Buildings.Hospital) ─────────────────
+                        // ── Hospital: patient capacity (Game.Prefabs.HospitalData) ─────────────────
                         try
                         {
-                            if (em.TryGetComponent<Game.Buildings.Hospital>(ent, out var hosp))
+                            if (em.HasComponent<Game.Buildings.Hospital>(ent))
                             {
-                                if (capacity == 0) capacity = hosp.m_PatientCapacity;
-                                if (usage == 0) usage = hosp.m_Patients;
-                                detailParts.Add($"Patients:{hosp.m_Patients}/{hosp.m_PatientCapacity}");
+                                if (em.HasComponent<Game.Prefabs.HospitalData>(prefab))
+                                {
+                                    var hospData = em.GetComponentData<Game.Prefabs.HospitalData>(prefab);
+                                    capacity = hospData.m_PatientCapacity;
+                                }
+                                if (em.HasBuffer<Game.Buildings.Patient>(ent))
+                                {
+                                    var patientBuf = em.GetBuffer<Game.Buildings.Patient>(ent);
+                                    usage = patientBuf.Length;
+                                }
+                                detailParts.Add($"Patients:{usage}/{capacity}");
                             }
                         }
                         catch { }
@@ -294,11 +310,16 @@ namespace AdvancedTPM
                         // ── Park maintenance ────────────────────────────────────────────────────
                         try
                         {
-                            if (em.TryGetComponent<Game.Buildings.Park>(ent, out var park) &&
-                                em.TryGetComponent<ParkData>(prefab, out var parkData) && parkData.m_MaintenancePool > 0)
+                            if (em.HasComponent<Game.Buildings.Park>(ent) &&
+                                em.HasComponent<ParkData>(prefab))
                             {
-                                int maint = (int)Math.Round((park.m_Maintenance / (float)parkData.m_MaintenancePool) * 100f);
-                                detailParts.Add($"Maintenance:{maint}%");
+                                var park = em.GetComponentData<Game.Buildings.Park>(ent);
+                                var parkData = em.GetComponentData<ParkData>(prefab);
+                                if (parkData.m_MaintenancePool > 0)
+                                {
+                                    int maint = (int)Math.Round((park.m_Maintenance / (float)parkData.m_MaintenancePool) * 100f);
+                                    detailParts.Add($"Maintenance:{maint}%");
+                                }
                             }
                         }
                         catch { }
@@ -306,10 +327,25 @@ namespace AdvancedTPM
                         // ── Garbage facility throughput ──────────────────────────────────────────
                         try
                         {
-                            if (em.TryGetComponent<GarbageFacility>(ent, out var gf))
+                            if (em.HasComponent<Game.Buildings.GarbageFacility>(ent))
                             {
-                                if (capacity == 0) capacity = gf.m_GarbageCapacity;
-                                if (usage == 0) usage = gf.m_CurrentGarbage;
+                                if (em.HasComponent<Game.Prefabs.GarbageFacilityData>(prefab))
+                                {
+                                    var gfData = em.GetComponentData<Game.Prefabs.GarbageFacilityData>(prefab);
+                                    if (capacity == 0) capacity = gfData.m_GarbageCapacity;
+                                }
+                                if (usage == 0 && em.HasBuffer<Game.Economy.Resources>(ent))
+                                {
+                                    var resources = em.GetBuffer<Game.Economy.Resources>(ent);
+                                    for (int rIdx = 0; rIdx < resources.Length; rIdx++)
+                                    {
+                                        if (resources[rIdx].m_Resource == Game.Economy.Resource.Garbage)
+                                        {
+                                            usage = resources[rIdx].m_Amount;
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                         }
                         catch { }
@@ -317,8 +353,9 @@ namespace AdvancedTPM
                         // ── Efficiency breakdown (same as ExtendedTooltip EfficiencyTooltipBuilder) ──
                         try
                         {
-                            if (em.TryGetBuffer<Game.Buildings.Efficiency>(ent, true, out var effBuf))
+                            if (em.HasBuffer<Game.Buildings.Efficiency>(ent))
                             {
+                                var effBuf = em.GetBuffer<Game.Buildings.Efficiency>(ent);
                                 float combined = 1f;
                                 var factors = new List<string>();
                                 for (int fi = 0; fi < effBuf.Length; fi++)
