@@ -25,7 +25,8 @@
 .res-col-free     { width:50rem; flex-shrink:0; text-align:right; }
 .res-col-placed   { width:60rem; flex-shrink:0; text-align:right; }
 .res-col-theme    { width:44rem; flex-shrink:0; text-align:right; }
-.res-col-pack     { width:60rem; flex-shrink:0; text-align:right; font-size:10rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.res-col-pack     { width:44rem; flex-shrink:0; text-align:right; font-size:11rem; }
+.res-col-pack-hdr { display:flex; align-items:center; justify-content:center; }
 .res-col-occupancy{ width:60rem; flex-shrink:0; text-align:right; }
 
 /* Per-building section */

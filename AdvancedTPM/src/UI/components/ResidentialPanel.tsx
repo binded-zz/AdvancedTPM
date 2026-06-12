@@ -467,7 +467,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
             <div className="res-col-placed">Placed</div>
             <div className="res-col-theme">USA</div>
             <div className="res-col-theme">EU</div>
-            {visiblePackColumns.slice(0, 3).map((pack) => <div key={pack} className="res-col-pack">{pack}</div>)}
+            {visiblePackColumns.slice(0, 3).map((pack) => <div key={pack} className="res-col-pack res-col-pack-hdr" title={pack}><PackIcon pack={pack} size={16} /></div>)}
           </div>
           {densitySummaryRows.map((row) => (
             <div key={row.label} className="res-table-row">
