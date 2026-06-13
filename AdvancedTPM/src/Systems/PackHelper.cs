@@ -220,20 +220,12 @@ namespace AdvancedTPM
                 assetPack = System.Text.RegularExpressions.Regex.Replace(assetPack, @"\s+", " ").Trim();
             }
 
-            // If still no icon, fallback to the vanilla DLC path structure using the NORMALIZED name
+            // If still no icon, fallback to the vanilla DLC path structure ONLY for Base Game
             if (string.IsNullOrEmpty(assetPackIcon))
             {
                 if (assetPack == "Base Game")
                 {
                     assetPackIcon = "coui://uil/Colored/BaseGame.svg";
-                }
-                else
-                {
-                    string cleanPackName = (assetPack ?? "").Replace(" ", "");
-                    if (!string.IsNullOrEmpty(cleanPackName))
-                    {
-                        assetPackIcon = $"Media/DLC/{cleanPackName}.svg";
-                    }
                 }
             }
 

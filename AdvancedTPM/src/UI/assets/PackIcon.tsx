@@ -15,8 +15,6 @@ const PackIcon: React.FC<PackIconProps> = ({ pack, theme, iconUrl, size = 18, st
   if (!finalIconUrl && pack) {
     if (pack === 'Base Game') {
       finalIconUrl = 'coui://uil/Colored/BaseGame.svg';
-    } else if (pack !== 'Custom' && pack !== 'DLC') {
-      finalIconUrl = `Media/DLC/${pack.replace(/\s+/g, '')}.svg`;
     }
   }
 
