@@ -11,6 +11,7 @@ namespace AdvancedTPM
     public struct PrefabAssetInfo
     {
         public string Theme;
+        public string ThemeIcon;
         public string AssetPack;
         public string AssetPackIcon;
         public string NativePackIcon;
@@ -80,16 +81,18 @@ namespace AdvancedTPM
         private static PrefabAssetInfo ResolvePrefabAssetInfo(PrefabBase prefabBase)
         {
             string theme = "Unknown";
+            string themeIcon = "";
             string assetPack = "Base Game";
             string assetPackIcon = "";
             var packThumbnailsList = new List<string>();
 
             if (prefabBase == null)
-                return new PrefabAssetInfo { Theme = theme, AssetPack = assetPack, AssetPackIcon = assetPackIcon, NativePackIcon = assetPackIcon, PackThumbnails = new string[0] };
+                return new PrefabAssetInfo { Theme = theme, ThemeIcon = themeIcon, AssetPack = assetPack, AssetPackIcon = assetPackIcon, NativePackIcon = assetPackIcon, PackThumbnails = new string[0] };
 
             if (prefabBase.TryGet<ThemeObject>(out var themeObject) && themeObject.m_Theme != null)
             {
                 theme = themeObject.m_Theme.name ?? "Unknown";
+                themeIcon = TryGetUIObjectIcon(themeObject.m_Theme);
             }
 
             // Extract pack name and icon from AssetPackItem
@@ -127,17 +130,7 @@ namespace AdvancedTPM
                     }
                 }
             }
-            else if (prefabBase.TryGet<ContentPrerequisite>(out var cp) && cp.m_ContentPrerequisite.TryGet<DlcRequirement>(out var dlc))
-            {
-                try
-                {
-                    assetPack = Colossal.PSI.Common.PlatformManager.instance.GetDlcName(dlc.m_Dlc) ?? "DLC";
-                }
-                catch { assetPack = "DLC"; }
-            }
-            
-            // If still Base Game, check if it's a spawnable building that inherits pack from its zone
-            if (assetPack == "Base Game" && prefabBase.TryGet<Game.Prefabs.SpawnableBuilding>(out var spawnable) && spawnable.m_ZoneType != null)
+            else if (prefabBase.TryGet<Game.Prefabs.SpawnableBuilding>(out var spawnable) && spawnable.m_ZoneType != null)
             {
                 var zonePackItem = spawnable.m_ZoneType.GetComponent<AssetPackItem>();
                 if (zonePackItem?.m_Packs?.Length > 0)
@@ -170,15 +163,42 @@ namespace AdvancedTPM
                     if (zoneTheme != null && zoneTheme.m_Theme != null)
                     {
                         theme = zoneTheme.m_Theme.name ?? "Unknown";
+                        themeIcon = string.IsNullOrEmpty(themeIcon) ? TryGetUIObjectIcon(zoneTheme.m_Theme) : themeIcon;
                     }
                 }
             }
 
-            // If no icon found from pack, check if the prefab itself has an icon
-            if (string.IsNullOrEmpty(assetPackIcon))
+            if (assetPack == "Base Game" && prefabBase.TryGet<ContentPrerequisite>(out var cp) && cp.m_ContentPrerequisite.TryGet<DlcRequirement>(out var dlc))
             {
-                assetPackIcon = TryGetUIObjectIcon(prefabBase);
+                try
+                {
+                    assetPack = Colossal.PSI.Common.PlatformManager.instance.GetDlcName(dlc.m_Dlc) ?? "DLC";
+                }
+                catch { assetPack = "DLC"; }
             }
+
+            // Fallback for custom user created assets (Paradox Mods) that lack an AssetPackItem
+            if (assetPack == "Base Game" && prefabBase.asset != null && !prefabBase.asset.isBuiltin)
+            {
+                try
+                {
+                    var meta = prefabBase.asset.GetMeta();
+                    if (!string.IsNullOrEmpty(meta.displayName))
+                    {
+                        assetPack = meta.displayName;
+                    }
+                    else if (!string.IsNullOrEmpty(meta.packageName))
+                    {
+                        assetPack = meta.packageName;
+                    }
+                    else
+                    {
+                        assetPack = "Custom Content";
+                    }
+                }
+                catch { }
+            }
+
 
             // Normalize pack names for UI grouping and presentation FIRST
             if (!string.IsNullOrEmpty(assetPack) && assetPack != "Base Game" && assetPack != "Custom" && assetPack != "DLC")
@@ -223,12 +243,14 @@ namespace AdvancedTPM
                 packThumbnailsList.Add(assetPackIcon);
             }
 
-            return new PrefabAssetInfo { 
-                Theme = theme, 
-                AssetPack = assetPack, 
-                AssetPackIcon = assetPackIcon, 
-                NativePackIcon = assetPackIcon, 
-                PackThumbnails = packThumbnailsList.ToArray() 
+            return new PrefabAssetInfo
+            {
+                Theme = theme,
+                ThemeIcon = themeIcon,
+                AssetPack = assetPack,
+                AssetPackIcon = assetPackIcon,
+                NativePackIcon = assetPackIcon,
+                PackThumbnails = packThumbnailsList.ToArray()
             };
         }
     }

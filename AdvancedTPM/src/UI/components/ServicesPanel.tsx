@@ -14,6 +14,7 @@ interface ServiceBuildingInfo {
   category: string;
   district: string;
   theme: string;
+  themeIcon?: string;
   assetPack: string;
   assetPackIcon?: string;
   level: number;
@@ -70,6 +71,7 @@ const parseServiceBuildingsData = (raw: string): ServiceBuildingInfo[] => {
       category: String(s.category || ''),
       district: String(s.district || 'City'),
       theme: String(s.theme || 'USA'),
+      themeIcon: String(s.themeIcon || ''),
       assetPack: String(s.assetPack || 'Base Game'),
       assetPackIcon: String(s.assetPackIcon || ''),
       level: Number(s.level) || 0,
@@ -147,6 +149,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
    const safeBuildings = Array.isArray(buildings) ? buildings : [];
    const [categoryFilter, setCategoryFilter] = useState('All');
    const [packFilter, setPackFilter] = useState('All');
+   const [themeFilter, setThemeFilter] = useState('All');
    const [districtFilter, setDistrictFilter] = useState('All');
    const [loadFilter, setLoadFilter] = useState<'All' | 'Empty' | 'Underused' | 'Busy' | 'Full'>('All');
    const [searchText, setSearchText] = useState('');
@@ -162,16 +165,33 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
      setCurrentPage(0);
      setExpandedEntity(null);
      setIsPaused(false);
-   }, [categoryFilter, packFilter, districtFilter, loadFilter, searchText, sortField, sortDir]);
+   }, [categoryFilter, packFilter, themeFilter, districtFilter, loadFilter, searchText, sortField, sortDir]);
 
    const categories = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.category).filter(Boolean))).sort()], [safeBuildings]);
    const packs = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.assetPack).filter(Boolean))).sort()], [safeBuildings]);
+   const themes = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.theme).filter(Boolean))).sort()], [safeBuildings]);
    const uniqueDistricts = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.district || 'City').filter(Boolean))).sort()], [safeBuildings]);
+
+   const themeIconMap = useMemo(() => {
+     const map = new Map<string, string>();
+     safeBuildings.forEach(b => {
+       if (b.theme && b.themeIcon && !map.has(b.theme)) {
+         map.set(b.theme, b.themeIcon);
+       }
+     });
+     // Add defaults
+     if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
+     if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+     if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
+     if (!map.has('USA')) map.set('USA', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+     return map;
+   }, [safeBuildings]);
 
    const filtered = useMemo(() => {
      let list = safeBuildings;
      if (categoryFilter !== 'All') list = list.filter((b) => b.category === categoryFilter);
      if (packFilter !== 'All') list = list.filter((b) => b.assetPack === packFilter);
+     if (themeFilter !== 'All') list = list.filter((b) => b.theme === themeFilter);
      if (districtFilter !== 'All') list = list.filter((b) => (b.district || 'City').trim() === districtFilter.trim());
      if (loadFilter !== 'All') {
        list = list.filter((b) => {
@@ -203,7 +223,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
          default: return 0;
        }
      });
-   }, [safeBuildings, categoryFilter, packFilter, districtFilter, loadFilter, searchText, sortField, sortDir]);
+   }, [safeBuildings, categoryFilter, packFilter, themeFilter, districtFilter, loadFilter, searchText, sortField, sortDir]);
 
    const handleSort = (field: SortField) => {
      if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
@@ -258,6 +278,14 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                   onChange={setPackFilter}
                   displayValue={(v) => v === 'All' ? 'All Packs' : formatPackName(v)}
                   icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={safeBuildings.find(b => b.assetPack === v)?.assetPackIcon} size={24} />}
+                />
+                <CustomSelect
+                  label="Theme"
+                  value={themeFilter}
+                  options={themes}
+                  onChange={setThemeFilter}
+                  displayValue={(v) => v === 'All' ? 'All Themes' : v}
+                  icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={themeIconMap.get(v)} size={24} />}
                 />
                 <CustomSelect
                   label="District"

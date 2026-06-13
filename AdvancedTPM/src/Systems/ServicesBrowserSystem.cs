@@ -212,6 +212,7 @@ namespace AdvancedTPM
                         catch { }
 
                         string theme = "USA";
+                        string themeIcon = "";
                         string assetPack = "Base Game";
                         string assetPackIcon = "";
                         int capacity = 0;
@@ -229,6 +230,7 @@ namespace AdvancedTPM
                                 {
                                     var info = PackHelper.GetPrefabAssetInfo(pb);
                                     theme = info.Theme;
+                                    themeIcon = info.ThemeIcon;
                                     assetPack = info.AssetPack;
                                     assetPackIcon = info.PackThumbnails != null ? string.Join(",", info.PackThumbnails) : "";
                                 }
@@ -366,10 +368,11 @@ namespace AdvancedTPM
                         category = (category ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
 
                         string escapedIcon = (assetPackIcon ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
+                        string escapedThemeIcon = (themeIcon ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
                         string detailInfo = string.Join(";", detailParts).Replace("\\", "\\\\").Replace("\"", "\\\"");
                         list.Add(string.Format(CultureInfo.InvariantCulture,
-                            "{{\"entityKey\":\"{0},{1}\",\"name\":\"{2}\",\"address\":\"{3}\",\"district\":\"{4}\",\"category\":\"{5}\",\"theme\":\"{6}\",\"assetPack\":\"{7}\",\"assetPackIcon\":\"{8}\",\"level\":{9},\"efficiency\":{10:0.##},\"capacity\":{11},\"usage\":{12},\"workers\":{13},\"workersMax\":{14},\"detailInfo\":\"{15}\",\"isSignature\":{16},\"isLandmark\":{17}}}",
-                            ent.Index, ent.Version, name, address, districtName, category, theme, assetPack, escapedIcon, level, efficiency, capacity, usage, workers, workersMax, detailInfo, isSignature ? "true" : "false", isLandmark ? "true" : "false"));
+                            "{{\"entityKey\":\"{0},{1}\",\"name\":\"{2}\",\"address\":\"{3}\",\"district\":\"{4}\",\"category\":\"{5}\",\"theme\":\"{6}\",\"themeIcon\":\"{7}\",\"assetPack\":\"{8}\",\"assetPackIcon\":\"{9}\",\"level\":{10},\"efficiency\":{11:0.##},\"capacity\":{12},\"usage\":{13},\"workers\":{14},\"workersMax\":{15},\"detailInfo\":\"{16}\",\"isSignature\":{17},\"isLandmark\":{18}}}",
+                            ent.Index, ent.Version, name, address, districtName, category, theme, escapedThemeIcon, assetPack, escapedIcon, level, efficiency, capacity, usage, workers, workersMax, detailInfo, isSignature ? "true" : "false", isLandmark ? "true" : "false"));
                         
                         if (list.Count >= 1000) break; // Safety limit
                     }

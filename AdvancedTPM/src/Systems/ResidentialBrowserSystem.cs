@@ -252,6 +252,7 @@ namespace AdvancedTPM
                         string theme = "Unknown";
                         string assetPack = "Base Game";
                         string assetPackIcon = "";
+                        string themeIcon = "";
                         bool isSignature = false;
 
                         if (em.HasComponent<PrefabRef>(ent))
@@ -290,7 +291,7 @@ namespace AdvancedTPM
                             }
 
                             // Extract theme and asset pack
-                            ExtractThemeAndAssetPack(em, prefab, out theme, out assetPack, out assetPackIcon);
+                            ExtractThemeAndAssetPack(em, prefab, out theme, out themeIcon, out assetPack, out assetPackIcon);
                         }
 
                         // Occupied count from Renter buffer
@@ -360,12 +361,13 @@ namespace AdvancedTPM
 
                             // Clean pipe and semicolon from theme/assetPack to prevent parsing issues
                             theme = (theme ?? "Unknown").Replace("|", "-").Replace(";", "-");
+                            themeIcon = (themeIcon ?? "").Replace("|", "").Replace(";", "");
                             assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
                             assetPackIcon = (assetPackIcon ?? "").Replace("|", "").Replace(";", "");
 
                             parts.Add(string.Format(CultureInfo.InvariantCulture,
-                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}",
-                                ent.Index, ent.Version, address, districtName, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0", assetPackIcon));
+                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}",
+                                ent.Index, ent.Version, address, districtName, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0", assetPackIcon, themeIcon));
                         }
                     }
                     catch { }
@@ -390,9 +392,10 @@ namespace AdvancedTPM
         {
         }
 
-        private void ExtractThemeAndAssetPack(EntityManager em, Entity prefabEntity, out string theme, out string assetPack, out string assetPackIcon)
+        private void ExtractThemeAndAssetPack(EntityManager em, Entity prefabEntity, out string theme, out string themeIcon, out string assetPack, out string assetPackIcon)
         {
             theme = "Unknown";
+            themeIcon = "";
             assetPack = "Base Game";
             assetPackIcon = "";
 
@@ -405,6 +408,7 @@ namespace AdvancedTPM
                 {
                     var info = PackHelper.GetPrefabAssetInfo(pb);
                     theme = info.Theme;
+                    themeIcon = info.ThemeIcon;
                     assetPack = info.AssetPack;
                     assetPackIcon = info.PackThumbnails != null ? string.Join(",", info.PackThumbnails) : "";
                 }
@@ -473,7 +477,8 @@ namespace AdvancedTPM
                                 level = sbd.m_Level;
                             }
 
-                            ExtractThemeAndAssetPack(em, prefab, out theme, out assetPack, out _);
+                            string themeIcon = "";
+                            ExtractThemeAndAssetPack(em, prefab, out theme, out themeIcon, out assetPack, out _);
 
                             theme = (theme ?? "Unknown").Replace("|", "-").Replace(";", "-");
                             assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './CustomSelect.css';
 
 interface CustomSelectProps {
@@ -21,6 +21,8 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
   className = '',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const safeOptions = Array.isArray(options) ? options : [];
   const currentDisplay = displayValue
@@ -29,12 +31,28 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
       ? `${label}: ${value === 'All' ? `All ${label}s` : value}`
       : value;
 
+  const handleToggle = () => {
+    setIsOpen(!isOpen);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (isOpen) {
+      const handleClose = () => setIsOpen(false);
+      window.addEventListener('resize', handleClose);
+      return () => {
+        window.removeEventListener('resize', handleClose);
+      };
+    }
+  }, [isOpen]);
+
   return (
     <div className={`custom-select-container ${className}`}>
       <button
+        ref={triggerRef}
         type="button"
         className="custom-select-trigger"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
       >
         <span style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {icon && icon(value) ? (

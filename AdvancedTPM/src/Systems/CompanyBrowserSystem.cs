@@ -77,6 +77,7 @@ namespace AdvancedTPM
             public int Level;
             public bool IsSignature;
             public string Theme;
+            public string ThemeIcon;
             public string AssetPack;
             public string AssetPackIcon;
             public string IconUrl;
@@ -594,6 +595,7 @@ namespace AdvancedTPM
             public bool IsSignature;
             public string District;
             public string Theme;
+            public string ThemeIcon;
             public string AssetPack;
             public string AssetPackIcon;
             public string CompanyKind;
@@ -955,6 +957,7 @@ namespace AdvancedTPM
                                     {
                                         var assetInfo = PackHelper.GetPrefabAssetInfo(pb);
                                         newBldg.Theme = assetInfo.Theme;
+                                        newBldg.ThemeIcon = assetInfo.ThemeIcon;
                                         newBldg.AssetPack = assetInfo.AssetPack;
                                         newBldg.AssetPackIcon = assetInfo.PackThumbnails != null ? string.Join(",", assetInfo.PackThumbnails) : "";
                                         newBldg.NativePackIcon = assetInfo.NativePackIcon;
@@ -968,6 +971,7 @@ namespace AdvancedTPM
                             info.BuildingLevel = newBldg.Level;
                             info.IsSignature = newBldg.IsSignature;
                             info.Theme = newBldg.Theme;
+                            info.ThemeIcon = newBldg.ThemeIcon;
                             info.AssetPack = newBldg.AssetPack;
                             info.AssetPackIcon = newBldg.AssetPackIcon;
                             info.IconUrl = newBldg.IconUrl;
@@ -1397,7 +1401,8 @@ namespace AdvancedTPM
                    .Append(c.IsSignature ? 1 : 0).Append('|')
                    .Append(c.BuildingEntity.Index).Append(',').Append(c.BuildingEntity.Version).Append('|')
                    .Append(EscapePipe(c.IconUrl ?? "")).Append('|')
-                   .Append(EscapePipe(c.NativePackIcon ?? ""));
+                   .Append(EscapePipe(c.NativePackIcon ?? "")).Append('|')
+                   .Append(EscapePipe(c.ThemeIcon ?? ""));
             }
             return _sb.ToString();
         }

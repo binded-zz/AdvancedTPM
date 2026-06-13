@@ -1,5 +1,5 @@
 /* == Company Browser Î“Ã‡Ã¶ CS2 rem-scaled == */
-.cb-container { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+.cb-container { display:flex; flex-direction:column; height:100%; overflow:visible; }
 
 /* Filters — vertical column layout */
 .cb-filters-vertical { display:flex; flex-direction:column; border-bottom:1rem solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.2); flex-shrink:0; }

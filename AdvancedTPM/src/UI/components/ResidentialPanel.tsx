@@ -44,6 +44,7 @@ interface ResidentialBuilding {
   occupied: number;
   capacity: number;
   theme: string;
+  themeIcon?: string;
   assetPack: string;
   assetPackIcon?: string;
   isSignature: boolean;
@@ -103,6 +104,7 @@ const parseResidentialBuildings = (payload: string): ResidentialBuilding[] => {
       assetPack: parts[8] || 'Base Game',
       isSignature: parts[9] === '1',
       assetPackIcon: parts[10] || '',
+      themeIcon: parts[11] || '',
     } as ResidentialBuilding;
   }).filter((x): x is ResidentialBuilding => x !== null);
 };
@@ -289,8 +291,6 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }, [data]);
 
-  const visiblePackColumns = useMemo(() => assetPackCounts.map(([pack]) => pack).filter((pack) => pack !== 'Base Game'), [assetPackCounts]);
-
   const packIconMap = useMemo(() => {
     const map = new Map<string, string>();
     safeBuildings.forEach(b => {
@@ -298,6 +298,24 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
         map.set(b.assetPack, b.assetPackIcon);
       }
     });
+    return map;
+  }, [safeBuildings]);
+
+  const visiblePackColumns = useMemo(() => assetPackCounts.map(([pack]) => pack).filter((pack) => pack !== 'Base Game' && packIconMap.has(pack)), [assetPackCounts, packIconMap]);
+
+  const themeIconMap = useMemo(() => {
+    const map = new Map<string, string>();
+    safeBuildings.forEach(b => {
+      const normalizedTheme = normalizeTheme(b);
+      if (b.themeIcon && !map.has(normalizedTheme)) {
+        map.set(normalizedTheme, b.themeIcon);
+      }
+    });
+    // Add defaults
+    if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
+    if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
+    if (!map.has('USA')) map.set('USA', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
     return map;
   }, [safeBuildings]);
 
@@ -531,7 +549,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
             <div className="res-col-placed">Placed</div>
             <div className="res-col-theme">USA</div>
             <div className="res-col-theme">EU</div>
-            {visiblePackColumns.slice(0, 10).map((pack) => <div key={pack} className="res-col-pack res-col-pack-hdr" title={pack}><PackIcon pack={pack} iconUrl={packIconMap.get(pack)} size={22} /></div>)}
+            {visiblePackColumns.slice(0, 15).map((pack) => <div key={pack} className="res-col-pack res-col-pack-hdr" title={pack}><PackIcon pack={pack} iconUrl={packIconMap.get(pack)} size={22} /></div>)}
           </div>
           {densitySummaryRows.map((row) => (
             <div key={row.label} className="res-table-row">
@@ -542,7 +560,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
               <div className="res-col-placed">{row.placed.toLocaleString()}</div>
               <div className="res-col-theme">{row.usa.toLocaleString()}</div>
               <div className="res-col-theme">{row.eu.toLocaleString()}</div>
-              {visiblePackColumns.slice(0, 10).map((pack) => <div key={pack} className="res-col-pack">{(row.packs.get(pack) || 0).toLocaleString()}</div>)}
+              {visiblePackColumns.slice(0, 15).map((pack) => <div key={pack} className="res-col-pack">{(row.packs.get(pack) || 0).toLocaleString()}</div>)}
             </div>
           ))}
         </div>
@@ -599,6 +617,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
               options={uniqueThemes || ['All']}
               onChange={setThemeFilter}
               displayValue={(v) => v === 'All' ? 'All Themes' : v}
+              icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={themeIconMap.get(v)} size={FILTER_ICON_SIZE} />}
             />
             <CustomSelect
               label="District"
@@ -697,7 +716,10 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                         <div className="res-bcol-level">
                            <span className="res-level-badge">Lv {b.level}</span>
                         </div>
-                        <div className="res-bcol-theme">{normalizeTheme(b)}</div>
+                        <div className="res-bcol-theme" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <PackIcon pack={normalizeTheme(b)} iconUrl={themeIconMap.get(normalizeTheme(b))} size={16} />
+                          <span style={{ marginLeft: '4rem' }}>{normalizeTheme(b)}</span>
+                        </div>
                           <div className="res-bcol-assetpack" style={{ display: 'flex', alignItems: 'center' }}>
                             <PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={24} style={{ marginRight: '6rem' }} />
                             {b.assetPack || 'Base Game'}

@@ -47,6 +47,7 @@ export interface CompanyVm {
   feePercent?: number;
   district?: string;
   theme?: string;
+  themeIcon?: string;
   assetPack?: string;
   assetPackIcon?: string;
   nativePackIcon?: string;
@@ -141,6 +142,7 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
       const buildingEntityPart = getVal(36);
       const iconUrl = getVal(37);
       const nativePackIcon = getVal(38);
+      const themeIcon = getVal(39);
 
       const [idx, ver] = (entityPart || '').split(',');
       const [bIdx, bVer] = (buildingEntityPart || '').split(',');
@@ -178,7 +180,8 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
         crimeProbability: Number(crimeProbability) || 0,
         district: district || 'City',
         theme: theme || 'USA',
-        assetPack: assetPack || 'Base Game',
+        themeIcon: themeIcon || '',
+        assetPack: formatPackName(assetPack || 'Base Game'),
         assetPackIcon: assetPackIcon || '',
         nativePackIcon: nativePackIcon || '',
         companyKind: companyKind || zoneType || 'Unknown',
@@ -563,6 +566,21 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
     trigger('taxProduction', 'updateCompanyFilters', payload);
   }, [zoneFilter, resourceFilter, tierFilter, packFilter, themeFilter, districtFilter, kindFilter, profitMin, profitMax, searchText, sortField, sortDir]);
 
+  const themeIconMap = useMemo(() => {
+    const map = new Map<string, string>();
+    safeCompanies.forEach(c => {
+      if (c.theme && c.themeIcon && !map.has(c.theme)) {
+        map.set(c.theme, c.themeIcon);
+      }
+    });
+    // Add defaults
+    if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
+    if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
+    if (!map.has('USA')) map.set('USA', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    return map;
+  }, [safeCompanies]);
+
   // Scroll to top, clear expansion, and resume updates when filters/sort change
   useEffect(() => {
     try { if (bodyRef.current) bodyRef.current.scrollTop = 0; } catch { }
@@ -771,6 +789,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
             options={['All', ...summary.themes.sort()]}
             onChange={setThemeFilter}
             displayValue={(v) => v === 'All' ? 'All Themes' : v}
+            icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={themeIconMap.get(v)} size={24} />}
           />
           <CustomSelect
             label="District"

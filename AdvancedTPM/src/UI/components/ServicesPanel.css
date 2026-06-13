@@ -1,6 +1,6 @@
 /* === Services Panel — CoHTML safe === */
 
-.svc-panel { display:flex; flex-direction:column; height:100%; color:rgba(255,255,255,0.85); font-size:13rem; overflow:hidden; }
+.svc-panel { display:flex; flex-direction:column; height:100%; color:rgba(255,255,255,0.85); font-size:13rem; overflow:visible; }
 
 /* Filters */
 .svc-filters { display:flex; flex-direction:column; padding:8rem 10rem; background:rgba(0,0,0,0.15); border-bottom:1rem solid rgba(255,255,255,0.08); flex-shrink:0; }
@@ -18,9 +18,9 @@
 .svc-search { width:200rem; padding:4rem 8rem; font-size:11rem; background:rgba(15,24,37,0.95); border:1rem solid rgba(124,152,189,0.4); border-radius:3rem; color:#e7edf2; }
 
 /* Table container */
-.svc-table { flex:1; display:flex; flex-direction:column; min-height:0; position:relative; overflow:hidden; }
+.svc-table { flex:1; display:flex; flex-direction:column; min-height:0; position:relative; overflow:visible; }
 .svc-table-header { display:flex; align-items:center; padding:5rem 22rem 5rem 10rem; background:rgba(0,0,0,0.25); border-bottom:1rem solid rgba(255,255,255,0.12); font-size:11rem; color:rgba(255,255,255,0.6); text-transform:uppercase; letter-spacing:0.4rem; flex-shrink:0; }
-.svc-table-scroll-wrap { flex:1; min-height:0; position:relative; overflow:hidden; display:flex; flex-direction:column; }
+.svc-table-scroll-wrap { flex:1; min-height:0; position:relative; overflow:visible; display:flex; flex-direction:column; }
 .svc-table-body { flex:1; min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; padding-right:12rem; }
 
 /* Custom Scrollbar removed for native scrolling compatibility */

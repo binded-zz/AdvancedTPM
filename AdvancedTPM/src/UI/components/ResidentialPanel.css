@@ -1,7 +1,7 @@
 /* === Residential Panel — CoHTML safe, no gap/grid/calc === */
 
 /* Container */
-.res-panel { display:flex; flex-direction:column; height:100%; padding:0; color:rgba(255,255,255,0.85); font-size:13rem; overflow:hidden; }
+.res-panel { display:flex; flex-direction:column; height:100%; padding:0; color:rgba(255,255,255,0.85); font-size:13rem; overflow:visible; }
 .res-panel > * { margin-bottom:0; }
 
 .res-top-section { display:flex; flex-shrink:0; background:rgba(255,255,255,0.02); border-radius:4rem; padding:4rem 6rem; border:1rem solid rgba(255,255,255,0.04); align-items: stretch; margin: 8rem 10rem 4rem 10rem; }
@@ -72,14 +72,14 @@
 
 /* Building column widths */
 .res-bcol-address   { flex:1; min-width:0; display:flex; align-items:center; overflow:hidden; }
-.res-bcol-density   { width:64rem; flex-shrink:0; font-size:12rem; }
-.res-bcol-level     { width:40rem; flex-shrink:0; text-align:center; }
-.res-bcol-theme     { width:40rem; flex-shrink:0; text-align:center; font-size:12rem; }
-.res-bcol-assetpack { width:96rem; flex-shrink:0; font-size:12rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.res-bcol-occupied  { width:65rem; flex-shrink:0; text-align:right; }
-.res-bcol-capacity  { width:65rem; flex-shrink:0; text-align:right; }
-.res-bcol-occupancy { width:44rem; flex-shrink:0; text-align:right; }
-.res-bcol-happy     { width:44rem; flex-shrink:0; text-align:right; }
+.res-bcol-density   { width:80rem; flex-shrink:0; font-size:12rem; }
+.res-bcol-level     { width:48rem; flex-shrink:0; text-align:center; }
+.res-bcol-theme     { width:120rem; flex-shrink:0; text-align:center; font-size:12rem; }
+.res-bcol-assetpack { width:160rem; flex-shrink:0; font-size:12rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.res-bcol-occupied  { width:80rem; flex-shrink:0; text-align:right; }
+.res-bcol-capacity  { width:80rem; flex-shrink:0; text-align:right; }
+.res-bcol-occupancy { width:60rem; flex-shrink:0; text-align:right; }
+.res-bcol-happy     { width:60rem; flex-shrink:0; text-align:right; }
 .res-bcol-action    { width:40rem; flex-shrink:0; text-align:center; }
 
 /* Scroll container */
