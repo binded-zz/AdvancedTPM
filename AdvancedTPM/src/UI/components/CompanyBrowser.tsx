@@ -49,6 +49,7 @@ export interface CompanyVm {
   theme?: string;
   assetPack?: string;
   assetPackIcon?: string;
+  nativePackIcon?: string;
   companyKind?: string;
   electricityConsumption?: number;
   waterConsumption?: number;
@@ -57,6 +58,7 @@ export interface CompanyVm {
   crimeProbability?: number;
   buildingIndex?: number;
   buildingVersion?: number;
+  iconUrl?: string;
 }
 
 const isRawResource = (resourceKey: string): boolean => {
@@ -137,6 +139,8 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
       const companyKind = getVal(34);
       const isSignature = getVal(35);
       const buildingEntityPart = getVal(36);
+      const iconUrl = getVal(37);
+      const nativePackIcon = getVal(38);
 
       const [idx, ver] = (entityPart || '').split(',');
       const [bIdx, bVer] = (buildingEntityPart || '').split(',');
@@ -176,10 +180,12 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
         theme: theme || 'USA',
         assetPack: assetPack || 'Base Game',
         assetPackIcon: assetPackIcon || '',
+        nativePackIcon: nativePackIcon || '',
         companyKind: companyKind || zoneType || 'Unknown',
         isSignature: Number(isSignature) === 1,
         buildingIndex: Number(bIdx) || 0,
         buildingVersion: Number(bVer) || 0,
+        iconUrl: iconUrl || '',
       } as CompanyVm;
     })
     .filter((x): x is CompanyVm => x !== null);
@@ -938,7 +944,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                       <span className={isRawResource(c.resourceKey) ? 'cb-resource-raw' : ''}>{resourceLabel(c.resourceKey)}</span>
                     </div>
                      <div className="cb-col-pack" title={formatPackName(c.assetPack || 'Base Game')}>
-                       <PackIcon pack={c.assetPack} iconUrl={c.assetPackIcon} size={24} />
+                       <PackIcon pack={c.assetPack} theme={c.theme} iconUrl={c.nativePackIcon || c.assetPackIcon} size={24} />
                      </div>
                     <div className="cb-col-profit">
                       <span style={{ color: getSafeColor(profitColor) }}>

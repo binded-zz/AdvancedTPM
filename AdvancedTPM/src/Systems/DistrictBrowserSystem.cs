@@ -53,11 +53,11 @@ namespace AdvancedTPM
         private Game.EndFrameBarrier _endFrameBarrier;
         private EntityArchetype _policyEventArchetype;
 
-        // Frame-throttle accumulator: runs at most once every 4 simulation-seconds.
+        // Frame-throttle accumulator: runs at most once every 10 simulation-seconds.
         private float m_TimeSinceLastUpdate = 0f;
 
         // Dirty flag: set to true whenever district data may have changed (city load, user
-        // interaction, policy toggle). The 4-second gate only serializes strings when this
+        // interaction, policy toggle). The 10-second gate only serializes strings when this
         // is true, making idle ticks completely free of string-construction work.
         private bool m_DataIsDirty = true;
         private bool m_WasPanelOpen = false;
@@ -800,8 +800,8 @@ namespace AdvancedTPM
             // ── Gate 2: Time Throttle ─────────────────────────────────────────────────
             m_TimeSinceLastUpdate += this.World.Time.DeltaTime;
             
-            // Every 4 seconds, force a refresh even if no interaction occurred
-            if (m_TimeSinceLastUpdate >= 4.0f)
+            // Every 10 seconds, force a refresh even if no interaction occurred
+            if (m_TimeSinceLastUpdate >= 10.0f)
             {
                 m_DataIsDirty = true;
                 m_TimeSinceLastUpdate = 0f;

@@ -223,3 +223,64 @@
 .panel-pagination-btn:hover { background:rgba(255,255,255,0.13); color:#fff; }
 .panel-pagination-btn:disabled { opacity:0.3; cursor:default; }
 .panel-pagination-label { font-size:11rem; color:rgba(255,255,255,0.6); white-space:nowrap; margin:0 8rem; text-align:center; }
+
+/* Pack Icon Fallbacks & Border Distinctions */
+.pack-icon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 4rem;
+  box-sizing: border-box;
+}
+
+.pack-icon-fallback-text {
+  font-size: 10rem;
+  font-weight: 800;
+  color: #ffffff;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* Official Base Game Themes & Paid DLC (Premium Gold Band matching vanilla) */
+.paid-dlc-gold-band {
+  border: 1.5rem solid #ffd700;
+  background: linear-gradient(135deg, rgba(25, 74, 128, 0.4), rgba(25, 74, 128, 0.2));
+}
+
+/* Region Packs & Mod Content (Subdued Blue/Steel border) */
+.mod-pack-blue-band {
+  border: 1.5rem solid #7ec8e3;
+  background: linear-gradient(135deg, rgba(42, 58, 85, 0.4), rgba(42, 58, 85, 0.2));
+}
+
+/* Keep old classes for backward compatibility */
+.pack-icon-official {
+  border: 1.5rem solid #ffd700;
+  background: linear-gradient(135deg, rgba(25, 74, 128, 0.4), rgba(25, 74, 128, 0.2));
+}
+
+.pack-icon-custom {
+  border: 1.5rem solid #7ec8e3;
+  background: linear-gradient(135deg, rgba(42, 58, 85, 0.4), rgba(42, 58, 85, 0.2));
+}
+
+.pack-icon-image.paid-dlc-gold-band {
+  border: 1.5rem solid #ffd700;
+  border-radius: 4rem;
+}
+
+.pack-icon-image.mod-pack-blue-band {
+  border: 1.5rem solid #7ec8e3;
+  border-radius: 4rem;
+}
+
+.pack-icon-image.pack-icon-official {
+  border: 1.5rem solid #ffd700;
+  border-radius: 4rem;
+}
+
+.pack-icon-image.pack-icon-custom {
+  border: 1.5rem solid #7ec8e3;
+  border-radius: 4rem;
+}

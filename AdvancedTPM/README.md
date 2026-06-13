@@ -26,6 +26,12 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 - **Company Happiness (row + detail)** — compact colorized happiness score is now visible in the company rows and expanded detail panels. The score is estimated from efficiency, profit, staffing, and tax (server provides an authoritative value when available).
 - **Signature building detection** — special "signature" landmark/prefab detection is exposed in the Company Browser for supported buildings; signature buildings are flagged in the detail panel and used by the Advisor when relevant.
 
+### Residential Browser
+- **Demographics & Households** — browse all residential buildings by address, density, level, and view localized stats on occupancy and citizens.
+- **Custom Content Grouping** — tracks custom assets and automatically detects which custom creator pack they belong to, grouping them natively into the UI.
+- **Pack Summary Dashboard** — dynamic column headers count exactly how many residential buildings you have of each downloaded custom pack (up to 10 packs simultaneously).
+- **Accurate Theme Display** — correctly displays creator-assigned aesthetic themes without falsely coercing them.
+
 ### Auto-Tax Engine
 - **6-factor scoring** — balances profitability, happiness, production, demand, company count, and tax income when recommending rate adjustments.
 - **Per-resource min/max ranges** — fine-tune allowed tax bounds for each resource.

@@ -79,6 +79,8 @@ namespace AdvancedTPM
             public string Theme;
             public string AssetPack;
             public string AssetPackIcon;
+            public string IconUrl;
+            public string NativePackIcon;
         }
 
         private readonly Dictionary<Entity, CompanyPrefabMetadata> _companyPrefabCache = new Dictionary<Entity, CompanyPrefabMetadata>();
@@ -265,8 +267,8 @@ namespace AdvancedTPM
             }
             m_ForceFilterUpdate = false; // clear if buffer was empty
 
-            // ── 2-second throttle gate (reduced from 10s — profiler showed 60ms stalls on flush) ──
-            if (m_UpdateTimer < 2.0f && !justOpened)
+            // ── 10-second throttle gate (reduced UI refresh churn and row jumping) ──
+            if (m_UpdateTimer < 10.0f && !justOpened)
             {
                 this.Dependency = Dependency;
                 return;
@@ -595,6 +597,8 @@ namespace AdvancedTPM
             public string AssetPack;
             public string AssetPackIcon;
             public string CompanyKind;
+            public string IconUrl;
+            public string NativePackIcon;
         }
 
         private void CollectCompanyData(List<CompanyInfo> result)
@@ -663,6 +667,7 @@ namespace AdvancedTPM
                     ZoneType = defaultZone,
                     ProfitabilityTier = "Unknown",
                     ResourceEnum = Resource.NoResource,
+                    IconUrl = "",
                 };
 
                 // --- Brand name via NameSystem (cached to avoid repeated expensive label resolution) ---
@@ -878,6 +883,8 @@ namespace AdvancedTPM
                             info.Theme = cachedBldg.Theme;
                             info.AssetPack = cachedBldg.AssetPack;
                             info.AssetPackIcon = cachedBldg.AssetPackIcon;
+                            info.IconUrl = cachedBldg.IconUrl;
+                            info.NativePackIcon = cachedBldg.NativePackIcon;
                         }
                         else
                         {
@@ -887,7 +894,9 @@ namespace AdvancedTPM
                                 IsSignature = false,
                                 Theme = "USA",
                                 AssetPack = "Base Game",
-                                AssetPackIcon = ""
+                                AssetPackIcon = "",
+                                IconUrl = "",
+                                NativePackIcon = ""
                             };
 
                             if (em.HasComponent<SpawnableBuildingData>(bldgPrefab))
@@ -896,9 +905,45 @@ namespace AdvancedTPM
                                 newBldg.Level = sbd.m_Level;
                             }
 
-                            if (em.HasComponent<Game.Prefabs.SignatureBuildingData>(bldgPrefab) || em.HasComponent<Game.Prefabs.UniqueObjectData>(bldgPrefab))
+                            bool isSig = em.HasComponent<Game.Prefabs.SignatureBuildingData>(bldgPrefab) || em.HasComponent<Game.Prefabs.UniqueObjectData>(bldgPrefab);
+                            if (!isSig)
+                            {
+                                try
+                                {
+                                    if (_prefabSystem != null)
+                                    {
+                                        var pb = _prefabSystem.GetPrefab<PrefabBase>(bldgPrefab);
+                                        if (pb != null)
+                                        {
+                                            string pn = (pb.name ?? "").ToLowerInvariant();
+                                            if (pn.Contains("signature") || pn.Contains("landmark") || pn.Contains("monument") || pn.Contains("unique"))
+                                            {
+                                                isSig = true;
+                                            }
+                                        }
+                                    }
+                                }
+                                catch {}
+                            }
+                            if (isSig)
                             {
                                 newBldg.IsSignature = true;
+                            }
+
+                            if (em.HasComponent<Game.Prefabs.UIObjectData>(bldgPrefab))
+                            {
+                                try
+                                {
+                                    if (_prefabSystem != null)
+                                    {
+                                        var pb = _prefabSystem.GetPrefab<PrefabBase>(bldgPrefab);
+                                        if (pb != null && pb.TryGet<UIObject>(out var uiObj))
+                                        {
+                                            newBldg.IconUrl = uiObj.m_Icon ?? "";
+                                        }
+                                    }
+                                }
+                                catch { }
                             }
 
                             try
@@ -908,42 +953,11 @@ namespace AdvancedTPM
                                     var pb = _prefabSystem.GetPrefab<PrefabBase>(bldgPrefab);
                                     if (pb != null)
                                     {
-                                        string pn = pb.name ?? "";
-                                        if (pn.Contains("European") || pn.Contains("EU_") || pn.StartsWith("EU_")) newBldg.Theme = "European";
-                                        else if (pn.Contains("NorthAmerican") || pn.Contains("NA_") || pn.StartsWith("NA_") || pn.Contains("USA_") || pn.StartsWith("USA_")) newBldg.Theme = "North American";
-                                        else if (pn.Contains("Asian")) newBldg.Theme = "Asian";
-
-                                        if (pb.TryGet<ContentPrerequisite>(out var cp) && cp.m_ContentPrerequisite.TryGet<DlcRequirement>(out var dlc))
-                                        {
-                                            try
-                                            {
-                                                string dlcName = Colossal.PSI.Common.PlatformManager.instance.GetDlcName(dlc.m_Dlc) ?? "DLC";
-                                                newBldg.AssetPack = dlcName;
-                                                newBldg.AssetPackIcon = $"Media/DLC/{System.Text.RegularExpressions.Regex.Replace(dlcName, @"[^a-zA-Z0-9]", "")}.svg";
-                                            }
-                                            catch { newBldg.AssetPack = "DLC"; newBldg.AssetPackIcon = ""; }
-                                        }
-                                        else
-                                        {
-                                            var assetPackItem = pb.GetComponent<AssetPackItem>();
-                                            if (assetPackItem != null && assetPackItem.m_Packs != null && assetPackItem.m_Packs.Length > 0)
-                                            {
-                                                var pack = assetPackItem.m_Packs[0];
-                                                if (pack != null)
-                                                {
-                                                    newBldg.AssetPack = pack.name ?? "Custom";
-                                                    try { newBldg.AssetPackIcon = ImageSystem.GetThumbnail(pack) ?? ""; } catch { newBldg.AssetPackIcon = ""; }
-                                                }
-                                            }
-                                            else if (pn.StartsWith("DLC") || pn.Contains("_DLC"))
-                                            {
-                                                newBldg.AssetPack = "DLC";
-                                            }
-                                            else if (pn.Contains("Mod_"))
-                                            {
-                                                newBldg.AssetPack = "Custom";
-                                            }
-                                        }
+                                        var assetInfo = PackHelper.GetPrefabAssetInfo(pb);
+                                        newBldg.Theme = assetInfo.Theme;
+                                        newBldg.AssetPack = assetInfo.AssetPack;
+                                        newBldg.AssetPackIcon = assetInfo.PackThumbnails != null ? string.Join(",", assetInfo.PackThumbnails) : "";
+                                        newBldg.NativePackIcon = assetInfo.NativePackIcon;
                                     }
                                 }
                             }
@@ -956,6 +970,8 @@ namespace AdvancedTPM
                             info.Theme = newBldg.Theme;
                             info.AssetPack = newBldg.AssetPack;
                             info.AssetPackIcon = newBldg.AssetPackIcon;
+                            info.IconUrl = newBldg.IconUrl;
+                            info.NativePackIcon = newBldg.NativePackIcon;
                         }
                     }
 
@@ -1379,7 +1395,9 @@ namespace AdvancedTPM
                    .Append(EscapePipe(c.AssetPackIcon ?? "")).Append('|')
                    .Append(EscapePipe(c.CompanyKind ?? "")).Append('|')
                    .Append(c.IsSignature ? 1 : 0).Append('|')
-                   .Append(c.BuildingEntity.Index).Append(',').Append(c.BuildingEntity.Version);
+                   .Append(c.BuildingEntity.Index).Append(',').Append(c.BuildingEntity.Version).Append('|')
+                   .Append(EscapePipe(c.IconUrl ?? "")).Append('|')
+                   .Append(EscapePipe(c.NativePackIcon ?? ""));
             }
             return _sb.ToString();
         }
@@ -1457,3 +1475,4 @@ namespace AdvancedTPM
         }
     }
 }
+

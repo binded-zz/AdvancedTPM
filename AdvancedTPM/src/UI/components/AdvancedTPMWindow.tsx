@@ -953,11 +953,13 @@ districtPoliciesData,
 
       {/* Signature Buildings view â€” unified commercial + residential */}
       {viewMode === 'signature' && (
-        <SignatureUnifiedView
-          signatureCompanies={signatureCompanies}
-          residentialSignatureBuildings={residentialSignatureBuildings}
-          servicesBuildingsData={servicesBuildingsData ?? ''}
-        />
+        <div className="adv-table-section">
+          <SignatureUnifiedView
+            signatureCompanies={signatureCompanies}
+            residentialSignatureBuildings={residentialSignatureBuildings}
+            servicesBuildingsData={servicesBuildingsData ?? ''}
+          />
+        </div>
       )}
 
       {/* Advisor view */}
@@ -1132,6 +1134,7 @@ const SignatureUnifiedView: React.FC<{
   const [currentPage, setCurrentPage] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [frozenItems, setFrozenItems] = useState<typeof allItems>([]);
+  const [searchText, setSearchText] = useState('');
   const SIG_PAGE_SIZE = 50;
 
 
@@ -1259,6 +1262,16 @@ const SignatureUnifiedView: React.FC<{
     if (packFilter !== 'All') list = list.filter((i) => String(i.assetPack || 'Base Game').toLowerCase().includes(packFilter.toLowerCase()));
     if (distFilter !== 'All') list = list.filter((i) => String((i as any).district || 'City').toLowerCase() === distFilter.toLowerCase());
     if (resFilter !== 'All') list = list.filter((i) => resourceIconName((i as any).resourceKey || '') === resFilter);
+    if (searchText) {
+      const lower = searchText.toLowerCase();
+      list = list.filter((i) => 
+        (i.name || '').toLowerCase().includes(lower) || 
+        (i.address || '').toLowerCase().includes(lower) || 
+        (i.type || '').toLowerCase().includes(lower) || 
+        (i.assetPack || '').toLowerCase().includes(lower) || 
+        (i.district || '').toLowerCase().includes(lower)
+      );
+    }
 
     return [...list].sort((a, b) => {
       let cmp = 0;
@@ -1269,14 +1282,14 @@ const SignatureUnifiedView: React.FC<{
       else if (sortField === 'level') cmp = a.level - b.level;
       return sortDir * cmp;
     });
-  }, [allItems, typeFilter, themeFilter, packFilter, distFilter, resFilter, sortField, sortDir]);
+  }, [allItems, typeFilter, themeFilter, packFilter, distFilter, resFilter, sortField, sortDir, searchText]);
 
   // Reset page + unpause when filters or sort change
   useEffect(() => {
     setCurrentPage(0);
     setExpandedEntity(null);
     setIsPaused(false);
-  }, [typeFilter, themeFilter, packFilter, distFilter, resFilter, sortField, sortDir]);
+  }, [typeFilter, themeFilter, packFilter, distFilter, resFilter, sortField, sortDir, searchText]);
 
   // Freeze the displayed list while a row is expanded
   const displayItems = isPaused ? frozenItems : filtered;
@@ -1318,9 +1331,16 @@ const SignatureUnifiedView: React.FC<{
   }
 
   return (
-    <div className="adv-table-section sig-view">
+    <div className="sig-view">
       {/* Filter bar */}
       <div className="sig-filters">
+        <input 
+          className="svc-search" 
+          placeholder="Search signature/unique buildings..." 
+          value={searchText} 
+          onInput={(e: any) => setSearchText(e.target.value || '')}
+          style={{ width: '100%', boxSizing: 'border-box', marginBottom: '8rem' }}
+        />
         <div className="sig-type-btns">
           {typeOptions.map((t) => (
             <button

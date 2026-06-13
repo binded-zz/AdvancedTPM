@@ -139,6 +139,17 @@ namespace AdvancedTPM
                                           em.HasComponent<Game.Prefabs.UniqueObjectData>(prefab);
                             isLandmark = em.HasComponent<Game.Objects.UniqueObject>(ent) || 
                                          em.HasComponent<Game.Prefabs.UniqueObjectData>(prefab);
+
+                            if ((!isSignature || !isLandmark) && _prefabSystem != null)
+                            {
+                                string pName = _prefabSystem.GetPrefabName(prefab) ?? "";
+                                string pNameLower = pName.ToLowerInvariant();
+                                if (pNameLower.Contains("signature") || pNameLower.Contains("landmark") || pNameLower.Contains("monument") || pNameLower.Contains("unique"))
+                                {
+                                    isSignature = true;
+                                    isLandmark = true;
+                                }
+                            }
                         }
                         catch { }
 
@@ -216,37 +227,10 @@ namespace AdvancedTPM
                                 var pb = _prefabSystem.GetPrefab<PrefabBase>(prefab);
                                 if (pb != null)
                                 {
-                                    string pn = pb.name ?? "";
-                                    if (pn.Contains("European") || pn.Contains("EU_") || pn.StartsWith("EU_")) theme = "European";
-                                    else if (pn.Contains("NorthAmerican") || pn.Contains("NA_") || pn.StartsWith("NA_") || pn.Contains("USA_") || pn.StartsWith("USA_")) theme = "North American";
-                                    
-                                    if (pb.TryGet<ContentPrerequisite>(out var cp) && cp.m_ContentPrerequisite.TryGet<DlcRequirement>(out var dlc))
-                                    {
-                                        try
-                                        {
-                                            string dlcName = Colossal.PSI.Common.PlatformManager.instance.GetDlcName(dlc.m_Dlc) ?? "DLC";
-                                            assetPack = dlcName;
-                                            assetPackIcon = $"Media/DLC/{System.Text.RegularExpressions.Regex.Replace(dlcName, @"[^a-zA-Z0-9]", "")}.svg";
-                                        }
-                                        catch { assetPack = "DLC"; assetPackIcon = ""; }
-                                    }
-                                    else
-                                    {
-                                        var assetPackItem = pb.GetComponent<AssetPackItem>();
-                                        if (assetPackItem != null && assetPackItem.m_Packs != null && assetPackItem.m_Packs.Length > 0)
-                                        {
-                                            var pack = assetPackItem.m_Packs[0];
-                                            if (pack != null)
-                                            {
-                                                assetPack = pack.name ?? "Custom";
-                                                try { assetPackIcon = ImageSystem.GetThumbnail(pack) ?? ""; } catch { assetPackIcon = ""; }
-                                            }
-                                        }
-                                        else if (pn.StartsWith("DLC") || pn.Contains("_DLC"))
-                                        {
-                                            assetPack = "DLC";
-                                        }
-                                    }
+                                    var info = PackHelper.GetPrefabAssetInfo(pb);
+                                    theme = info.Theme;
+                                    assetPack = info.AssetPack;
+                                    assetPackIcon = info.PackThumbnails != null ? string.Join(",", info.PackThumbnails) : "";
                                 }
                             }
                             catch { }

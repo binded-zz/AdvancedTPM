@@ -218,6 +218,42 @@
   justify-content: center;
 }
 
+.dp-col-unemp {
+  width: 70rem;
+  text-align: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-col-landvalue {
+  width: 90rem;
+  text-align: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-col-wage {
+  width: 80rem;
+  text-align: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-col-rent {
+  width: 80rem;
+  text-align: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .dp-col-policies {
   flex: 1;
   display: flex;

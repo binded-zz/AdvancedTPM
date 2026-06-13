@@ -21,6 +21,18 @@ interface ResidentialData {
   unemploymentRate: number;
   homelessHouseholds: number;
   movedInHouseholds: number;
+  lowPlaced: number;
+  medPlaced: number;
+  highPlaced: number;
+  lowUsa: number;
+  medUsa: number;
+  highUsa: number;
+  lowEu: number;
+  medEu: number;
+  highEu: number;
+  lowPacks: Record<string, number>;
+  medPacks: Record<string, number>;
+  highPacks: Record<string, number>;
 }
 
 interface ResidentialBuilding {
@@ -55,6 +67,18 @@ const parseResidentialData = (payload: string): ResidentialData | null => {
       unemploymentRate: Number(obj.unemploymentRate) || 0,
       homelessHouseholds: Number(obj.homelessHouseholds) || 0,
       movedInHouseholds: Number(obj.movedInHouseholds) || 0,
+      lowPlaced: Number(obj.lowPlaced) || 0,
+      medPlaced: Number(obj.medPlaced) || 0,
+      highPlaced: Number(obj.highPlaced) || 0,
+      lowUsa: Number(obj.lowUsa) || 0,
+      medUsa: Number(obj.medUsa) || 0,
+      highUsa: Number(obj.highUsa) || 0,
+      lowEu: Number(obj.lowEu) || 0,
+      medEu: Number(obj.medEu) || 0,
+      highEu: Number(obj.highEu) || 0,
+      lowPacks: obj.lowPacks || {},
+      medPacks: obj.medPacks || {},
+      highPacks: obj.highPacks || {},
     };
   } catch {
     return null;
@@ -100,9 +124,14 @@ const DENSITY_COLORS: Record<string, string> = {
 
 const RESIDENTIAL_ICON = 'Media/Game/Icons/ZoneResidential.svg';
 
-const normalizeTheme = (building: ResidentialBuilding): 'USA' | 'EU' => {
-  const raw = `${building.theme || ''} ${building.address || ''}`.toLowerCase();
-  return raw.includes('eu') || raw.includes('europe') ? 'EU' : 'USA';
+const normalizeTheme = (building: ResidentialBuilding): string => {
+  const t = building.theme;
+  if (!t || t === 'Unknown' || t === 'Mixed' || t === 'Modern') {
+    const raw = (building.address || '').toLowerCase();
+    if (raw.includes('eu') || raw.includes('europe')) return 'EU';
+    return 'USA';
+  }
+  return t;
 };
 
 type ResBldgSortField = 'address' | 'density' | 'level' | 'occupied' | 'capacity' | 'occupancy' | 'theme' | 'assetPack';
@@ -245,6 +274,33 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
 
   const happinessPctOf = (v: number) => v;
 
+  const assetPackCounts = useMemo(() => {
+    if (!data) return [];
+    const counts = new Map<string, number>();
+    const mergeDict = (dict: Record<string, number>) => {
+      if (!dict) return;
+      Object.entries(dict).forEach(([pack, val]) => {
+        counts.set(pack, (counts.get(pack) || 0) + val);
+      });
+    };
+    mergeDict(data.lowPacks);
+    mergeDict(data.medPacks);
+    mergeDict(data.highPacks);
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [data]);
+
+  const visiblePackColumns = useMemo(() => assetPackCounts.map(([pack]) => pack).filter((pack) => pack !== 'Base Game'), [assetPackCounts]);
+
+  const packIconMap = useMemo(() => {
+    const map = new Map<string, string>();
+    safeBuildings.forEach(b => {
+      if (b.assetPack && b.assetPackIcon && !map.has(b.assetPack)) {
+        map.set(b.assetPack, b.assetPackIcon);
+      }
+    });
+    return map;
+  }, [safeBuildings]);
+
   // Extract unique values for filter dropdowns
   const uniqueThemes = useMemo(() => {
     if (safeBuildings.length === 0) return ['All'];
@@ -259,10 +315,13 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
   }, [safeBuildings]) ?? ['All'];
 
   const uniqueAssetPacks = useMemo(() => {
-    if (safeBuildings.length === 0) return ['All'];
-    const packs = new Set(safeBuildings.map(b => b.assetPack || 'Base Game').filter(p => p));
+    const packs = new Set<string>();
+    packs.add('Base Game');
+    assetPackCounts.forEach(([pack]) => {
+      if (pack) packs.add(pack);
+    });
     return ['All', ...Array.from(packs).sort()];
-  }, [safeBuildings]) ?? ['All'];
+  }, [assetPackCounts]) ?? ['All'];
 
   const uniqueLevels = useMemo(() => {
     if (safeBuildings.length === 0) return ['All'];
@@ -349,37 +408,42 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     });
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }, [safeBuildings]);
-  const assetPackCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    safeBuildings.forEach((b) => {
-      const pack = b.assetPack || 'Base Game';
-      counts.set(pack, (counts.get(pack) || 0) + 1);
-    });
-    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  }, [safeBuildings]);
-  const visiblePackColumns = useMemo(() => assetPackCounts.map(([pack]) => pack).filter((pack) => pack !== 'Base Game'), [assetPackCounts]);
+
   const densitySummaryRows = useMemo(() => {
-    const makeRow = (label: 'Low' | 'Medium' | 'High', total: number, occupied: number, free: number) => {
-      const rowBuildings = safeBuildings.filter((b) => b.density === label);
+    if (!data) return [];
+    const makeRow = (
+      label: 'Low' | 'Medium' | 'High',
+      total: number,
+      occupied: number,
+      free: number,
+      placed: number,
+      usa: number,
+      eu: number,
+      packsObj: Record<string, number>
+    ) => {
       const packCounts = new Map<string, number>();
-      rowBuildings.forEach((b) => packCounts.set(b.assetPack || 'Base Game', (packCounts.get(b.assetPack || 'Base Game') || 0) + 1));
+      if (packsObj) {
+        Object.entries(packsObj).forEach(([pack, val]) => {
+          packCounts.set(pack, val);
+        });
+      }
       return {
         label: `${label} Density`,
         total,
         occupied,
         free,
-        placed: rowBuildings.length,
-        usa: rowBuildings.filter((b) => normalizeTheme(b) === 'USA').length,
-        eu: rowBuildings.filter((b) => normalizeTheme(b) === 'EU').length,
+        placed,
+        usa,
+        eu,
         packs: packCounts,
       };
     };
     return [
-      makeRow('Low', data?.lowTotal || 0, data?.lowOccupied || 0, data?.lowFree || 0),
-      makeRow('Medium', data?.medTotal || 0, data?.medOccupied || 0, data?.medFree || 0),
-      makeRow('High', data?.highTotal || 0, data?.highOccupied || 0, data?.highFree || 0),
+      makeRow('Low', data.lowTotal, data.lowOccupied, data.lowFree, data.lowPlaced, data.lowUsa, data.lowEu, data.lowPacks),
+      makeRow('Medium', data.medTotal, data.medOccupied, data.medFree, data.medPlaced, data.medUsa, data.medEu, data.medPacks),
+      makeRow('High', data.highTotal, data.highOccupied, data.highFree, data.highPlaced, data.highUsa, data.highEu, data.highPacks),
     ];
-  }, [safeBuildings, data]);
+  }, [data]);
 
   // CSV Export function (must be after filteredBuildings)
   const exportToCSV = useCallback(() => {
@@ -467,7 +531,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
             <div className="res-col-placed">Placed</div>
             <div className="res-col-theme">USA</div>
             <div className="res-col-theme">EU</div>
-            {visiblePackColumns.slice(0, 3).map((pack) => <div key={pack} className="res-col-pack res-col-pack-hdr" title={pack}><PackIcon pack={pack} size={16} /></div>)}
+            {visiblePackColumns.slice(0, 10).map((pack) => <div key={pack} className="res-col-pack res-col-pack-hdr" title={pack}><PackIcon pack={pack} iconUrl={packIconMap.get(pack)} size={22} /></div>)}
           </div>
           {densitySummaryRows.map((row) => (
             <div key={row.label} className="res-table-row">
@@ -478,7 +542,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
               <div className="res-col-placed">{row.placed.toLocaleString()}</div>
               <div className="res-col-theme">{row.usa.toLocaleString()}</div>
               <div className="res-col-theme">{row.eu.toLocaleString()}</div>
-              {visiblePackColumns.slice(0, 3).map((pack) => <div key={pack} className="res-col-pack">{(row.packs.get(pack) || 0).toLocaleString()}</div>)}
+              {visiblePackColumns.slice(0, 10).map((pack) => <div key={pack} className="res-col-pack">{(row.packs.get(pack) || 0).toLocaleString()}</div>)}
             </div>
           ))}
         </div>
@@ -549,7 +613,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
               options={uniqueAssetPacks || ['All']}
               onChange={setAssetPackFilter}
               displayValue={(v) => v === 'All' ? 'All Packs' : formatPackName(v)}
-              icon={(v) => v === 'All' ? null : <PackIcon pack={v} size={FILTER_ICON_SIZE} />}
+              icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={packIconMap.get(v)} size={FILTER_ICON_SIZE} />}
             />
             <CycleFilterButton
               label="Occ"
@@ -692,11 +756,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                     </React.Fragment>
                   );
                 })}
-                {safeFilteredBuildings.length > 300 && (
-                  <div className="res-truncation-notice" style={{ padding: '10rem', textAlign: 'center', fontSize: '11rem', color: 'rgba(255,255,255,0.4)', borderTop: '1rem solid rgba(255,255,255,0.1)' }}>
-                    Showing top 300 of {safeFilteredBuildings.length} buildings. Use search or filters to narrow down.
-                  </div>
-                )}
+
               </Scrollable>
               {/* Pagination controls */}
               {safeFilteredBuildings.length > RES_PAGE_SIZE && (() => {

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { parseCompanies } from './CompanyBrowser';
 import apiSafe, { getSafeColor } from '../../mods/apiSafe';
-import { camera, selectedInfo } from 'cs2/bindings';
+import { camera, selectedInfo, tool } from 'cs2/bindings';
 import { Scrollable } from 'cs2/ui';
 import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import ErrorBoundary from './ErrorBoundary';
@@ -18,7 +18,7 @@ interface Props {
   showDebug?: boolean;
 }
 
-type DistrictSortField = 'name' | 'residential' | 'services' | 'businesses' | 'mixed' | 'resTotal' | 'total' | 'policies' | 'residents' | 'workers';
+type DistrictSortField = 'name' | 'residential' | 'services' | 'businesses' | 'mixed' | 'resTotal' | 'total' | 'policies' | 'residents' | 'workers' | 'unemploymentRate' | 'avgLandValue' | 'avgIncome' | 'avgRent';
 
 interface PolicyPrefab { entityKey: string; name: string; icon?: string; isCity?: boolean; isDistrict?: boolean; }
 
@@ -27,6 +27,7 @@ interface DistrictRow {
   activePolicies: string[]; isCity: boolean; cityName: string;
   households: number; householdCap: number; workers: number; maxWorkers: number;
   avgWealth: number; avgIncome: number; avgRent: number; avgHappiness: number;
+  unemploymentRate?: number; avgLandValue?: number;
   residents: number; children: number; teens: number; adults: number; seniors: number;
   eduUneducated: number; eduPoorlyEducated: number; eduEducated: number; eduWellEducated: number; eduHighlyEducated: number;
   workerUneducated?: number; workerPoorlyEducated?: number; workerEducated?: number; workerWellEducated?: number; workerHighlyEducated?: number;
@@ -282,6 +283,16 @@ export const DistrictsPanel: React.FC<Props> = ({
   React.useEffect(() => { localStorage.setItem('advtpm_show_raw', showRawData.toString()); }, [showRawData]);
   React.useEffect(() => { localStorage.setItem('advtpm_compact', compactMode.toString()); }, [compactMode]);
 
+  const globalUnemploymentRate = useMemo(() => {
+    try {
+      if (residentialBuildingsData) {
+        const obj = JSON.parse(residentialBuildingsData);
+        return Number(obj.unemploymentRate) || 0;
+      }
+    } catch {}
+    return 0;
+  }, [residentialBuildingsData]);
+
   React.useEffect(() => {
     const handleGlobalMouseUp = () => { dragSource.current = null; };
     window.addEventListener('mouseup', handleGlobalMouseUp);
@@ -306,6 +317,11 @@ export const DistrictsPanel: React.FC<Props> = ({
     if (dk && dk !== 'city') {
       const p = dk.split(',');
       const entity = { index: parseInt(p[0]) || 0, version: parseInt(p[1]) || 0 };
+      try {
+        if (tool) {
+          tool.selectTool(tool.DEFAULT_TOOL || "Default Tool");
+        }
+      } catch (ex) {}
       camera.focusEntity(entity);
       selectedInfo.selectEntity(entity);
     }
@@ -321,6 +337,7 @@ export const DistrictsPanel: React.FC<Props> = ({
         entityKey: null, name: k, residential: 0, services: 0, businesses: 0, mixed: 0, resTotal: 0, total: 0, 
         activePolicies: [], isCity: k === 'City', cityName: k, households: 0, householdCap: 0, workers: 0, maxWorkers: 0, 
         avgWealth: 0, avgIncome: 0, avgRent: 0, avgHappiness: 0, residents: 0, children: 0, teens: 0, adults: 0, seniors: 0, 
+        unemploymentRate: 0, avgLandValue: 0,
         eduUneducated: 0, eduPoorlyEducated: 0, eduEducated: 0, eduWellEducated: 0, eduHighlyEducated: 0, 
         localServices: 0, assignedServices: 0, profitability: 0, pets: 0, upkeep: 0, resourceCost: 0, feesPaid: 0, 
         sick: 0, students: 0, totalCrime: 0, homeless: 0, tourists: 0,
@@ -338,6 +355,8 @@ export const DistrictsPanel: React.FC<Props> = ({
       d.entityKey = a.entityKey; d.activePolicies = a.policies || [];
       if (a.isCity) { d.isCity = true; d.cityName = a.cityName || 'City'; }
       d.avgWealth = a.avgWealth || 0; d.avgIncome = a.avgIncome || 0; d.avgRent = a.avgRent || 0; d.avgHappiness = a.avgHappiness || 0;
+      d.unemploymentRate = a.unemploymentRate !== undefined ? a.unemploymentRate : globalUnemploymentRate;
+      d.avgLandValue = a.landValueSamples > 0 ? (a.totalLandValue / a.landValueSamples) : 0;
       d.workers = a.workers || 0; d.maxWorkers = a.maxWorkers || 0; d.households = a.households || 0; d.householdCap = a.householdCap || 0;
       d.mixed = a.mixedProp || 0;
       d.residential = a.resProp || 0; 
@@ -410,7 +429,7 @@ export const DistrictsPanel: React.FC<Props> = ({
       return 0;
     });
     return out;
-  }, [districtBrowserData, sortField, sortDir]);
+  }, [districtBrowserData, sortField, sortDir, globalUnemploymentRate]);
 
   const handleTogglePolicy = (dk: string, pk: string, active: boolean) => {
     apiSafe.trigger('taxProduction', 'toggleDistrictPolicy', dk, pk, !active);
@@ -517,6 +536,18 @@ export const DistrictsPanel: React.FC<Props> = ({
         <div className="dp-col-count" onClick={() => handleSort('businesses')}>Biz Bldgs</div>
         <div className="dp-col-count" onClick={() => handleSort('residents')}>Residents</div>
         <div className="dp-col-count" onClick={() => handleSort('workers')}>Employees</div>
+        <div className="dp-col-unemp dp-sortable" onClick={() => handleSort('unemploymentRate')}>
+          Unemp{sortField === 'unemploymentRate' && (sortDir === 'asc' ? ' \u25B2' : ' \u25BC')}
+        </div>
+        <div className="dp-col-landvalue dp-sortable" onClick={() => handleSort('avgLandValue')}>
+          Land Value{sortField === 'avgLandValue' && (sortDir === 'asc' ? ' \u25B2' : ' \u25BC')}
+        </div>
+        <div className="dp-col-wage dp-sortable" onClick={() => handleSort('avgIncome')}>
+          Avg Wage{sortField === 'avgIncome' && (sortDir === 'asc' ? ' \u25B2' : ' \u25BC')}
+        </div>
+        <div className="dp-col-rent dp-sortable" onClick={() => handleSort('avgRent')}>
+          Avg Rent{sortField === 'avgRent' && (sortDir === 'asc' ? ' \u25B2' : ' \u25BC')}
+        </div>
         <div className="dp-col-policies" onClick={() => handleSort('policies')}>Policies</div>
         <div className="dp-col-go">Go</div>
       </div>
@@ -542,6 +573,10 @@ export const DistrictsPanel: React.FC<Props> = ({
                 <div className="dp-col-count">{fmt(r.businesses)}</div>
                 <div className="dp-col-count" style={{color: getSafeColor('#64b5f6')}}>{fmt(r.residents)}</div>
                 <div className="dp-col-count" style={{color: getSafeColor('#81c784')}}>{fmt(r.workers)}</div>
+                <div className="dp-col-unemp" style={{color: getSafeColor((r.unemploymentRate || 0) > 10 ? '#e05050' : '#8bdb46')}}>{r.unemploymentRate !== undefined ? `${r.unemploymentRate.toFixed(1)}%` : '0.0%'}</div>
+                <div className="dp-col-landvalue" style={{color: getSafeColor('#fff176')}}>{fmt(r.avgLandValue || 0)}</div>
+                <div className="dp-col-wage" style={{color: getSafeColor('#8bdb46')}}>{fmt(r.avgIncome || 0)}</div>
+                <div className="dp-col-rent" style={{color: getSafeColor('#ffb74d')}}>{fmt(r.avgRent || 0)}</div>
                 <div className="dp-col-policies">
                   <div className="dp-inline-policies-row">
                     {policyPrefabs.map(pol => {

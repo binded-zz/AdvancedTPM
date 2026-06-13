@@ -48,8 +48,6 @@
   box-shadow: 0 4rem 12rem rgba(0, 0, 0, 0.6);
   z-index: 9999;
   min-width: 100%;
-  max-height: 180rem;
-  overflow-y: auto;
 }
 
 .custom-select-option {
