@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.4] - 2026-06-24
+## [1.1.4] - 2026-06-14
 
 ### Added
 - **Signature Tab Icon Rendering**: Fixed Signature tab icon rendering and completed the full DLC building whitelist. All known DLC signature buildings are now correctly identified and flagged.

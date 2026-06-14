@@ -107,8 +107,8 @@ Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is app
   <Screenshot Value="Properties/screenshots/residential.jpg" />
   <Screenshot Value="Properties/screenshots/services.jpg" />
   <Screenshot Value="Properties/screenshots/signature.jpg" />
+  <Screenshot Value="Properties/screenshots/residental_sig.jpg" />
   <Screenshot Value="Properties/screenshots/districts.jpg" />
-  <Screenshot Value="Properties/screenshots/districts_expand.jpg" />
   <Screenshot Value="Properties/screenshots/district_settings.jpg" />
 
 	<!--Tag, can be set multiple times-->
