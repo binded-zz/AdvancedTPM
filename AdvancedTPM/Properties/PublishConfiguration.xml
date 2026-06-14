@@ -32,15 +32,15 @@ The browser supports all content without needing a mod update. Base Game buildin
 
 - Per-resource tax sliders for 50+ resources across raw materials, industrial goods, immaterial services, commercial retail, and entertainment.
 - Real-time production and consumption bars with surplus and deficit indicators.
-- Resources grouped by supply chain category.
+- Resources grouped by supply chain category: Agriculture, Forestry, Mining, Oil, Office, Entertainment, and Commercial.
 - Per-resource and total tax income with in-game currency formatting.
 - Workforce stats and demand signals per resource.
 
 ## Company Browser
 
 - Sortable and filterable table by zone, profitability tier, profit range, or text search.
-- Expand any row for brand name, address, level, zone, output and input resources, staffing bars, and full efficiency breakdown with CS2 icons.
-- Company happiness score in rows and detail panels.
+- Expand any row for brand name, address, level, zone, output and input resources, staffing bars, and full efficiency breakdown with CS2 icons, percentage impact, and cumulative efficiency score.
+- Company happiness score in rows and detail panels. Score is estimated from efficiency, profit, staffing, and tax. The server provides an authoritative value when available.
 - Signature building detection. All known DLC signature buildings are flagged and used by the Advisor.
 - Click to jump the camera to any company building.
 
@@ -80,7 +80,7 @@ The browser supports all content without needing a mod update. Base Game buildin
 
 ## Adaptive Learning Advisor
 
-- Builds a learned profile for each resource tracking sensitivity, income response, production impact, and volatility.
+- Builds a learned profile for each resource tracking sensitivity, income response, company response, production impact, revenue efficiency, and volatility.
 - Records a before snapshot when a tax rate changes, waits for an observation period, then scores the outcome.
 - Confidence-weighted recommendations. The more data collected the stronger the influence on scoring.
 - Full decision log showing what changed, the outcome score, and the reasoning.
@@ -92,6 +92,13 @@ The browser supports all content without needing a mod update. Base Game buildin
 - Movable and resizable window. Drag the panel anywhere and resize freely. Position and size are saved automatically.
 - Panel opacity slider. Adjust the transparency of the mod window.
 - Tips toggle for in-UI tooltips with production details and usage guidance.
+
+## Under the Hood
+
+- High-performance prefab caching. Asset pack lookups use a concurrent cache dictionary. Pack dependencies are calculated exactly once per asset and reused instantly for every subsequent lookup, eliminating main-thread CPU spikes.
+- Deep ECS extraction. The backend checks AssetPackItem, falls back to SpawnableBuilding zone data, checks native DLC requirements, and queries Paradox Mods metadata to find creator display names. No custom building is missed.
+- Smart name normalization. PascalCase internal names are automatically split into readable text and redundant tags like Asset, Pack, or Filter are stripped so every filter list looks clean.
+- Multi-pack icon rendering. Pack icon URLs are parsed as comma-separated lists. If an asset belongs to multiple packs or themes the UI lines up all associated native icons side-by-side.
 
 ## Performance
 
