@@ -10,51 +10,60 @@
   <LongDescription>
 Take Absolute Control of Your City's Economy
 
-Advanced Tax and Production Manager (AdvancedTPM) is an all-in-one economic dashboard that gives you deep visibility into your supply chain and automates your tax rates without sacrificing a single frame.
+Advanced Tax and Production Manager (AdvancedTPM) is an all-in-one economic dashboard covering taxes, production, companies, residential zones, districts, and services.
+
+## Residential Browser
+
+Filter and sort every residential building in your city by density, level, district, theme, asset pack, occupancy, happiness, and more.
+
+The browser is built to support all content without needing a mod update. Base Game buildings, DLC region packs, themed content, and custom creator packs all appear automatically. If a content pack provides a filter icon the mod uses it, exactly as it appears in the game menus. New packs added in future game updates will show up without any update to this mod.
+
+- Theme and region filters with each theme showing the content pack own icon.
+- Per-pack placement counts in the summary table showing how many buildings from each installed content pack are on your map, split by density tier.
+- 50 buildings per page for fast rendering even in very large cities.
+- Live updates pause automatically when a building row is expanded so the detail view stays stable.
+- Two camera actions per row: jump to the building on the map, or select and focus it in the game info panel.
 
 ## Tax and Production Dashboard
+
 - Per-resource tax sliders for 50+ resources across raw materials, industrial goods, immaterial services, commercial retail, and entertainment.
 - Real-time production and consumption bars with surplus and deficit indicators.
-- Resources organized by supply chain category (Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial).
+- Resources grouped by supply chain category.
 - Per-resource and total tax income with in-game currency formatting.
 - Workforce stats and demand signals per resource.
 
 ## Company Browser
-- Sortable and filterable table. Browse all companies by zone, profitability tier, profit range, or text search.
-- Expand any company row to see brand name, building address, level, zone, output and input resources, staffing bars, and efficiency breakdown.
-- Efficiency factor analysis showing each factor (Electricity, Water, Garbage, Mail, Telecom, Staffing) with CS2 icons and percentage impact.
-- Click any company to jump the camera directly to its building.
-- Company happiness score visible in both rows and expanded detail panels.
-- Signature building detection. All known DLC signature buildings are flagged in the detail panel and used by the Advisor.
 
-## Residential Browser
-- Filterable and sortable table for all residential zones. Columns for address, density, level, occupancy, theme, and custom content packs.
-- Automatically detects and groups buildings by creator pack with icon headers.
-- Dynamic pack summary dashboard counting buildings per installed content pack.
+- Sortable and filterable table by zone, profitability tier, profit range, or text search.
+- Expand any row for brand name, address, level, zone, output and input resources, staffing bars, and full efficiency breakdown with CS2 icons.
+- Company happiness score in rows and detail panels.
+- Signature building detection. All known DLC signature buildings are flagged and used by the Advisor.
+- Click to jump the camera to any company building.
 
 ## Districts Dashboard
-- Reorderable district cards with settings, demographic metrics, and district-level policies.
-- Happiness aggregation integrated into the Districts panel.
+
+- Reorderable district cards with demographic metrics and district-level policies.
+- Happiness aggregation per district.
 
 ## Services Browser
-- Filterable panel for tracking city service buildings with live metrics.
+
+- Filterable panel for city service buildings with live metrics.
 
 ## Auto-Tax Engine
+
 - 6-factor scoring balancing profitability, happiness, production, demand, company count, and tax income.
-- Per-resource min and max rate ranges. Fine-tune allowed tax bounds for each resource.
-- Lock specific resources from auto-adjustment.
-- Adjustable speed to control how frequently the engine makes changes.
+- Per-resource min and max ranges. Lock specific resources from auto-adjustment.
 - Profitability weight slider for finer control over the scoring formula.
 
 ## Adaptive Learning Advisor
-- Tracks sensitivity, income response, company response, production impact, revenue efficiency, and volatility per resource.
-- Records before and after snapshots when tax rates change and scores outcomes after an observation period.
-- Confidence-weighted recommendations. Higher confidence means stronger influence on scoring.
-- Decision log to browse recent advisor actions with outcome scores.
-- Profiles saved to disk and loaded between sessions.
+
+- Learns sensitivity, income response, production impact, and volatility per resource over time.
+- Confidence-weighted recommendations with full decision log.
+- Persistent profiles saved to disk and loaded between sessions.
 
 ## Performance
-Built specifically for the Cohtml engine using direct-DOM manipulation. The mod's UI thread cost is approximately 1.3ms. Economic data tracking runs with no measurable impact on game FPS.
+
+Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is approximately 1.3ms with no measurable impact on game FPS.
   </LongDescription>
   <!--Thumbnail-->
   <Thumbnail Value="Properties/Thumbnail.png" />
@@ -77,7 +86,7 @@ Built specifically for the Cohtml engine using direct-DOM manipulation. The mod'
   <!--Version of the mod-->
   <ModVersion Value="1.1.4" />
   <!--Recommended version of the base game to use the mod-->
-  <GameVersion Value="1.5.8f1*" />
+  <GameVersion Value="1.5.10f*" />
   <!--Dependency for the mod, can be set multiple times-->
   <Dependency Id="" />
   <!--Required DLC, can be set multiple times. Supported values are "Landmark Buildings", "San Fransisco Set", "Beach Properties", "Urban Promenades", "Modern Architecture"-->
