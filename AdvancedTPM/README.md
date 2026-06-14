@@ -39,12 +39,51 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 - **Signature building detection** — special landmark/prefab detection is exposed in the Company Browser. All known DLC signature buildings are flagged in the detail panel and used by the Advisor when relevant.
 - **Go-to-building** — click to jump the camera directly to any company's building.
 
-### Auto-Tax Engine & Adaptive Learning Advisor
+### Signature Buildings Tab
+- **Dedicated unified view** — a standalone tab showing every signature building in the city across commercial, residential, and service categories all in one place.
+- **Full DLC whitelist** — all known DLC landmark and signature prefabs are identified and flagged. No guessing, no missed buildings.
+- **Detail panel integration** — signature buildings are highlighted in the expanded detail view and fed into the Adaptive Learning Advisor when making tax recommendations.
+- **Signature tab badge** — the tab shows a live count of how many signature buildings are currently in your city.
+
+### Districts Dashboard
+- **Reorderable metric cards** — drag cards to rearrange the layout. Available cards: Education Levels, Properties, Demographics, Households, School Data, Health & Value, and Policies.
+- **Per-district demographics** — age group breakdown (Children, Teens, Adults, Seniors) with a visual bar and resident/student/tourist/homeless counts.
+- **Education level bars** — workforce education split (Uneducated, Poorly Educated, Educated, Well Educated, Highly Educated) for both residents and workers.
+- **Property breakdown** — count of Residential, Mixed, Commercial, Industrial, Office, and Storage properties per district.
+- **Household metrics** — current vs capacity with a fill bar, average wealth, average income, and average rent.
+- **School data** — Elementary, High School, College, and University enrollment vs capacity with availability percentage.
+- **Health & Value** — health/safety status, crime risk, average land value, and average building level.
+- **District-level policies** — toggle policies directly from the expanded district panel.
+- **Rename districts** — rename any district in-game directly from the panel.
+- **GO button** — jump the camera to any district with one click.
+- **Sortable columns** — sort all districts by name, residential count, residents, employees, unemployment rate, land value, income, rent, and more.
+- **Happiness aggregation** — per-district happiness score displayed in the row and detail view.
+- **Card visibility settings** — show or hide individual cards from the settings gear. Reset to default at any time.
+
+### Services Browser
+- **Filterable panel** — track all city service buildings with live metrics.
+- **Category breakdown** — buildings grouped by service type with live status data.
+
+### Auto-Tax Engine
 - **6-factor scoring** — auto-balances profitability, happiness, production, demand, company count, and tax income when recommending rate adjustments.
-- **Per-resource bounds** — fine-tune allowed tax bounds for each resource, or exclude specific resources from auto-adjustment entirely.
-- **Machine-learned resource profiles** — tracks sensitivity, income response, company response, production impact, revenue efficiency, and volatility for each resource.
-- **Outcome evaluation** — records before/after snapshots when tax rates change and scores outcomes after an observation period.
-- **Decision log & Persistent learning** — browse recent advisor decisions with outcome scores. Profiles are saved to disk and loaded between sessions.
+- **Per-resource min/max bounds** — fine-tune the allowed tax range for each individual resource.
+- **Excluded resources** — lock specific resources so the engine never touches them.
+- **Adjustable speed** — control how frequently the engine runs and makes changes, from slow cautious adjustments to aggressive rapid tuning.
+- **Profitability weight slider** — fine-tune how much company profit influences the 6-factor scoring formula.
+- **Live status bar** — shows current city happiness, how many resources were raised, lowered, or held this cycle, and the overall average company profitability across all tracked resources.
+
+### Adaptive Learning Advisor
+- **Machine-learned resource profiles** — tracks sensitivity, income response, company response, production impact, revenue efficiency, and volatility for each resource individually.
+- **Outcome evaluation** — records a before snapshot when a tax rate changes, waits for an observation period, then takes an after snapshot and scores whether the change helped or hurt.
+- **Confidence-weighted recommendations** — the more data collected for a resource, the higher its confidence score, and the stronger its influence on future scoring.
+- **Decision log** — browse a full log of recent advisor decisions showing what changed, the outcome score, and the reasoning.
+- **Persistent learning** — all resource profiles are saved to disk and automatically loaded between sessions so the advisor gets smarter over time without starting over.
+
+### Settings
+- **Game options integration** — full mod settings page inside the game's options menu with General, Auto-Tax, Advisor, Debug, and About groups.
+- **Movable and resizable window** — drag the ATPM panel anywhere on screen and resize it freely. Position and size are saved automatically and restored on next launch.
+- **Tips toggle** — in-UI tooltips with production details, factor breakdowns, and usage guidance can be turned on or off.
+- **Panel opacity** — adjust the transparency of the mod window from the settings panel.
 
 ### Under the Hood
 - **High-performance prefab caching** — asset pack lookups use a `ConcurrentDictionary` cache. Pack dependencies are calculated exactly once per asset and reused instantly for every subsequent lookup, eliminating main-thread CPU spikes during UI generation.

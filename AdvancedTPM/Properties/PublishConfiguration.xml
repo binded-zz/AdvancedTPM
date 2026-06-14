@@ -44,26 +44,54 @@ The browser supports all content without needing a mod update. Base Game buildin
 - Signature building detection. All known DLC signature buildings are flagged and used by the Advisor.
 - Click to jump the camera to any company building.
 
+## Signature Buildings Tab
+
+- Dedicated unified tab showing every signature building across commercial, residential, and service categories in one view.
+- Full DLC landmark and prefab whitelist. No buildings are missed.
+- Live tab badge showing the current count of signature buildings in your city.
+- Signature buildings are fed into the Adaptive Learning Advisor when making tax recommendations.
+
 ## Districts Dashboard
 
-- Reorderable district cards with demographic metrics and district-level policies.
+- Reorderable metric cards. Drag to rearrange. Available cards: Education Levels, Properties, Demographics, Households, School Data, Health and Value, and Policies.
+- Per-district demographics with age group bar (Children, Teens, Adults, Seniors) and resident, student, tourist, and homeless counts.
+- Education level bars for both residents and workers.
+- Property breakdown by type: Residential, Mixed, Commercial, Industrial, Office, and Storage.
+- Household metrics: current vs capacity, average wealth, average income, and average rent.
+- School data: Elementary, High School, College, and University enrollment vs capacity with availability percentage.
+- Health and Value card: health status, crime risk, average land value, and average building level.
+- Toggle district-level policies directly from the expanded panel.
+- Rename districts in-game from the panel.
+- GO button to jump the camera to any district.
+- Sortable columns and card visibility settings with a reset to default option.
 - Happiness aggregation per district.
 
 ## Services Browser
 
-- Filterable panel for city service buildings with live metrics.
+- Filterable panel for city service buildings with live metrics, grouped by service category.
 
 ## Auto-Tax Engine
 
 - 6-factor scoring balancing profitability, happiness, production, demand, company count, and tax income.
 - Per-resource min and max ranges. Lock specific resources from auto-adjustment.
+- Adjustable speed to control how frequently the engine runs, from slow cautious changes to aggressive rapid tuning.
 - Profitability weight slider for finer control over the scoring formula.
+- Live status bar showing city happiness, how many resources were raised, lowered, or held each cycle, and average company profitability.
 
 ## Adaptive Learning Advisor
 
-- Learns sensitivity, income response, production impact, and volatility per resource over time.
-- Confidence-weighted recommendations with full decision log.
+- Builds a learned profile for each resource tracking sensitivity, income response, production impact, and volatility.
+- Records a before snapshot when a tax rate changes, waits for an observation period, then scores the outcome.
+- Confidence-weighted recommendations. The more data collected the stronger the influence on scoring.
+- Full decision log showing what changed, the outcome score, and the reasoning.
 - Persistent profiles saved to disk and loaded between sessions.
+
+## Settings
+
+- Full mod settings page in the game options menu with General, Auto-Tax, Advisor, Debug, and About groups.
+- Movable and resizable window. Drag the panel anywhere and resize freely. Position and size are saved automatically.
+- Panel opacity slider. Adjust the transparency of the mod window.
+- Tips toggle for in-UI tooltips with production details and usage guidance.
 
 ## Performance
 
