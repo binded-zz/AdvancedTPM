@@ -992,15 +992,17 @@ districtPoliciesData,
       )}
 
       {viewMode === 'districts' && (
-        <DistrictsPanel
-          residentialBuildingsData={residentialBuildingsData}
-          servicesBuildingsData={servicesBuildingsData}
-          companyBrowserData={companyBrowserData}
-          districtBrowserData={districtBrowserData}
-          districtPoliciesData={districtPoliciesData}
-          onToggleDebug={onToggleModDebug}
-          showDebug={showModDebug}
-        />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <DistrictsPanel
+            residentialBuildingsData={residentialBuildingsData}
+            servicesBuildingsData={servicesBuildingsData}
+            companyBrowserData={companyBrowserData}
+            districtBrowserData={districtBrowserData}
+            districtPoliciesData={districtPoliciesData}
+            onToggleDebug={onToggleModDebug}
+            showDebug={showModDebug}
+          />
+        </div>
       )}
 
       {/* Resources view â€” Table structure */}
