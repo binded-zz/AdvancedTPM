@@ -1,0 +1,12 @@
+$path = 'C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\Cities2_Data\Managed\Colossal.IO.AssetDatabase.dll';
+$path2 = 'C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\Cities2_Data\Managed\Colossal.Core.dll';
+[Reflection.Assembly]::LoadFrom($path2) | Out-Null;
+[Reflection.Assembly]::LoadFrom($path) | Out-Null;
+$type = [Colossal.IO.AssetDatabase.SourceMeta];
+Write-Host '--- SourceMeta ---';
+$type.GetProperties() | ForEach-Object { Write-Host 'Prop:' $_.Name };
+$type.GetFields() | ForEach-Object { Write-Host 'Field:' $_.Name };
+Write-Host '--- PrefabAsset ---';
+$type2 = [Colossal.IO.AssetDatabase.PrefabAsset];
+$type2.GetProperties() | ForEach-Object { Write-Host 'Prop:' $_.Name };
+$type2.GetFields() | ForEach-Object { Write-Host 'Field:' $_.Name };
