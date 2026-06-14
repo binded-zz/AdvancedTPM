@@ -16,13 +16,17 @@ Advanced Tax and Production Manager (AdvancedTPM) is an all-in-one economic dash
 
 Filter and sort every residential building in your city by density, level, district, theme, asset pack, occupancy, happiness, and more.
 
-The browser is built to support all content without needing a mod update. Base Game buildings, DLC region packs, themed content, and custom creator packs all appear automatically. If a content pack provides a filter icon the mod uses it, exactly as it appears in the game menus. New packs added in future game updates will show up without any update to this mod.
+The browser supports all content without needing a mod update. Base Game buildings, DLC region packs, themed content, and custom creator packs all appear automatically. If a content pack provides a filter icon the mod uses it, exactly as it appears in the game menus. New packs added in future game updates will show up on their own.
 
-- Theme and region filters with each theme showing the content pack own icon.
-- Per-pack placement counts in the summary table showing how many buildings from each installed content pack are on your map, split by density tier.
-- 50 buildings per page for fast rendering even in very large cities.
-- Live updates pause automatically when a building row is expanded so the detail view stays stable.
-- Two camera actions per row: jump to the building on the map, or select and focus it in the game info panel.
+- Native icon integration. Theme and pack filters pull icons directly from the game's internal image system.
+- Pack placement counts. The summary table shows how many buildings from each installed content pack are on your map, split by density tier.
+- Dual camera actions per row: jump to the building on the map, or focus it in the game info panel.
+- 50 buildings per page for fast rendering in very large cities.
+- Live updates pause when a row is expanded so the detail view stays stable.
+- Intelligent asset resolution. The backend checks asset pack data, zone types, native DLC requirements, and Paradox Mods metadata so no custom building is missed.
+- Smart name normalization. Internal PascalCase names are automatically split into readable text and redundant file tags are stripped so filter lists look clean.
+- Multi-pack support. If an asset belongs to multiple packs the UI lines up all associated icons side-by-side.
+- High-performance caching. Pack lookups are calculated once and cached for instant reuse, keeping navigation smooth.
 
 ## Tax and Production Dashboard
 
@@ -63,7 +67,7 @@ The browser is built to support all content without needing a mod update. Base G
 
 ## Performance
 
-Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is approximately 1.3ms with no measurable impact on game FPS.
+Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is approximately 1.3ms with no measurable impact on game FPS. Paginated lists and a concurrent prefab cache keep navigation instant in any city size.
   </LongDescription>
   <!--Thumbnail-->
   <Thumbnail Value="Properties/Thumbnail.png" />
@@ -93,22 +97,24 @@ Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is app
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
-## v1.1.4 - Signature Buildings, UI Fixes, and Stability
+## v1.1.4 - The Residential and Custom Content Update
 
-### Added
-- Signature tab icon rendering is now fixed. Full DLC building whitelist is complete.
-- ThemeIcon support added to Residential filter dropdowns.
-- New CustomSelect component replaces native dropdowns panel-wide to fix viewport clipping.
-- Profitability weight slider added to the Auto-Tax settings panel.
+### New Features
+- Residential Browser: A new dashboard to track all residential buildings, occupancy, and demographics across the city.
+- Native Custom Content Tracking: Automatically tracks Base Game buildings, official DLCs, region packs, and Paradox Mods custom creator packs. No mod update needed for new content.
+- Native Icon Integration: Theme and pack filters pull icons directly from the game's internal image system. DLC and creator pack icons display exactly as they appear in the game menus.
+- Pack Placement Dashboard: Summary table showing how many residential buildings from each installed content pack are on the map, broken down by density.
+- Dual Go Actions: Jump the camera to a building's physical location or focus the building in the native info panel.
 
-### Fixed
-- Removed blank icon stubs for user-created mods.
+### Performance and Stability
+- Strict UI Pagination: Data tables now render exactly 50 rows per page, eliminating UI lag in massive cities.
+- Auto-Pause Data Sync: Expanding a row in the browser pauses live updates for that element, keeping data stable while reading.
+- Prefab Caching System: Concurrent caching for asset pack lookups reduces main-thread CPU spikes during UI generation.
+- Smart Name Normalization: PascalCase asset names are automatically split into readable text and redundant file tags are stripped.
+- Signature tab icon rendering fixed. Full DLC building whitelist complete.
 - Fixed UI clipping in panel dropdowns.
-- Resolved C# compilation errors in school, hospital, and garbage data extraction.
-- Eliminated spammy heartbeat logs that were causing soft-crashes.
-- Fixed Residential summary table header showing plain text instead of pack icons.
-- Fixed window dragging occasionally getting stuck after release.
-- Improved Auto-Tax locale strings and enabled-count label spacing.
+- Fixed window dragging getting stuck after release.
+- Resolved compilation errors in school, hospital, and garbage data extraction.
 
 ## v1.1.3 - Residential Browser and Custom Asset Tracking
 
@@ -121,7 +127,7 @@ Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is app
 - Base Game icon now shows the correct Paradox Star icon for vanilla assets.
 - Theme names for custom assets are preserved as authored.
 - Zero-allocation buffer optimization for building data parsing.
-	</ChangeLog> 
+	</ChangeLog>
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
   <ExternalLink Type="github" Url="https://github.com/binded-zz/AdvancedTPM" />
   <!--Supported values Public, Private, Unlisted-->
