@@ -220,12 +220,21 @@ namespace AdvancedTPM
                 assetPack = System.Text.RegularExpressions.Regex.Replace(assetPack, @"\s+", " ").Trim();
             }
 
-            // If still no icon, fallback to the vanilla DLC path structure ONLY for Base Game
+            // If still no icon, fallback to the vanilla DLC path structure ONLY for Base Game and known official DLCs
             if (string.IsNullOrEmpty(assetPackIcon))
             {
                 if (assetPack == "Base Game")
                 {
                     assetPackIcon = "coui://uil/Colored/BaseGame.svg";
+                }
+                else
+                {
+                    string[] officialDlcs = { "France", "Germany", "Japan", "Eastern Europe", "United Kingdom", "China", "Urban Promenades", "Modern Architecture", "San Francisco Set", "Beach Properties", "Bridges And Ports", "Mediterranean Heritage", "Landmark Buildings", "Skyscrapers", "Deluxe", "Pre-Order" };
+                    if (System.Array.Exists(officialDlcs, p => p.Equals(assetPack, System.StringComparison.OrdinalIgnoreCase)))
+                    {
+                        string cleanPackName = (assetPack ?? "").Replace(" ", "");
+                        assetPackIcon = $"Media/DLC/{cleanPackName}.svg";
+                    }
                 }
             }
 

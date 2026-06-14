@@ -660,7 +660,7 @@ districtPoliciesData,
   }, [businessCompanies, signatureCompaniesJson, signaturePrefabs]);
   signatureCompanies = _signatureCompanies;
 
-  // Parse residential signature buildings: entityKey|address|level|occupied|capacity|theme|assetPack
+  // Parse residential signature buildings: entityKey|address|level|occupied|capacity|theme|assetPack|assetPackIcon|themeIcon
   const residentialSignatureBuildings = useMemo(() => {
     if (!residentialSignatureBuildingsData) return [];
     return residentialSignatureBuildingsData.split(';').map((chunk) => {
@@ -674,8 +674,10 @@ districtPoliciesData,
         capacity: Number(p[4]) || 0,
         theme: p[5] || 'Unknown',
         assetPack: p[6] || 'Base Game',
+        assetPackIcon: p[7] || '',
+        themeIcon: p[8] || '',
       };
-    }).filter(Boolean) as Array<{ entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; }>;
+    }).filter(Boolean) as Array<{ entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; assetPackIcon: string; themeIcon: string; }>;
   }, [residentialSignatureBuildingsData]);
 
   const serviceSignatureCount = useMemo(() => {
@@ -1103,7 +1105,7 @@ districtPoliciesData,
 };
 
 /* â”€â”€ Unified Signature View â”€â”€ */
-interface SigResBuilding { entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; }
+interface SigResBuilding { entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; themeIcon: string; assetPackIcon: string; }
 
 type SigSortField = 'name' | 'type' | 'theme' | 'assetPack' | 'level';
 
@@ -1152,7 +1154,9 @@ const SignatureUnifiedView: React.FC<{
           address: s.address,
           type: s.isLandmark ? 'Landmark' : 'Services',
           theme: s.theme || 'USA',
+          themeIcon: s.themeIcon || '',
           assetPack: s.assetPack || 'Base Game',
+          assetPackIcon: s.assetPackIcon || '',
           level: s.level || 0,
           extraInfo: `Efficiency: ${Math.round(s.efficiency || 0)}%`,
           district: s.district || 'City',
@@ -1186,7 +1190,9 @@ const SignatureUnifiedView: React.FC<{
         address: c.address || '',
         type: mappedType,
         theme: c.theme || 'USA',
+        themeIcon: c.themeIcon || '',
         assetPack: c.assetPack || 'Base Game',
+        assetPackIcon: c.assetPackIcon || '',
         level: c.level || 0,
         extraInfo: extra,
         district: c.district || 'City',
@@ -1206,7 +1212,9 @@ const SignatureUnifiedView: React.FC<{
         address: b.address,
         type: 'Residential',
         theme: b.theme || 'Unknown',
+        themeIcon: b.themeIcon || '',
         assetPack: b.assetPack || 'Base Game',
+        assetPackIcon: b.assetPackIcon || '',
         level: b.level || 0,
         extraInfo: b.capacity > 0 
           ? `${b.occupied}/${b.capacity} Households (${occPct}%)` 
@@ -1254,6 +1262,31 @@ const SignatureUnifiedView: React.FC<{
   const packs = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => i.assetPack).filter(Boolean)))], [allItems]);
   const districts = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => (i as any).district).filter(Boolean))).sort()], [allItems]);
   const resources = useMemo(() => ['All', ...Array.from(new Set(allItems.map((i) => (i as any).resourceKey).filter(Boolean))).sort()], [allItems]);
+
+  // Compute icon maps
+  const packIconMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allItems.forEach(i => {
+      if (i.assetPack && i.assetPackIcon && !map.has(i.assetPack)) {
+        map.set(i.assetPack, i.assetPackIcon);
+      }
+    });
+    return map;
+  }, [allItems]);
+
+  const themeIconMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allItems.forEach(i => {
+      if (i.theme && i.themeIcon && !map.has(i.theme)) {
+        map.set(i.theme, i.themeIcon);
+      }
+    });
+    if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
+    if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
+    if (!map.has('USA')) map.set('USA', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    return map;
+  }, [allItems]);
 
   const filtered = useMemo(() => {
     let list = allItems;
@@ -1360,6 +1393,7 @@ const SignatureUnifiedView: React.FC<{
             options={themes}
             onChange={setThemeFilter}
             displayValue={(v) => v === 'All' ? 'All Themes' : v}
+            icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={themeIconMap.get(v)} size={24} />}
           />
           <CustomSelect
             label="Pack"
@@ -1367,7 +1401,7 @@ const SignatureUnifiedView: React.FC<{
             options={packs}
             onChange={setPackFilter}
             displayValue={(v) => v === 'All' ? 'All Packs' : formatPackName(v)}
-            icon={(v) => v === 'All' ? null : <PackIcon pack={v} size={24} />}
+            icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={packIconMap.get(v)} size={24} />}
           />
           <CustomSelect
             label="District"
@@ -1455,11 +1489,11 @@ const SignatureUnifiedView: React.FC<{
                     {item.type}
                   </span>
                 </div>
-                <div className="sig-col-theme" style={{ width: '80rem', textAlign: 'center' }}>
-                  {item.theme}
+                <div className="sig-col-theme" style={{ width: '80rem', display: 'flex', justifyContent: 'center' }}>
+                  <PackIcon pack={item.theme} iconUrl={themeIconMap.get(item.theme)} size={20} />
                 </div>
                 <div className="sig-col-pack" style={{ width: '80rem', display: 'flex', justifyContent: 'center' }}>
-                  <PackIcon pack={item.assetPack} size={24} />
+                  <PackIcon pack={item.assetPack} iconUrl={packIconMap.get(item.assetPack)} size={20} />
                 </div>
                 <div className="sig-col-level" style={{ width: '36rem', textAlign: 'center', color: getSafeColor('rgba(255,255,255,0.75)') }}>{item.level > 0 ? item.level : '-'}</div>
                 <div className="sig-col-dist" style={{ width: '60rem', textAlign: 'center', opacity: 0.8, fontSize: '12rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.district}</div>

@@ -478,14 +478,17 @@ namespace AdvancedTPM
                             }
 
                             string themeIcon = "";
-                            ExtractThemeAndAssetPack(em, prefab, out theme, out themeIcon, out assetPack, out _);
+                            string assetPackIcon = "";
+                            ExtractThemeAndAssetPack(em, prefab, out theme, out themeIcon, out assetPack, out assetPackIcon);
 
                             theme = (theme ?? "Unknown").Replace("|", "-").Replace(";", "-");
+                            themeIcon = (themeIcon ?? "").Replace("|", "").Replace(";", "");
                             assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
+                            assetPackIcon = (assetPackIcon ?? "").Replace("|", "").Replace(";", "");
 
                             signatureBuildings.Add(string.Format(CultureInfo.InvariantCulture,
-                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}",
-                                ent.Index, ent.Version, address, level, occupied, capacity, theme, assetPack));
+                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}",
+                                ent.Index, ent.Version, address, level, occupied, capacity, theme, assetPack, assetPackIcon, themeIcon));
                         }
                         catch { }
                     }
