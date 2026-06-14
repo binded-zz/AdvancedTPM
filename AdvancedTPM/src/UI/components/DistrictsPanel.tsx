@@ -725,7 +725,7 @@ export const DistrictsPanel: React.FC<Props> = ({
                                     { label: 'Seniors', value: r.seniors || 0, color: '#ffb74d' },
                                   ]} />
                                 </div>
-                                <div style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.08)', paddingTop: '8rem' }}>
+                                <div style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
                                   <StatRow label="Residents" val={fmt(r.residents)} rawKey="residents" showRaw={showRawData} />
                                   <StatRow label="Students" val={fmt(r.students)} rawKey="students" showRaw={showRawData} />
                                   <StatRow label="Tourists" val={fmt(r.tourists)} rawKey="tourists" showRaw={showRawData} />

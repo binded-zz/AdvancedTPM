@@ -6,6 +6,7 @@ import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import './ResidentialPanel.css';
 import CustomSelect from './CustomSelect';
 import PackIcon from '../assets/PackIcon';
+import ThemeIcon from '../assets/ThemeIcon';
 
 interface ResidentialData {
   lowTotal: number;
@@ -547,8 +548,8 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
             <div className="res-col-occupied">Active</div>
             <div className="res-col-free">Free</div>
             <div className="res-col-placed">Placed</div>
-            <div className="res-col-theme">USA</div>
-            <div className="res-col-theme">EU</div>
+            <div className="res-col-theme" title="North American Theme"><ThemeIcon theme="USA" size={18} /></div>
+            <div className="res-col-theme" title="European Theme"><ThemeIcon theme="EU" size={18} /></div>
             {visiblePackColumns.slice(0, 15).map((pack) => <div key={pack} className="res-col-pack res-col-pack-hdr" title={pack}><PackIcon pack={pack} iconUrl={packIconMap.get(pack)} size={22} /></div>)}
           </div>
           {densitySummaryRows.map((row) => (
@@ -617,7 +618,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
               options={uniqueThemes || ['All']}
               onChange={setThemeFilter}
               displayValue={(v) => v === 'All' ? 'All Themes' : v}
-              icon={(v) => v === 'All' ? null : <PackIcon pack={v} iconUrl={themeIconMap.get(v)} size={FILTER_ICON_SIZE} />}
+              icon={(v) => v === 'All' ? null : <ThemeIcon theme={v} size={FILTER_ICON_SIZE} />}
             />
             <CustomSelect
               label="District"
@@ -717,7 +718,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                            <span className="res-level-badge">Lv {b.level}</span>
                         </div>
                         <div className="res-bcol-theme" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <PackIcon pack={normalizeTheme(b)} iconUrl={themeIconMap.get(normalizeTheme(b))} size={16} />
+                          <ThemeIcon theme={normalizeTheme(b)} size={16} />
                           <span style={{ marginLeft: '4rem' }}>{normalizeTheme(b)}</span>
                         </div>
                           <div className="res-bcol-assetpack" style={{ display: 'flex', alignItems: 'center' }}>
