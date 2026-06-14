@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.4] - 2026-06-24
+
+### Added
+- **Signature Tab Icon Rendering**: Fixed Signature tab icon rendering and completed the full DLC building whitelist. All known DLC signature buildings are now correctly identified and flagged.
+- **ThemeIcon Support in Dropdowns**: Theme icons are now rendered correctly inside the Residential filter dropdowns.
+- **Custom Select Component**: A new reusable `CustomSelect` component replaces native dropdowns across panels, fixing clipping issues inside the constrained game UI viewport.
+
+### Fixed
+- Removed fake `assetPackIcon` fallback stubs that were producing blank icons for user-created mods. Icon slots now correctly show nothing when no icon is available.
+- Fixed UI clipping in panel dropdowns caused by the game viewport cutting off native `<select>` elements.
+- Resolved C# compilation errors in school, hospital, and garbage data extraction systems.
+- Eliminated spammy update loops and heartbeat log calls that were triggering `NullReferenceException` soft-crashes in the custom logger.
+- Replaced mushed plain-text pack names in the Residential summary table header with proper `PackIcon` icon components.
+- Fixed window dragging release issues that occasionally left the window in a "stuck" drag state.
+
+### Changed
+- Added profitability weight slider to the Auto-Tax settings panel for finer control over the 6-factor scoring.
+- Improved locale description strings for Auto-Tax settings.
+- Fixed count label spacing in the Auto-Tax enabled resource counter.
+
 ## [1.1.3] - 2026-06-13
 
 ### Added

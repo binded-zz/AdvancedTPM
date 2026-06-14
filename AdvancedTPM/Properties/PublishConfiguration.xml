@@ -5,24 +5,56 @@
   <!--Name of the mod to display to players-->
   <DisplayName Value="AdvancedTPM" />
   <!--Short description of the mod-->
-  <ShortDescription Value="AdvancedTPM - Advanced Tax &amp; Production Manager" />
+  <ShortDescription Value="AdvancedTPM - Advanced Tax and Production Manager" />
   <!--Long description of the mod. Single line or multi line. Supports minimal markdown subset-->
   <LongDescription>
-	  Take Absolute Control of Your City's Economy
-	  Advanced Tax &amp; Production Manager (AdvancedTPM) is an all-in-one economic dashboard designed to give you deep visibility into your supply chain and automate your tax rates without sacrificing a single frame.
-	  Key Features:
-	  Deep Economic Visualization: Track production, consumption, surplus, and deficits across all resource categories in real-time. See exactly what your city is overproducing or starving for.
-	  Smart Auto-Taxing: Stop micromanaging sliders. The Auto-Tax system dynamically adjusts your tax rates based on city happiness, company profitability, and actual resource demand.
-	  Advanced Browsers: Drill down into the details with comprehensive tracking for Companies, Districts, Residential zones, and Services. Find out exactly which businesses are thriving, and which are failing.
-	  Signature Building Tracker: Unified view to track the status, efficiency, and worker counts of all your unlocked Signature Buildings.
-	  Adaptive Learning System: An integrated advisor that learns from your city's economic shifts to help guide optimal tax directions.
-	  Uncompromising Performance: Built specifically for the Cohtml engine. By utilizing 0ms latency direct-DOM manipulation, the mod boasts a microscopic ~1.3ms thread cost. Enjoy massive economic data tracking with absolutely zero impact on your game's FPS.
+Take Absolute Control of Your City's Economy
 
+Advanced Tax and Production Manager (AdvancedTPM) is an all-in-one economic dashboard that gives you deep visibility into your supply chain and automates your tax rates without sacrificing a single frame.
 
+## Tax and Production Dashboard
+- Per-resource tax sliders for 50+ resources across raw materials, industrial goods, immaterial services, commercial retail, and entertainment.
+- Real-time production and consumption bars with surplus and deficit indicators.
+- Resources organized by supply chain category (Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial).
+- Per-resource and total tax income with in-game currency formatting.
+- Workforce stats and demand signals per resource.
 
-	  next update will be focused on adding more features and improving the rest of the service residential system but i will also continue to look for ways to optimize the performance of the mod.
+## Company Browser
+- Sortable and filterable table. Browse all companies by zone, profitability tier, profit range, or text search.
+- Expand any company row to see brand name, building address, level, zone, output and input resources, staffing bars, and efficiency breakdown.
+- Efficiency factor analysis showing each factor (Electricity, Water, Garbage, Mail, Telecom, Staffing) with CS2 icons and percentage impact.
+- Click any company to jump the camera directly to its building.
+- Company happiness score visible in both rows and expanded detail panels.
+- Signature building detection. All known DLC signature buildings are flagged in the detail panel and used by the Advisor.
 
-	  For full details, screenshots and installation steps please see the project README or edit the mod page on the hosting site.
+## Residential Browser
+- Filterable and sortable table for all residential zones. Columns for address, density, level, occupancy, theme, and custom content packs.
+- Automatically detects and groups buildings by creator pack with icon headers.
+- Dynamic pack summary dashboard counting buildings per installed content pack.
+
+## Districts Dashboard
+- Reorderable district cards with settings, demographic metrics, and district-level policies.
+- Happiness aggregation integrated into the Districts panel.
+
+## Services Browser
+- Filterable panel for tracking city service buildings with live metrics.
+
+## Auto-Tax Engine
+- 6-factor scoring balancing profitability, happiness, production, demand, company count, and tax income.
+- Per-resource min and max rate ranges. Fine-tune allowed tax bounds for each resource.
+- Lock specific resources from auto-adjustment.
+- Adjustable speed to control how frequently the engine makes changes.
+- Profitability weight slider for finer control over the scoring formula.
+
+## Adaptive Learning Advisor
+- Tracks sensitivity, income response, company response, production impact, revenue efficiency, and volatility per resource.
+- Records before and after snapshots when tax rates change and scores outcomes after an observation period.
+- Confidence-weighted recommendations. Higher confidence means stronger influence on scoring.
+- Decision log to browse recent advisor actions with outcome scores.
+- Profiles saved to disk and loaded between sessions.
+
+## Performance
+Built specifically for the Cohtml engine using direct-DOM manipulation. The mod's UI thread cost is approximately 1.3ms. Economic data tracking runs with no measurable impact on game FPS.
   </LongDescription>
   <!--Thumbnail-->
   <Thumbnail Value="Properties/Thumbnail.png" />
@@ -43,7 +75,7 @@
   <!--Link to the forum post where the mod can be discussed-->
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/advanced-tax-production-manager.1917448/" />
   <!--Version of the mod-->
-  <ModVersion Value="1.1.3" />
+  <ModVersion Value="1.1.4" />
   <!--Recommended version of the base game to use the mod-->
   <GameVersion Value="1.5.8f1*" />
   <!--Dependency for the mod, can be set multiple times-->
@@ -52,27 +84,35 @@
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
-		<![CDATA[
-## Changelog 1.1.3
-- Internal deployment verification and minor updates
-
-## Changelog 1.1.2 update to dotnet 4.8 
-## Changelog 1.1.1
-## v1.1.1 - Improved Performance and bug fixes used profiler to find bottlenecks and make fixes. this thing should fly now.
-removed district happiness system couldnt get it to to work right or at least the way i wanted it too it was costing tons of cpu
-
-## Changelog 1.1.0
-## v1.1.0 - Districts Residential & Services Overhaul
+## v1.1.4 - Signature Buildings, UI Fixes, and Stability
 
 ### Added
-- ** Districts Dashboard:** Complete overhaul featuring reorderable cards, settings gear, demographic metrics, and district-level policies.
-- ** Happiness Aggregation:** Integrated happiness metrics into the Districts UI panel.
-- ** Residential Browser:** Filterable UI for residential housing data (themes, densities, occupancy, etc.) complete with residents/employees columns and dynamic rows.
-- ** Services Browser:** Filterable panel for tracking city service buildings with metrics.
-- ** Advisor Panel Fixes:** Stabilized the layout of the adaptive learning advisor logs and UI components.
+- Signature tab icon rendering is now fixed. Full DLC building whitelist is complete.
+- ThemeIcon support added to Residential filter dropdowns.
+- New CustomSelect component replaces native dropdowns panel-wide to fix viewport clipping.
+- Profitability weight slider added to the Auto-Tax settings panel.
 
+### Fixed
+- Removed blank icon stubs for user-created mods.
+- Fixed UI clipping in panel dropdowns.
+- Resolved C# compilation errors in school, hospital, and garbage data extraction.
+- Eliminated spammy heartbeat logs that were causing soft-crashes.
+- Fixed Residential summary table header showing plain text instead of pack icons.
+- Fixed window dragging occasionally getting stuck after release.
+- Improved Auto-Tax locale strings and enabled-count label spacing.
 
-	]]></ChangeLog> 
+## v1.1.3 - Residential Browser and Custom Asset Tracking
+
+### Added
+- Residential Browser: Filterable and sortable panel for all residential zones.
+- Custom asset pack detection and grouping with PackIcon headers.
+- District-level demographics and household stats.
+
+### Fixed
+- Base Game icon now shows the correct Paradox Star icon for vanilla assets.
+- Theme names for custom assets are preserved as authored.
+- Zero-allocation buffer optimization for building data parsing.
+	</ChangeLog> 
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
   <ExternalLink Type="github" Url="https://github.com/binded-zz/AdvancedTPM" />
   <!--Supported values Public, Private, Unlisted-->

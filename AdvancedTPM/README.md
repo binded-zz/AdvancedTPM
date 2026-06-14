@@ -2,7 +2,7 @@
 
 A comprehensive Cities: Skylines 2 mod for per-resource tax control, production monitoring, company analysis, and AI-powered tax optimization.
 
-![Version](https://img.shields.io/badge/version-1.1.3-blue)
+![Version](https://img.shields.io/badge/version-1.1.4-blue)
 ![CS2](https://img.shields.io/badge/Cities%3A%20Skylines%202-compatible-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
@@ -31,6 +31,11 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 - **Custom Content Grouping** — tracks custom assets and automatically detects which custom creator pack they belong to, grouping them natively into the UI.
 - **Pack Summary Dashboard** — dynamic column headers count exactly how many residential buildings you have of each downloaded custom pack (up to 10 packs simultaneously).
 - **Accurate Theme Display** — correctly displays creator-assigned aesthetic themes without falsely coercing them.
+
+### Signature Buildings
+- **Full DLC Whitelist** — all known DLC signature buildings are correctly identified and flagged in the Company Browser.
+- **Signature Tab Icons** — the Signature tab icon now renders correctly.
+- **Detail Panel Flag** — signature buildings are highlighted in the expanded company detail view and used by the Advisor when relevant.
 
 ### Auto-Tax Engine
 - **6-factor scoring** — balances profitability, happiness, production, demand, company count, and tax income when recommending rate adjustments.
