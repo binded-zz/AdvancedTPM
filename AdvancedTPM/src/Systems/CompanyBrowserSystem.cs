@@ -82,6 +82,8 @@ namespace AdvancedTPM
             public string AssetPackIcon;
             public string IconUrl;
             public string NativePackIcon;
+            public string CityEffects;
+            public string LocalEffects;
         }
 
         private readonly Dictionary<Entity, CompanyPrefabMetadata> _companyPrefabCache = new Dictionary<Entity, CompanyPrefabMetadata>();
@@ -96,6 +98,9 @@ namespace AdvancedTPM
         private string m_FilterDistrict = "All";
         private string m_FilterKind = "All";
         private int m_FilterProfitMin = -100;
+
+        private BufferLookup<Game.Prefabs.CityModifierData> _cityModifierDataLookup;
+        private BufferLookup<Game.Prefabs.LocalModifierData> _localModifierDataLookup;
         private int m_FilterProfitMax = 100;
         private string m_FilterSearch = "";
         private string m_SortField = "profit";
@@ -124,23 +129,19 @@ namespace AdvancedTPM
         {
             base.OnCreate();
 
-            try { _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>(); } catch { }
-            try { _taxSystem = World.GetOrCreateSystemManaged<TaxSystem>(); } catch { }
-            try { _nameSystem = World.GetOrCreateSystemManaged<NameSystem>(); } catch { }
-            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch { }
-            try { _citySystem = World.GetOrCreateSystemManaged<CitySystem>(); } catch { }
+            try { _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>(); } catch (Exception e) { Mod.log.Error($"Failed to load PrefabSystem: {e.Message}"); }
+            try { _taxSystem = World.GetOrCreateSystemManaged<TaxSystem>(); } catch (Exception e) { Mod.log.Error($"Failed to load TaxSystem: {e.Message}"); }
+            try { _nameSystem = World.GetOrCreateSystemManaged<NameSystem>(); } catch (Exception e) { Mod.log.Error($"Failed to load NameSystem: {e.Message}"); }
+            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch (Exception e) { Mod.log.Error($"Failed to load TaxingProductionUISystem: {e.Message}"); }
+            try { _citySystem = World.GetOrCreateSystemManaged<CitySystem>(); } catch (Exception e) { Mod.log.Error($"Failed to load CitySystem: {e.Message}"); }
             try
             {
                 _signatureSystem = World.GetOrCreateSystemManaged<Game.UI.InGame.SignatureBuildingUISystem>();
-                // CRITICAL: Reflection-based signature query is unstable and causing native crashes.
-                /*
-                if (_signatureSystem != null)
-                {
-                    _signatureQueryField = _signatureSystem.GetType().GetField("m_UnlockedSignatureBuildingQuery", BindingFlags.NonPublic | BindingFlags.Instance);
-                }
-                */
             }
-            catch { }
+            catch (Exception e) { Mod.log.Error($"Failed to load SignatureBuildingUISystem: {e.Message}"); }
+
+            _cityModifierDataLookup = GetBufferLookup<Game.Prefabs.CityModifierData>(true);
+            _localModifierDataLookup = GetBufferLookup<Game.Prefabs.LocalModifierData>(true);
 
             // Build entity queries — match InfoLoom pattern:
             // Require PropertyRenter (active companies)
@@ -275,6 +276,9 @@ namespace AdvancedTPM
                 return;
             }
             m_UpdateTimer = 0f;
+
+            _cityModifierDataLookup.Update(ref CheckedStateRef);
+            _localModifierDataLookup.Update(ref CheckedStateRef);
 
             // ── Tick signature cache once per update cycle, not per entity ────────────
             try
@@ -465,8 +469,8 @@ namespace AdvancedTPM
                         return dir * a.Profit.CompareTo(b.Profit);
                     case "tax":
                         return dir * a.TaxRate.CompareTo(b.TaxRate);
-                    case "happiness":
-                        return dir * a.HappinessEstimate.CompareTo(b.HappinessEstimate);
+                    case "efficiency":
+                        return dir * a.Efficiency.CompareTo(b.Efficiency);
                     case "profitabilityTier":
                         return dir * string.Compare(a.ProfitabilityTier ?? "", b.ProfitabilityTier ?? "", StringComparison.OrdinalIgnoreCase);
                     case "lv":
@@ -580,7 +584,6 @@ namespace AdvancedTPM
             public string EfficiencyDetails;  // "factor:pct,..." non-100% factors
             public string BrandName;           // rendered company brand name (e.g. "Ordinateur")
             public string BuildingAddress;     // rendered building address (e.g. "32 Kingsgate Street")
-            public int HappinessEstimate;
             // Lightweight numeric service metrics (optional, may be 0 if unavailable)
             public float ElectricityConsumption;
             public float WaterConsumption;
@@ -598,9 +601,16 @@ namespace AdvancedTPM
             public string ThemeIcon;
             public string AssetPack;
             public string AssetPackIcon;
+            public int StorageAmount;
+            public int StorageCapacity;
             public string CompanyKind;
             public string IconUrl;
             public string NativePackIcon;
+            public string AllowedResources;
+            public string CityEffects;
+            public string LocalEffects;
+            public int Attractiveness;
+            public string AttractivenessFactors;
         }
 
         private void CollectCompanyData(List<CompanyInfo> result)
@@ -670,6 +680,7 @@ namespace AdvancedTPM
                     ProfitabilityTier = "Unknown",
                     ResourceEnum = Resource.NoResource,
                     IconUrl = "",
+                    AllowedResources = "",
                 };
 
                 // --- Brand name via NameSystem (cached to avoid repeated expensive label resolution) ---
@@ -966,6 +977,33 @@ namespace AdvancedTPM
                             }
                             catch { }
 
+
+
+                            try
+                            {
+                                List<string> cEffects = new List<string>();
+                                List<string> lEffects = new List<string>();
+                                if (_cityModifierDataLookup.HasBuffer(bldgPrefab))
+                                {
+                                    foreach (var c in _cityModifierDataLookup[bldgPrefab])
+                                    {
+                                        string sMode = c.m_Mode == Game.Prefabs.ModifierValueMode.Relative ? "%" : "";
+                                        cEffects.Add($"{c.m_Type} | {c.m_Range.min}{sMode} to {c.m_Range.max}{sMode}");
+                                    }
+                                }
+                                if (_localModifierDataLookup.HasBuffer(bldgPrefab))
+                                {
+                                    foreach (var l in _localModifierDataLookup[bldgPrefab])
+                                    {
+                                        string sMode = l.m_Mode == Game.Prefabs.ModifierValueMode.Relative ? "%" : "";
+                                        lEffects.Add($"{l.m_Type} | Delta: {l.m_Delta.min}{sMode} to {l.m_Delta.max}{sMode} | Reach: {l.m_Radius.max}");
+                                    }
+                                }
+                                newBldg.CityEffects = string.Join("^", cEffects);
+                                newBldg.LocalEffects = string.Join("^", lEffects);
+                            }
+                            catch { }
+
                             _buildingPrefabCache[bldgPrefab] = newBldg;
 
                             info.BuildingLevel = newBldg.Level;
@@ -976,6 +1014,8 @@ namespace AdvancedTPM
                             info.AssetPackIcon = newBldg.AssetPackIcon;
                             info.IconUrl = newBldg.IconUrl;
                             info.NativePackIcon = newBldg.NativePackIcon;
+                            info.CityEffects = newBldg.CityEffects;
+                            info.LocalEffects = newBldg.LocalEffects;
                         }
                     }
 
@@ -1082,9 +1122,6 @@ namespace AdvancedTPM
                     var profit = Math.Max(-100, Math.Min(100, info.Profit));
                     var staffPct = info.MaxWorkers > 0 ? (info.CurrentWorkers * 100f / info.MaxWorkers) : 100f;
                     var tax = info.TaxRate;
-                    int estimate = (int)Math.Round(Math.Max(0, Math.Min(100, 50 + (eff - 100) * 0.2 + profit * 0.25 + (staffPct - 75) * 0.3 - Math.Max(0, tax - 10) * 0.5)));
-                    info.HappinessEstimate = estimate;
-
                     info.District = "City";
                     try
                     {
@@ -1101,11 +1138,73 @@ namespace AdvancedTPM
                     }
                     catch { }
 
+                    // --- Resource Storage ---
+                    int totalStorageAmount = 0;
+                    if (em.HasBuffer<Game.Economy.Resources>(entity))
+                    {
+                        var resBuffer = em.GetBuffer<Game.Economy.Resources>(entity);
+                        for (int r = 0; r < resBuffer.Length; r++)
+                        {
+                            totalStorageAmount += resBuffer[r].m_Amount;
+                        }
+                    }
+                    info.StorageAmount = totalStorageAmount;
+                    
+                    int storageCapacity = 0;
+                    if (prop != Entity.Null && em.Exists(prop) && em.HasComponent<PrefabRef>(prop))
+                    {
+                        Entity propPrefab = em.GetComponentData<PrefabRef>(prop).m_Prefab;
+                        
+                        if (em.HasComponent<Game.Companies.StorageLimitData>(propPrefab) && 
+                            em.HasComponent<Game.Prefabs.SpawnableBuildingData>(propPrefab) &&
+                            em.HasComponent<Game.Prefabs.BuildingData>(propPrefab))
+                        {
+                            var limitData = em.GetComponentData<Game.Companies.StorageLimitData>(propPrefab);
+                            var spawnable = em.GetComponentData<Game.Prefabs.SpawnableBuildingData>(propPrefab);
+                            var buildingData = em.GetComponentData<Game.Prefabs.BuildingData>(propPrefab);
+                            storageCapacity = limitData.GetAdjustedLimitForWarehouse(spawnable, buildingData);
+                        }
+                    }
+                    info.StorageCapacity = storageCapacity;
+
+                    string allowedResources = "";
+                    if (prop != Entity.Null && em.Exists(prop))
+                    {
+                        if (em.HasComponent<Game.Buildings.CommercialProperty>(prop))
+                        {
+                            allowedResources = em.GetComponentData<Game.Buildings.CommercialProperty>(prop).m_Resources.ToString();
+                        }
+                        else if (em.HasComponent<Game.Buildings.IndustrialProperty>(prop))
+                        {
+                            allowedResources = em.GetComponentData<Game.Buildings.IndustrialProperty>(prop).m_Resources.ToString();
+                        }
+                    }
+                    info.AllowedResources = allowedResources;
+
+
                     if (string.IsNullOrEmpty(info.CompanyKind))
                     {
                         if (info.ZoneType == "RawIndustrial") info.CompanyKind = "Extraction";
                         else info.CompanyKind = info.ZoneType;
                     }
+
+                    // --- Attractiveness ---
+                    int attractiveness = 0;
+                    if (prop != Entity.Null && em.Exists(prop) && em.HasComponent<PrefabRef>(prop))
+                    {
+                        Entity propPrefab = em.GetComponentData<PrefabRef>(prop).m_Prefab;
+                        if (em.HasComponent<Game.Prefabs.AttractionData>(propPrefab))
+                        {
+                            if (Game.Prefabs.UpgradeUtils.TryGetCombinedComponent<Game.Prefabs.AttractionData>(em, prop, propPrefab, out var attrData))
+                                attractiveness = attrData.m_Attractiveness;
+                        }
+                        if (em.HasComponent<Game.Buildings.AttractivenessProvider>(prop))
+                        {
+                            var attrProv = em.GetComponentData<Game.Buildings.AttractivenessProvider>(prop);
+                            if (attrProv.m_Attractiveness > attractiveness) attractiveness = attrProv.m_Attractiveness;
+                        }
+                    }
+                    info.Attractiveness = attractiveness;
                 }
                 catch { }
 
@@ -1289,13 +1388,6 @@ namespace AdvancedTPM
                 factorMap["garbage"] = producesGarbage ? -15f : 0f;
                 factorMap["mail"] = producesMail ? 5f : 0f;
 
-                // Basic supply heuristics: if a building needs a service but we can't query
-                // the full provider chain here, present a conservative negative value so
-                // the UI shows an issue rather than blank. These are placeholders until
-                // we can query dedicated service systems for precise supply metrics.
-                // Keep conservative supply heuristics but publish authoritative numeric metrics when available
-                factorMap["electricitySupply"] = needsElec ? -10f : 5f;
-                factorMap["waterSupply"] = needsWater ? -10f : 5f;
                 if (!double.IsNaN(elecConsumption)) factorMap["electricityConsumption"] = (float)elecConsumption;
                 if (!double.IsNaN(waterConsumption)) factorMap["waterConsumption"] = (float)waterConsumption;
                 if (!double.IsNaN(garbageAccum)) factorMap["garbageAccumulation"] = (float)garbageAccum;
@@ -1382,7 +1474,7 @@ namespace AdvancedTPM
                    .Append(c.EfficiencyDetails ?? "").Append('|')
                    .Append(EscapePipe(c.BrandName ?? "")).Append('|')
                    .Append(EscapePipe(c.BuildingAddress ?? "")).Append('|')
-                   .Append(c.HappinessEstimate).Append('|')
+                   .Append(0).Append('|')
                    .Append(c.ProducesGarbage ? 1 : 0).Append('|')
                    .Append(c.ProducesCrime ? 1 : 0).Append('|')
                    .Append(c.ProducesMail ? 1 : 0).Append('|')
@@ -1402,7 +1494,14 @@ namespace AdvancedTPM
                    .Append(c.BuildingEntity.Index).Append(',').Append(c.BuildingEntity.Version).Append('|')
                    .Append(EscapePipe(c.IconUrl ?? "")).Append('|')
                    .Append(EscapePipe(c.NativePackIcon ?? "")).Append('|')
-                   .Append(EscapePipe(c.ThemeIcon ?? ""));
+                   .Append(EscapePipe(c.ThemeIcon ?? "")).Append('|')
+                   .Append(c.StorageAmount).Append('|')
+                   .Append(c.StorageCapacity).Append('|')
+                   .Append(EscapePipe(c.AllowedResources ?? "")).Append('|')
+                   .Append(EscapePipe(c.CityEffects ?? "")).Append('|')
+                   .Append(EscapePipe(c.LocalEffects ?? "")).Append('|')
+                   .Append(c.Attractiveness).Append('|')
+                   .Append(c.AttractivenessFactors ?? "");
             }
             return _sb.ToString();
         }

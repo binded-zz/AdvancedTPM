@@ -5,7 +5,7 @@ import { Scrollable } from 'cs2/ui';
 // Removed invalid imports from 'cs2/bindings'.
 import { resourceCategories, ResourceCategory } from '../data/resourceTaxonomy';
 import AutoTaxSettingsPanel from './AutoTaxSettingsPanel';
-import CompanyBrowser, { parseCompanies, resourceIconSrc, resourceIconName, resourceLabel } from './CompanyBrowser';
+import CompanyBrowser, { parseCompanies, resourceIconName, resourceLabel } from './CompanyBrowser';
 import AdvisorPanel from './AdvisorPanel';
 import ResidentialPanel from './ResidentialPanel';
 import ServicesPanel from './ServicesPanel';
@@ -676,8 +676,10 @@ districtPoliciesData,
         assetPack: p[6] || 'Base Game',
         assetPackIcon: p[7] || '',
         themeIcon: p[8] || '',
+        cityEffects: p[9] || '',
+        localEffects: p[10] || '',
       };
-    }).filter(Boolean) as Array<{ entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; assetPackIcon: string; themeIcon: string; }>;
+    }).filter(Boolean) as Array<SigResBuilding>;
   }, [residentialSignatureBuildingsData]);
 
   const serviceSignatureCount = useMemo(() => {
@@ -949,7 +951,7 @@ districtPoliciesData,
       {/* Businesses view */}
       {viewMode === 'businesses' && (
         <div className="adv-table-section">
-          <CompanyBrowser companies={businessCompanies} summaryData={companyBrowserSummary} happinessData={companyHappinessData} isSignatureView={false} />
+          <CompanyBrowser companies={businessCompanies} summaryData={companyBrowserSummary} isSignatureView={false} />
         </div>
       )}
 
@@ -1106,8 +1108,8 @@ districtPoliciesData,
   );
 };
 
-/* â”€â”€ Unified Signature View â”€â”€ */
-interface SigResBuilding { entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; themeIcon: string; assetPackIcon: string; }
+/* ── Unified Signature View ── */
+interface SigResBuilding { entityKey: string; address: string; level: number; occupied: number; capacity: number; theme: string; assetPack: string; themeIcon: string; assetPackIcon: string; cityEffects?: string; localEffects?: string; }
 
 type SigSortField = 'name' | 'type' | 'theme' | 'assetPack' | 'level';
 
@@ -1165,6 +1167,8 @@ const SignatureUnifiedView: React.FC<{
           resourceKey: '',
           buildingIndex: bIdx || 0,
           buildingVersion: bVer || 0,
+          cityEffects: s.cityEffects || '',
+          localEffects: s.localEffects || '',
         };
       });
     } catch { return []; }
@@ -1201,6 +1205,8 @@ const SignatureUnifiedView: React.FC<{
         resourceKey: c.resourceKey || '',
         buildingIndex: c.buildingIndex,
         buildingVersion: c.buildingVersion,
+        cityEffects: c.cityEffects || '',
+        localEffects: c.localEffects || '',
         // Carry over metrics for tooltip
         workers, maxWorkers, profit, happiness
       };
@@ -1225,6 +1231,8 @@ const SignatureUnifiedView: React.FC<{
         resourceKey: '',
         buildingIndex: bIdx || 0,
         buildingVersion: bVer || 0,
+        cityEffects: b.cityEffects || '',
+        localEffects: b.localEffects || '',
       };
     });
     return [...commercial, ...residential, ...serviceSignatures];
@@ -1438,7 +1446,7 @@ const SignatureUnifiedView: React.FC<{
                     title={g.label} 
                     style={{ padding: '2rem 4rem' }}
                   >
-                    <img src={resourceIconSrc(g.icon)} alt="" style={{ width: '24rem', height: '24rem' }} />
+                    <img src={`Media/Game/Resources/${g.icon}.svg`} alt="" style={{ width: '24rem', height: '24rem' }} />
                   </button>
                 ));
               })()}
@@ -1562,6 +1570,37 @@ const SignatureUnifiedView: React.FC<{
                       <div style={{ width: '400rem', marginRight: '8rem', marginBottom: '4rem' }}><span className="res-bldg-detail-label" style={{ fontSize: '11rem', color: 'rgba(255,255,255,0.5)', marginRight: '4rem', textTransform: 'uppercase', fontWeight: 700 }}>Status / Info</span><span className="res-bldg-detail-value" style={{ fontSize: '12rem', color: '#50b8e9', fontWeight: 'bold' }}>{item.extraInfo}</span></div>
                     )}
                   </div>
+                  { ((item as any).cityEffects || (item as any).localEffects) && (() => {
+                    const ce = (item as any).cityEffects;
+                    const le = (item as any).localEffects;
+                    const ceArray = Array.isArray(ce) ? ce : (typeof ce === 'string' && ce ? ce.split('^') : []);
+                    const leArray = Array.isArray(le) ? le : (typeof le === 'string' && le ? le.split('^') : []);
+                    if (ceArray.length === 0 && leArray.length === 0) return null;
+                    return (
+                      <div className="res-bldg-detail-grid" style={{ marginTop: '10rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10rem', display: 'flex', flexDirection: 'column', gap: '4rem' }}>
+                        {ceArray.length > 0 && (
+                          <>
+                            <div style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em', fontSize: '10rem', textTransform: 'uppercase', marginBottom: '4rem' }}>City Effects</div>
+                            {ceArray.map((ef: string, i: number) => (
+                              <div key={`ce-${i}`} style={{ display: 'flex' }}>
+                                <span style={{ color: '#fff', fontSize: '12rem' }}>{ef}</span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {leArray.length > 0 && (
+                          <>
+                            <div style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em', fontSize: '10rem', textTransform: 'uppercase', marginBottom: '4rem', marginTop: ceArray.length > 0 ? '8rem' : '0' }}>Local Effects</div>
+                            {leArray.map((ef: string, i: number) => (
+                              <div key={`le-${i}`} style={{ display: 'flex' }}>
+                                <span style={{ color: '#fff', fontSize: '12rem' }}>{ef}</span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>

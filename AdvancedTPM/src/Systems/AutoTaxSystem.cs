@@ -6,14 +6,222 @@ using Game.UI;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
+using Unity.Mathematics;
+using AdvancedTPM.Systems;
 
 namespace AdvancedTPM
 {
     public partial class AutoTaxSystem : UISystemBase
     {
+        private struct ResourceInputData
+        {
+            public int TaxArea; // 1 = Industrial, 2 = Commercial, 3 = Office, 0 = Invalid/Skip
+            public int CurrentRate;
+            public int EffectiveMin;
+            public int EffectiveMax;
+            public int TaxableIncome;
+            public float AvgProfit;
+            public float LearnedSignal;
+        }
+
+        private struct ResourceOutputData
+        {
+            public int Direction;
+            public float Score;
+            public float BalanceFactor;
+            public float DemandFactor;
+            public float IncomeFactor;
+            public float ProfitFactor;
+            public float HappinessFactor;
+            public float RateDrag;
+            public int Companies;
+            public float AvgProfit;
+            public float LearnedFactor;
+            public int NewRate; 
+        }
+
+        [BurstCompile]
+        private struct AutoTaxMathJob : IJob
+        {
+            public float HappinessBias;
+            public float HappinessWeight;
+            public float ProfitWeight;
+            
+            [ReadOnly] public NativeArray<int> Production;
+            [ReadOnly] public NativeArray<int> IndustrialConsumption;
+            [ReadOnly] public NativeArray<int> CommercialConsumption;
+            [ReadOnly] public NativeArray<int> IndustrialCompanies;
+            [ReadOnly] public NativeArray<int> IndustrialDemand;
+            [ReadOnly] public NativeArray<int> CommercialCompanies;
+            [ReadOnly] public NativeArray<int> CommercialCapacity;
+            [ReadOnly] public NativeArray<int> CommercialAvailables;
+            [ReadOnly] public NativeArray<ResourceInputData> InputData;
+
+            public NativeArray<ResourceOutputData> OutputData;
+
+            public void Execute()
+            {
+                int length = InputData.Length;
+                for (int i = 0; i < length; i++)
+                {
+                    var input = InputData[i];
+                    if (input.TaxArea == 0) continue;
+
+                    int currentRate = input.CurrentRate;
+                    int taxArea = input.TaxArea;
+                    
+                    if (currentRate > input.EffectiveMax)
+                    {
+                        OutputData[i] = new ResourceOutputData { Direction = -1, Score = -1f, NewRate = input.EffectiveMax };
+                        continue;
+                    }
+                    else if (currentRate < input.EffectiveMin)
+                    {
+                        OutputData[i] = new ResourceOutputData { Direction = 1, Score = 1f, NewRate = input.EffectiveMin };
+                        continue;
+                    }
+
+                    bool useCommercialData = (taxArea == 3 || taxArea == 2);
+                    bool hasCommercialData = CommercialCompanies.IsCreated && CommercialCompanies.Length > 0;
+                    bool hasIndustrialData = IndustrialCompanies.IsCreated && IndustrialCompanies.Length > 0;
+
+                    float profitabilityScore = 0f;
+                    float f1_balance = 0f;
+                    float f3_demand = 0f;
+                    float f4_income = 0f;
+
+                    int prodRaw = 0;
+                    int consRaw = 0;
+
+                    if (useCommercialData && hasCommercialData)
+                    {
+                        if (i < CommercialCapacity.Length) prodRaw = math.max(0, CommercialCapacity[i]);
+                        if (i < CommercialAvailables.Length) consRaw = math.max(0, CommercialAvailables[i]);
+                    }
+                    else
+                    {
+                        if (Production.IsCreated && i < Production.Length) prodRaw = math.max(0, Production[i]);
+                        if (IndustrialConsumption.IsCreated && i < IndustrialConsumption.Length) consRaw += math.max(0, IndustrialConsumption[i]);
+                        if (CommercialConsumption.IsCreated && i < CommercialConsumption.Length) consRaw += math.max(0, CommercialConsumption[i]);
+                    }
+
+                    if (prodRaw > 0 || consRaw > 0)
+                    {
+                        float balance = (prodRaw - consRaw) / (float)math.max(prodRaw, consRaw);
+                        f1_balance = balance * 0.4f;
+                        profitabilityScore += f1_balance;
+                    }
+
+                    int companies = 0;
+                    if (!useCommercialData && hasIndustrialData && i < IndustrialCompanies.Length)
+                        companies = math.max(0, IndustrialCompanies[i]);
+                    if (useCommercialData && hasCommercialData && i < CommercialCompanies.Length)
+                        companies = math.max(0, CommercialCompanies[i]);
+
+                    if (companies == 0 && taxArea != 3) 
+                    {
+                        if (currentRate > 10)
+                            OutputData[i] = new ResourceOutputData { Direction = -1, Score = -0.5f, NewRate = currentRate - 1 };
+                        else
+                            OutputData[i] = new ResourceOutputData { Direction = 0, Score = 0f, NewRate = currentRate };
+                        continue;
+                    }
+
+                    if (!useCommercialData && hasIndustrialData && IndustrialDemand.IsCreated && i < IndustrialDemand.Length)
+                    {
+                        int demandRaw = math.max(0, IndustrialDemand[i]);
+                        if (demandRaw > 0 && prodRaw > 0)
+                        {
+                            float demandRatio = demandRaw / (float)prodRaw;
+                            f3_demand = math.min(0.3f, demandRatio * 0.15f);
+                            profitabilityScore += f3_demand;
+                        }
+                    }
+
+                    int taxableIncome = input.TaxableIncome;
+                    if (taxableIncome > 0)
+                    {
+                        if (companies > 0)
+                        {
+                            float perCompanyIncome = taxableIncome / (float)companies;
+                            float incomeScore = math.min(0.3f, math.max(-0.3f, (perCompanyIncome - 500f) / 2000f));
+                            f4_income = incomeScore;
+                            profitabilityScore += incomeScore;
+                        }
+                        else
+                        {
+                            float incomeScore = math.min(0.3f, math.max(-0.3f, (taxableIncome - 5000f) / 20000f));
+                            f4_income = incomeScore;
+                            profitabilityScore += incomeScore;
+                        }
+                    }
+                    else if (taxableIncome == 0)
+                    {
+                        if (taxArea == 3)
+                        {
+                            OutputData[i] = new ResourceOutputData { Direction = 0, Score = 0f, NewRate = currentRate };
+                            continue;
+                        }
+                        if (currentRate > 0)
+                        {
+                            f4_income = -0.15f;
+                            profitabilityScore -= 0.15f;
+                        }
+                    }
+
+                    float companyProfitSignal = math.max(-0.4f, math.min(0.4f, input.AvgProfit / 150f));
+                    float learnedSignal = math.max(-0.3f, math.min(0.3f, input.LearnedSignal));
+
+                    float blendedScore = profitabilityScore * (1f - ProfitWeight) + companyProfitSignal * ProfitWeight;
+                    blendedScore += learnedSignal;
+
+                    float happinessContrib;
+                    if (HappinessBias < 0)
+                        happinessContrib = HappinessBias * HappinessWeight;
+                    else
+                        happinessContrib = HappinessBias * HappinessWeight * 0.2f;
+
+                    float absRate = math.abs((float)currentRate);
+                    float rateDrag = -math.sign((float)currentRate) * (absRate / 150f) * (1f + absRate / 50f);
+                    float finalScore = blendedScore * (1f - HappinessWeight) + happinessContrib + rateDrag;
+                    finalScore = math.max(-1f, math.min(1f, finalScore));
+
+                    int direction = 0;
+                    int newRate = currentRate;
+                    if (finalScore > 0.15f && currentRate < input.EffectiveMax)
+                    {
+                        direction = 1;
+                        newRate = currentRate + 1;
+                    }
+                    else if (finalScore < -0.15f && currentRate > input.EffectiveMin)
+                    {
+                        direction = -1;
+                        newRate = currentRate - 1;
+                    }
+
+                    OutputData[i] = new ResourceOutputData
+                    {
+                        Direction = direction,
+                        Score = finalScore,
+                        BalanceFactor = f1_balance,
+                        DemandFactor = f3_demand,
+                        IncomeFactor = f4_income,
+                        ProfitFactor = companyProfitSignal,
+                        HappinessFactor = happinessContrib,
+                        RateDrag = rateDrag,
+                        Companies = companies,
+                        AvgProfit = input.AvgProfit,
+                        LearnedFactor = learnedSignal,
+                        NewRate = newRate
+                    };
+                }
+            }
+        }
+
         private AdvancedTPM.Utilities.PrefixedLogger m_Log;
         private ValueBinding<bool> _autoTaxEnabled;
         private ValueBinding<string> _autoTaxStatus;
@@ -40,147 +248,26 @@ namespace AdvancedTPM
 
         // Per-resource min/max tax rate overrides (key → (min, max)); absent = use global
         private readonly Dictionary<string, (int min, int max)> _perResourceRanges = new Dictionary<string, (int min, int max)>();
-
-        private enum ResourceTaxArea { Industrial, Commercial, Office }
-
-        // Per-resource auto-tax state: tracks direction and score for UI display
         private readonly Dictionary<string, AutoTaxResourceState> _resourceStates = new Dictionary<string, AutoTaxResourceState>();
-
-        // Same mappings as TaxingProductionUISystem — resource key → tax area and enum
-        private static readonly Dictionary<string, ResourceTaxArea> ResourceTaxAreaMap = new Dictionary<string, ResourceTaxArea>
-        {
-            ["grain"] = ResourceTaxArea.Industrial,
-            ["vegetables"] = ResourceTaxArea.Industrial,
-            ["cotton"] = ResourceTaxArea.Industrial,
-            ["livestock"] = ResourceTaxArea.Industrial,
-            ["fish"] = ResourceTaxArea.Industrial,
-            ["wood"] = ResourceTaxArea.Industrial,
-            ["ore"] = ResourceTaxArea.Industrial,
-            ["stone"] = ResourceTaxArea.Industrial,
-            ["coal"] = ResourceTaxArea.Industrial,
-            ["oil"] = ResourceTaxArea.Industrial,
-            ["food"] = ResourceTaxArea.Industrial,
-            ["beverages"] = ResourceTaxArea.Industrial,
-            ["conveniencefood"] = ResourceTaxArea.Industrial,
-            ["textiles"] = ResourceTaxArea.Industrial,
-            ["timber"] = ResourceTaxArea.Industrial,
-            ["paper"] = ResourceTaxArea.Industrial,
-            ["furniture"] = ResourceTaxArea.Industrial,
-            ["metals"] = ResourceTaxArea.Industrial,
-            ["steel"] = ResourceTaxArea.Industrial,
-            ["minerals"] = ResourceTaxArea.Industrial,
-            ["concrete"] = ResourceTaxArea.Industrial,
-            ["machinery"] = ResourceTaxArea.Industrial,
-            ["electronics"] = ResourceTaxArea.Industrial,
-            ["vehicles"] = ResourceTaxArea.Industrial,
-            ["petrochemicals"] = ResourceTaxArea.Industrial,
-            ["plastics"] = ResourceTaxArea.Industrial,
-            ["chemicals"] = ResourceTaxArea.Industrial,
-            ["pharmaceuticals"] = ResourceTaxArea.Industrial,
-            ["software"] = ResourceTaxArea.Office,
-            ["telecom"] = ResourceTaxArea.Office,
-            ["financial"] = ResourceTaxArea.Office,
-            ["media"] = ResourceTaxArea.Office,
-            ["lodging"] = ResourceTaxArea.Commercial,
-            ["meals"] = ResourceTaxArea.Commercial,
-            ["entertainment"] = ResourceTaxArea.Commercial,
-            ["recreation"] = ResourceTaxArea.Commercial,
-            ["c_food"] = ResourceTaxArea.Commercial,
-            ["c_beverages"] = ResourceTaxArea.Commercial,
-            ["c_conveniencefood"] = ResourceTaxArea.Commercial,
-            ["c_textiles"] = ResourceTaxArea.Commercial,
-            ["c_timber"] = ResourceTaxArea.Commercial,
-            ["c_paper"] = ResourceTaxArea.Commercial,
-            ["c_furniture"] = ResourceTaxArea.Commercial,
-            ["c_metals"] = ResourceTaxArea.Commercial,
-            ["c_steel"] = ResourceTaxArea.Commercial,
-            ["c_minerals"] = ResourceTaxArea.Commercial,
-            ["c_concrete"] = ResourceTaxArea.Commercial,
-            ["c_machinery"] = ResourceTaxArea.Commercial,
-            ["c_electronics"] = ResourceTaxArea.Commercial,
-            ["c_vehicles"] = ResourceTaxArea.Commercial,
-            ["c_petrochemicals"] = ResourceTaxArea.Commercial,
-            ["c_plastics"] = ResourceTaxArea.Commercial,
-            ["c_chemicals"] = ResourceTaxArea.Commercial,
-            ["c_pharmaceuticals"] = ResourceTaxArea.Commercial,
-        };
-
-        private static readonly Dictionary<string, Resource> ResourceKeyToEnum = new Dictionary<string, Resource>
-        {
-            ["grain"]           = Resource.Grain,
-            ["vegetables"]      = Resource.Vegetables,
-            ["cotton"]          = Resource.Cotton,
-            ["livestock"]       = Resource.Livestock,
-            ["fish"]            = Resource.Fish,
-            ["wood"]            = Resource.Wood,
-            ["ore"]             = Resource.Ore,
-            ["stone"]           = Resource.Stone,
-            ["coal"]            = Resource.Coal,
-            ["oil"]             = Resource.Oil,
-            ["food"]            = Resource.Food,
-            ["beverages"]       = Resource.Beverages,
-            ["conveniencefood"] = Resource.ConvenienceFood,
-            ["textiles"]        = Resource.Textiles,
-            ["timber"]          = Resource.Timber,
-            ["paper"]           = Resource.Paper,
-            ["furniture"]       = Resource.Furniture,
-            ["metals"]          = Resource.Metals,
-            ["steel"]           = Resource.Steel,
-            ["minerals"]        = Resource.Minerals,
-            ["concrete"]        = Resource.Concrete,
-            ["machinery"]       = Resource.Machinery,
-            ["electronics"]     = Resource.Electronics,
-            ["vehicles"]        = Resource.Vehicles,
-            ["petrochemicals"]  = Resource.Petrochemicals,
-            ["plastics"]        = Resource.Plastics,
-            ["chemicals"]       = Resource.Chemicals,
-            ["pharmaceuticals"] = Resource.Pharmaceuticals,
-            ["software"]        = Resource.Software,
-            ["telecom"]         = Resource.Telecom,
-            ["financial"]       = Resource.Financial,
-            ["media"]           = Resource.Media,
-            ["lodging"]         = Resource.Lodging,
-            ["meals"]           = Resource.Meals,
-            ["entertainment"]   = Resource.Entertainment,
-            ["recreation"]      = Resource.Recreation,
-            ["c_food"]            = Resource.Food,
-            ["c_beverages"]       = Resource.Beverages,
-            ["c_conveniencefood"] = Resource.ConvenienceFood,
-            ["c_textiles"]        = Resource.Textiles,
-            ["c_timber"]          = Resource.Timber,
-            ["c_paper"]           = Resource.Paper,
-            ["c_furniture"]       = Resource.Furniture,
-            ["c_metals"]          = Resource.Metals,
-            ["c_steel"]           = Resource.Steel,
-            ["c_minerals"]        = Resource.Minerals,
-            ["c_concrete"]        = Resource.Concrete,
-            ["c_machinery"]       = Resource.Machinery,
-            ["c_electronics"]     = Resource.Electronics,
-            ["c_vehicles"]        = Resource.Vehicles,
-            ["c_petrochemicals"]  = Resource.Petrochemicals,
-            ["c_plastics"]        = Resource.Plastics,
-            ["c_chemicals"]       = Resource.Chemicals,
-            ["c_pharmaceuticals"] = Resource.Pharmaceuticals,
-        };
 
         protected override void OnCreate()
         {
             base.OnCreate();
 
-            foreach (var key in ResourceKeyToEnum.Keys)
+            foreach (var key in TPMDataDefinitions.ResourceKeyToEnum.Keys)
             {
                 _resourceStates[key] = new AutoTaxResourceState();
             }
 
-            try { _taxSystem = World.GetOrCreateSystemManaged<TaxSystem>(); } catch { }
-            try { _countCompanyDataSystem = World.GetOrCreateSystemManaged<CountCompanyDataSystem>(); } catch { }
-            try { _industrialDemandSystem = World.GetOrCreateSystemManaged<IndustrialDemandSystem>(); } catch { }
-            try { _commercialDemandSystem = World.GetOrCreateSystemManaged<CommercialDemandSystem>(); } catch { }
-            try { _cityStatisticsSystem = World.GetOrCreateSystemManaged<CityStatisticsSystem>(); } catch { }
-            try { _companyBrowserSystem = World.GetOrCreateSystemManaged<CompanyBrowserSystem>(); } catch { }
-            try { _adaptiveLearningSystem = World.GetOrCreateSystemManaged<AdaptiveLearningSystem>(); } catch { }
-            try { _simulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>(); } catch { }
-            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch { }
+            try { _taxSystem = World.GetOrCreateSystemManaged<TaxSystem>(); } catch (Exception e) { m_Log.Error($"Failed to load TaxSystem: {e.Message}"); }
+            try { _countCompanyDataSystem = World.GetOrCreateSystemManaged<CountCompanyDataSystem>(); } catch (Exception e) { m_Log.Error($"Failed to load CountCompanyDataSystem: {e.Message}"); }
+            try { _industrialDemandSystem = World.GetOrCreateSystemManaged<IndustrialDemandSystem>(); } catch (Exception e) { m_Log.Error($"Failed to load IndustrialDemandSystem: {e.Message}"); }
+            try { _commercialDemandSystem = World.GetOrCreateSystemManaged<CommercialDemandSystem>(); } catch (Exception e) { m_Log.Error($"Failed to load CommercialDemandSystem: {e.Message}"); }
+            try { _cityStatisticsSystem = World.GetOrCreateSystemManaged<CityStatisticsSystem>(); } catch (Exception e) { m_Log.Error($"Failed to load CityStatisticsSystem: {e.Message}"); }
+            try { _companyBrowserSystem = World.GetOrCreateSystemManaged<CompanyBrowserSystem>(); } catch (Exception e) { m_Log.Error($"Failed to load CompanyBrowserSystem: {e.Message}"); }
+            try { _adaptiveLearningSystem = World.GetOrCreateSystemManaged<AdaptiveLearningSystem>(); } catch (Exception e) { m_Log.Error($"Failed to load AdaptiveLearningSystem: {e.Message}"); }
+            try { _simulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>(); } catch (Exception e) { m_Log.Error($"Failed to load SimulationSystem: {e.Message}"); }
+            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch (Exception e) { m_Log.Error($"Failed to load TaxingProductionUISystem: {e.Message}"); }
 
             var settings = Mod.Settings;
             LoadExcludedResources(settings);
@@ -196,17 +283,10 @@ namespace AdvancedTPM
             m_Log.Info("AutoTaxSystem initialized");
         }
 
-        // private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
-            // if (m_FrameCounter++ % 600 == 0) Mod.log.Info("AutoTaxSystem Heartbeat");
-            if (!_autoTaxEnabled.value) return;
-
             var settings = Mod.Settings;
-            if (settings == null) return;
-
-            // Sync enabled state from settings
-            if (_autoTaxEnabled.value != settings.AutoTaxEnabled)
+            if (settings != null && _autoTaxEnabled.value != settings.AutoTaxEnabled)
             {
                 _autoTaxEnabled.Update(settings.AutoTaxEnabled);
                 if (settings.AutoTaxEnabled)
@@ -216,23 +296,16 @@ namespace AdvancedTPM
             if (!_autoTaxEnabled.value) return;
             if (_taxSystem == null || _countCompanyDataSystem == null) return;
 
-            // First run fires immediately after enabling
             if (_firstRunPending)
             {
                 if (RunAutoTaxAdjustment(settings))
                 {
                     _firstRunPending = false;
                     m_UpdateTimer = 0f;
-                    // Mod.log.Info("AutoTax: first run triggered successfully");
                 }
                 return;
             }
 
-            // ── Real-time throttle (replaces frame-count tier) ──────────────────────
-            // DeltaTime accumulation is frame-rate independent and pause-aware:
-            // the timer only advances while the simulation is running, so the interval
-            // reflects actual simulated seconds rather than wall-clock frame count.
-            // Tier → seconds: 1=5s, 2=10s, 3=20s, 4=45s, 5=90s
             m_UpdateTimer += World.Time.DeltaTime;
             int tier = settings.AutoTaxInterval;
             if (tier < 1) tier = 1;
@@ -240,11 +313,11 @@ namespace AdvancedTPM
             float targetSeconds;
             switch (tier)
             {
-                case 1: targetSeconds = 5f;  break;  // Very Fast
-                case 2: targetSeconds = 10f; break;  // Fast
-                case 3: targetSeconds = 20f; break;  // Normal
-                case 4: targetSeconds = 45f; break;  // Slow
-                case 5: targetSeconds = 90f; break;  // Very Slow
+                case 1: targetSeconds = 5f;  break;
+                case 2: targetSeconds = 10f; break;
+                case 3: targetSeconds = 20f; break;
+                case 4: targetSeconds = 45f; break;
+                case 5: targetSeconds = 90f; break;
                 default: targetSeconds = 20f; break;
             }
             if (m_UpdateTimer < targetSeconds) return;
@@ -265,7 +338,6 @@ namespace AdvancedTPM
             float happinessWeight = settings.AutoTaxHappinessWeight / 100f;
             float profitWeight = settings.AutoTaxProfitWeight / 100f;
 
-            // Get city wellbeing as happiness proxy (0–100 scale)
             int happiness = 50;
             if (_cityStatisticsSystem != null)
             {
@@ -277,11 +349,8 @@ namespace AdvancedTPM
                 catch { }
             }
 
-            // Happiness modifier: if happiness < 50, bias toward lowering taxes; if > 70, allow raising
-            // Range: -1.0 (very unhappy, strong lower bias) to +1.0 (very happy, can raise)
             float happinessBias = (happiness - 50f) / 50f;
 
-            // Get production, consumption and company data along with their handles
             NativeArray<int> productionArray = default;
             JobHandle prodDeps = default;
             try { productionArray = _countCompanyDataSystem.GetProduction(out prodDeps); } catch { }
@@ -324,21 +393,14 @@ namespace AdvancedTPM
             }
             catch { }
 
-            // Combine all dependencies to check if background jobs are finished
             var combinedDeps = JobHandle.CombineDependencies(
                 JobHandle.CombineDependencies(prodDeps, consDeps),
                 JobHandle.CombineDependencies(commDeps, indDeps),
                 comDeps
             );
 
-            if (!combinedDeps.IsCompleted)
-            {
-                // Defer: background compile jobs are still active on worker threads.
-                // We will try again on the next frame without stalling.
-                return false;
-            }
+            if (!combinedDeps.IsCompleted) return false;
 
-            // Safe to call complete now, it won't block since IsCompleted is true
             combinedDeps.Complete();
 
             bool hasProduction = productionArray.IsCreated && productionArray.Length > 0;
@@ -352,43 +414,51 @@ namespace AdvancedTPM
             int lowerCount = 0;
             int holdCount = 0;
 
-            foreach (var kvp in ResourceKeyToEnum)
+            int maxIndex = 0;
+            foreach (var r in TPMDataDefinitions.ResourceKeyToEnum.Values)
+            {
+                int idx = EconomyUtils.GetResourceIndex(r);
+                if (idx > maxIndex) maxIndex = idx;
+            }
+            int arrayLen = maxIndex + 1;
+
+            var inputData = new NativeArray<ResourceInputData>(arrayLen, Allocator.TempJob);
+            var outputData = new NativeArray<ResourceOutputData>(arrayLen, Allocator.TempJob);
+
+            foreach (var kvp in TPMDataDefinitions.ResourceKeyToEnum)
             {
                 string key = kvp.Key;
                 Resource resource = kvp.Value;
-                if (!ResourceTaxAreaMap.TryGetValue(key, out var taxArea)) continue;
+                int idx = EconomyUtils.GetResourceIndex(resource);
+                if (idx < 0) continue;
+
+                if (!TPMDataDefinitions.ResourceTaxAreaMap.TryGetValue(key, out var taxAreaEnum)) continue;
+                if (_excludedResources.Contains(key)) continue;
                 if (!_resourceStates.TryGetValue(key, out var state)) continue;
 
-                // Skip excluded resources
-                if (_excludedResources.Contains(key))
-                {
-                    state.Direction = 0;
-                    state.Score = 0f;
-                    holdCount++;
-                    continue;
-                }
+                int currentRate = 0;
+                int taxAreaInt = 0;
+                StatisticType statType = StatisticType.IndustrialTaxableIncome;
 
-                int resourceIndex = EconomyUtils.GetResourceIndex(resource);
-                if (resourceIndex < 0) continue;
-
-                // Read current game tax rate
-                int currentRate;
-                switch (taxArea)
+                switch (taxAreaEnum)
                 {
-                    case ResourceTaxArea.Industrial:
+                    case TPMDataDefinitions.ResourceTaxArea.Industrial:
                         currentRate = _taxSystem.GetIndustrialTaxRate(resource);
+                        taxAreaInt = 1;
+                        statType = StatisticType.IndustrialTaxableIncome;
                         break;
-                    case ResourceTaxArea.Commercial:
+                    case TPMDataDefinitions.ResourceTaxArea.Commercial:
                         currentRate = _taxSystem.GetCommercialTaxRate(resource);
+                        taxAreaInt = 2;
+                        statType = StatisticType.CommercialTaxableIncome;
                         break;
-                    case ResourceTaxArea.Office:
+                    case TPMDataDefinitions.ResourceTaxArea.Office:
                         currentRate = _taxSystem.GetOfficeTaxRate(resource);
+                        taxAreaInt = 3;
+                        statType = StatisticType.OfficeTaxableIncome;
                         break;
-                    default:
-                        continue;
                 }
 
-                // Determine per-resource or global min/max
                 int effectiveMin = globalMin;
                 int effectiveMax = globalMax;
                 if (_perResourceRanges.TryGetValue(key, out var customRange))
@@ -398,303 +468,112 @@ namespace AdvancedTPM
                     if (effectiveMin > effectiveMax) { int tmp2 = effectiveMin; effectiveMin = effectiveMax; effectiveMax = tmp2; }
                 }
 
-                // Immediately enforce range: if current rate is outside custom bounds, clamp it now
-                if (currentRate > effectiveMax)
-                {
-                    switch (taxArea)
-                    {
-                        case ResourceTaxArea.Industrial:
-                            _taxSystem.SetIndustrialTaxRate(resource, effectiveMax);
-                            break;
-                        case ResourceTaxArea.Commercial:
-                            _taxSystem.SetCommercialTaxRate(resource, effectiveMax);
-                            break;
-                        case ResourceTaxArea.Office:
-                            _taxSystem.SetOfficeTaxRate(resource, effectiveMax);
-                            break;
-                    }
-                    state.Direction = -1;
-                    state.Score = -1f;
-                    adjustCount++;
-                    lowerCount++;
-                    continue;
-                }
-                else if (currentRate < effectiveMin)
-                {
-                    switch (taxArea)
-                    {
-                        case ResourceTaxArea.Industrial:
-                            _taxSystem.SetIndustrialTaxRate(resource, effectiveMin);
-                            break;
-                        case ResourceTaxArea.Commercial:
-                            _taxSystem.SetCommercialTaxRate(resource, effectiveMin);
-                            break;
-                        case ResourceTaxArea.Office:
-                            _taxSystem.SetOfficeTaxRate(resource, effectiveMin);
-                            break;
-                    }
-                    state.Direction = 1;
-                    state.Score = 1f;
-                    adjustCount++;
-                    raiseCount++;
-                    continue;
-                }
-
-                bool useCommercialData = taxArea == ResourceTaxArea.Office || taxArea == ResourceTaxArea.Commercial;
-
-                // Calculate profitability score (-1.0 to +1.0)
-                // Positive = companies thriving, can raise tax
-                // Negative = companies struggling, should lower tax
-                float profitabilityScore = 0f;
-                float f1_balance = 0f;
-                float f3_demand = 0f;
-                float f4_income = 0f;
-
-                // Factor 1: Production vs Consumption balance (surplus = good)
-                int prodRaw = 0;
-                int consRaw = 0;
-
-                if (useCommercialData && hasCommercialData)
-                {
-                    if (resourceIndex < commercialCapacity.Length)
-                        prodRaw = Math.Max(0, commercialCapacity[resourceIndex]);
-                    if (resourceIndex < commercialAvailables.Length)
-                        consRaw = Math.Max(0, commercialAvailables[resourceIndex]);
-                }
-                else
-                {
-                    if (hasProduction && resourceIndex < productionArray.Length)
-                        prodRaw = Math.Max(0, productionArray[resourceIndex]);
-                    if (hasIndustrialConsumption && resourceIndex < industrialConsumption.Length)
-                        consRaw += Math.Max(0, industrialConsumption[resourceIndex]);
-                    if (hasCommercialConsumption && resourceIndex < commercialConsumption.Length)
-                        consRaw += Math.Max(0, commercialConsumption[resourceIndex]);
-                }
-
-                if (prodRaw > 0 || consRaw > 0)
-                {
-                    float balance = (prodRaw - consRaw) / (float)Math.Max(prodRaw, consRaw);
-                    // Surplus (balance > 0): healthy, score positive. Deficit (balance < 0): struggling.
-                    f1_balance = balance * 0.4f;
-                    profitabilityScore += f1_balance;
-                }
-
-                // Factor 2: Company count
-                int companies = 0;
-                if (!useCommercialData && hasIndustrialData && resourceIndex < industrialCompanies.Length)
-                    companies = Math.Max(0, industrialCompanies[resourceIndex]);
-                if (useCommercialData && hasCommercialData && resourceIndex < commercialCompanies.Length)
-                    companies = Math.Max(0, commercialCompanies[resourceIndex]);
-
-                // For Industrial/Commercial: skip if no companies at all
-                // For Office: company count isn't in commercial arrays, so check taxable income instead
-                if (companies == 0 && taxArea != ResourceTaxArea.Office)
-                {
-                    state.Direction = 0;
-                    state.Score = 0f;
-                    holdCount++;
-                    continue;
-                }
-
-                // Factor 3: Demand signal (high demand = companies can handle more tax)
-                if (!useCommercialData && hasIndustrialData && industrialDemand.IsCreated && resourceIndex < industrialDemand.Length)
-                {
-                    int demandRaw = Math.Max(0, industrialDemand[resourceIndex]);
-                    if (demandRaw > 0 && prodRaw > 0)
-                    {
-                        float demandRatio = demandRaw / (float)prodRaw;
-                        f3_demand = Math.Min(0.3f, demandRatio * 0.15f);
-                        profitabilityScore += f3_demand;
-                    }
-                }
-
-                // Factor 4: Taxable income signal (high income = companies profitable)
+                int taxableIncome = 0;
                 if (_cityStatisticsSystem != null)
                 {
-                    StatisticType statType;
-                    switch (taxArea)
-                    {
-                        case ResourceTaxArea.Industrial:
-                            statType = StatisticType.IndustrialTaxableIncome;
-                            break;
-                        case ResourceTaxArea.Commercial:
-                            statType = StatisticType.CommercialTaxableIncome;
-                            break;
-                        default:
-                            statType = StatisticType.OfficeTaxableIncome;
-                            break;
-                    }
-
-                    try
-                    {
-                        int taxableIncome = _cityStatisticsSystem.GetStatisticValue(statType, resourceIndex);
-                        if (taxableIncome > 0)
-                        {
-                            if (companies > 0)
-                            {
-                                float perCompanyIncome = taxableIncome / (float)companies;
-                                float incomeScore = Math.Min(0.3f, Math.Max(-0.3f, (perCompanyIncome - 500f) / 2000f));
-                                f4_income = incomeScore;
-                                profitabilityScore += incomeScore;
-                            }
-                            else
-                            {
-                                // Office: no company count available, use raw income as signal
-                                float incomeScore = Math.Min(0.3f, Math.Max(-0.3f, (taxableIncome - 5000f) / 20000f));
-                                f4_income = incomeScore;
-                                profitabilityScore += incomeScore;
-                            }
-                        }
-                        else if (taxableIncome == 0)
-                        {
-                            if (taxArea == ResourceTaxArea.Office)
-                            {
-                                // Office with zero income = no activity, hold
-                                state.Direction = 0;
-                                state.Score = 0f;
-                                holdCount++;
-                                continue;
-                            }
-                            if (currentRate > 0)
-                            {
-                                f4_income = -0.15f;
-                                profitabilityScore -= 0.15f;
-                            }
-                        }
-                    }
-                    catch { }
+                    try { taxableIncome = _cityStatisticsSystem.GetStatisticValue(statType, idx); } catch { }
                 }
 
-                // Factor 5: Real company profitability from CompanyBrowserSystem
-                // This is the most direct signal — actual profit/loss from ECS entities
-                float companyProfitSignal = 0f;
-                float rawAvgProfit = 0f;
-                if (_companyBrowserSystem != null)
+                float avgProfit = 0f;
+                if (_companyBrowserSystem != null && _companyBrowserSystem.AvgProfitByResource != null)
                 {
-                    try
-                    {
-                        var avgProfits = _companyBrowserSystem.AvgProfitByResource;
-                        if (avgProfits != null && avgProfits.TryGetValue(resource, out float avgProfit))
-                        {
-                            rawAvgProfit = avgProfit;
-                            // avgProfit is %-based: -100 (bankrupt) to +100 (very profitable)
-                            // Scale to ±0.4 signal — strongest single factor when profitWeight is high
-                            companyProfitSignal = Math.Max(-0.4f, Math.Min(0.4f, avgProfit / 150f));
-                        }
-                    }
-                    catch { }
+                    _companyBrowserSystem.AvgProfitByResource.TryGetValue(resource, out avgProfit);
                 }
 
-                // Factor 6: Adaptive learned sensitivity from AdaptiveLearningSystem
-                // Applies a modifier based on observed city responses to past tax changes
                 float learnedSignal = 0f;
                 if (_adaptiveLearningSystem != null)
                 {
                     learnedSignal = _adaptiveLearningSystem.GetLearnedSensitivity(key);
-                    // Clamp to ±0.3 to prevent learned data from overwhelming other factors
-                    learnedSignal = Math.Max(-0.3f, Math.Min(0.3f, learnedSignal));
                 }
 
-                // Blend: profitWeight controls balance between macro signals (Factors 1-4) and real profit (Factor 5)
-                // At profitWeight=0: 100% macro, 0% real profit
-                // At profitWeight=50%: 50% macro, 50% real profit
-                // At profitWeight=100%: 0% macro, 100% real profit
-                float blendedScore = profitabilityScore * (1f - profitWeight) + companyProfitSignal * profitWeight;
-
-                // Add learned signal: scaled by confidence (already embedded in GetLearnedSensitivity)
-                blendedScore += learnedSignal;
-
-                // Apply happiness weight
-                // Happiness acts as an asymmetric gate — NOT an additive score component:
-                //   Low happiness (<50): strong negative pressure forces tax lowering
-                //   Medium happiness (50-70): neutral — profitability alone drives decisions
-                //   High happiness (>70): mild positive bonus, but does NOT force raises
-                float happinessContrib;
-                if (happiness < 50)
+                inputData[idx] = new ResourceInputData
                 {
-                    // Full negative pressure when citizens are unhappy
-                    happinessContrib = happinessBias * happinessWeight;
-                }
-                else
+                    TaxArea = taxAreaInt,
+                    CurrentRate = currentRate,
+                    EffectiveMin = effectiveMin,
+                    EffectiveMax = effectiveMax,
+                    TaxableIncome = taxableIncome,
+                    AvgProfit = avgProfit,
+                    LearnedSignal = learnedSignal
+                };
+            }
+
+            var job = new AutoTaxMathJob
+            {
+                HappinessBias = happinessBias,
+                HappinessWeight = happinessWeight,
+                ProfitWeight = profitWeight,
+                Production = productionArray,
+                IndustrialConsumption = industrialConsumption,
+                CommercialConsumption = commercialConsumption,
+                IndustrialCompanies = industrialCompanies,
+                IndustrialDemand = industrialDemand,
+                CommercialCompanies = commercialCompanies,
+                CommercialCapacity = commercialCapacity,
+                CommercialAvailables = commercialAvailables,
+                InputData = inputData,
+                OutputData = outputData
+            };
+
+            job.Run();
+
+            foreach (var kvp in TPMDataDefinitions.ResourceKeyToEnum)
+            {
+                string key = kvp.Key;
+                Resource resource = kvp.Value;
+                int idx = EconomyUtils.GetResourceIndex(resource);
+                if (idx < 0) continue;
+
+                var output = outputData[idx];
+                var input = inputData[idx];
+                
+                if (input.TaxArea == 0) 
                 {
-                    // Only 20% positive credit when happy — permits but doesn't force raises
-                    happinessContrib = happinessBias * happinessWeight * 0.2f;
-                }
-
-                // Tax rate drag: higher current rates create increasing downward pressure
-                // This prevents the one-way ratchet to maxRate and creates natural equilibrium
-                // At rate 5: -0.04, 10: -0.08, 15: -0.13, 20: -0.19, 25: -0.25, 30: -0.32
-                float rateDrag = -((float)currentRate / 150f) * (1f + (float)currentRate / 50f);
-
-                float finalScore = blendedScore * (1f - happinessWeight) + happinessContrib + rateDrag;
-
-                // Clamp final score
-                finalScore = Math.Max(-1f, Math.Min(1f, finalScore));
-
-                // Store factor breakdown on state for UI
-                state.BalanceFactor = f1_balance;
-                state.DemandFactor = f3_demand;
-                state.IncomeFactor = f4_income;
-                state.ProfitFactor = companyProfitSignal;
-                state.HappinessFactor = happinessContrib;
-                state.RateDrag = rateDrag;
-                state.Companies = companies;
-                state.AvgProfit = rawAvgProfit;
-                state.LearnedFactor = learnedSignal;
-
-                // Determine direction: only adjust by 1% per interval
-                // Deadzone of ±0.15 prevents oscillation and creates stable hold behavior
-                int direction = 0;
-                if (finalScore > 0.15f && currentRate < effectiveMax)
-                {
-                    direction = 1; // Raise tax
-                }
-                else if (finalScore < -0.15f && currentRate > effectiveMin)
-                {
-                    direction = -1; // Lower tax
-                }
-
-                state.Direction = direction;
-                state.Score = finalScore;
-
-                if (direction != 0)
-                {
-                    int newRate = currentRate + direction;
-                    newRate = Math.Max(effectiveMin, Math.Min(effectiveMax, newRate));
-
-                    if (newRate != currentRate)
+                    if (_resourceStates.TryGetValue(key, out var st) && _excludedResources.Contains(key))
                     {
-                        switch (taxArea)
-                        {
-                            case ResourceTaxArea.Industrial:
-                                _taxSystem.SetIndustrialTaxRate(resource, newRate);
-                                break;
-                            case ResourceTaxArea.Commercial:
-                                _taxSystem.SetCommercialTaxRate(resource, newRate);
-                                break;
-                            case ResourceTaxArea.Office:
-                                _taxSystem.SetOfficeTaxRate(resource, newRate);
-                                break;
-                        }
-                        adjustCount++;
-                        if (direction > 0) raiseCount++;
-                        else lowerCount++;
-
-                        // Notify adaptive learning system of the tax change
-                        try { _adaptiveLearningSystem?.RecordTaxChange(key, currentRate, newRate, _simulationSystem?.frameIndex ?? 0); } catch { }
+                        st.Direction = 0;
+                        st.Score = 0f;
+                        holdCount++;
                     }
+                    continue;
+                }
+
+                if (!_resourceStates.TryGetValue(key, out var state)) continue;
+                if (!TPMDataDefinitions.ResourceTaxAreaMap.TryGetValue(key, out var taxAreaEnum)) continue;
+
+                if (output.NewRate != input.CurrentRate)
+                {
+                    UpdateTaxRate(taxAreaEnum, resource, output.NewRate);
+                    adjustCount++;
+                    if (output.Direction > 0) raiseCount++;
+                    else if (output.Direction < 0) lowerCount++;
+
+                    try { _adaptiveLearningSystem?.RecordTaxChange(key, input.CurrentRate, output.NewRate, _simulationSystem?.frameIndex ?? 0); } catch { }
                 }
                 else
                 {
                     holdCount++;
                 }
+
+                state.Direction = output.Direction;
+                state.Score = output.Score;
+                state.BalanceFactor = output.BalanceFactor;
+                state.DemandFactor = output.DemandFactor;
+                state.IncomeFactor = output.IncomeFactor;
+                state.ProfitFactor = output.ProfitFactor;
+                state.HappinessFactor = output.HappinessFactor;
+                state.RateDrag = output.RateDrag;
+                state.Companies = output.Companies;
+                state.AvgProfit = output.AvgProfit;
+                state.LearnedFactor = output.LearnedFactor;
             }
 
-            // Update status string for UI
+            inputData.Dispose();
+            outputData.Dispose();
+
             string status = SerializeStatus(happiness, adjustCount, raiseCount, lowerCount, holdCount);
             _autoTaxStatus.Update(status);
 
-            // Signal TaxingProductionUISystem to re-read rates immediately
             if (adjustCount > 0)
             {
                 TaxRatesChanged = true;
@@ -703,11 +582,24 @@ namespace AdvancedTPM
             return true;
         }
 
+        private void UpdateTaxRate(TPMDataDefinitions.ResourceTaxArea area, Resource resource, int rate)
+        {
+            switch (area)
+            {
+                case TPMDataDefinitions.ResourceTaxArea.Industrial:
+                    _taxSystem.SetIndustrialTaxRate(resource, rate);
+                    break;
+                case TPMDataDefinitions.ResourceTaxArea.Commercial:
+                    _taxSystem.SetCommercialTaxRate(resource, rate);
+                    break;
+                case TPMDataDefinitions.ResourceTaxArea.Office:
+                    _taxSystem.SetOfficeTaxRate(resource, rate);
+                    break;
+            }
+        }
+
         private string SerializeStatus(int happiness, int adjustCount, int raiseCount, int lowerCount, int holdCount)
         {
-            // Format: happiness|adjustCount|raiseCount|lowerCount|holdCount|perResourceDirections
-            // Per-resource directions: key=direction:score:balance:demand:income:profit:happiness:rateDrag:companies:avgProfit:learned
-            // Note: f[6] = city happiness (0-100 int) — the same value across all resources (city-wide Wellbeing stat)
             var parts = new List<string>
             {
                 happiness.ToString(CultureInfo.InvariantCulture),
@@ -727,7 +619,7 @@ namespace AdvancedTPM
                         kvp.Key, kvp.Value.Direction, kvp.Value.Score,
                         kvp.Value.BalanceFactor, kvp.Value.DemandFactor,
                         kvp.Value.IncomeFactor, kvp.Value.ProfitFactor,
-                        happiness,                    // f[6] = city happiness 0-100 (replaces tiny HappinessFactor)
+                        happiness,
                         kvp.Value.RateDrag,
                         kvp.Value.Companies, kvp.Value.AvgProfit,
                         kvp.Value.LearnedFactor));
@@ -754,7 +646,6 @@ namespace AdvancedTPM
             }
             else
             {
-                // Clear all auto-tax directions
                 foreach (var state in _resourceStates.Values)
                 {
                     state.Direction = 0;
@@ -766,10 +657,6 @@ namespace AdvancedTPM
             Mod.log.Info($"AutoTax: enabled={enabled}");
         }
 
-        /// <summary>
-        /// Serialize all auto-tax settings + excluded resources + per-resource ranges into a string for the UI binding.
-        /// Format: interval|minRate|maxRate|happinessWeight|updateSpeed|excludedKey1,excludedKey2,...|key:min:max,key:min:max,...
-        /// </summary>
         private string SerializeSettings(TPMModSettings settings)
         {
             if (settings == null) return "3|0|25|50|2|||50|95";
@@ -793,10 +680,6 @@ namespace AdvancedTPM
                 settings.AutoTaxPanelOpacity);
         }
 
-        /// <summary>
-        /// Receive updated settings from the UI settings panel.
-        /// Payload format: interval|minRate|maxRate|happinessWeight|updateSpeed|excludedKey1,excludedKey2,...|key:min:max,key:min:max,...
-        /// </summary>
         private void ApplyAutoTaxSettings(string payload)
         {
             if (string.IsNullOrEmpty(payload)) return;
@@ -821,26 +704,23 @@ namespace AdvancedTPM
                 settings.AutoTaxHappinessWeight = Math.Max(0, Math.Min(100, happinessWeight));
                 settings.UpdateSpeed = Math.Max(1, Math.Min(3, updateSpeed));
 
-                // Parse profitWeight (slot 7) and opacity (slot 8)
                 if (parts.Length > 7 && int.TryParse(parts[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out int profWeight))
                     settings.AutoTaxProfitWeight = Math.Max(0, Math.Min(100, profWeight));
                 if (parts.Length > 8 && int.TryParse(parts[8], NumberStyles.Integer, CultureInfo.InvariantCulture, out int opacityVal))
                     settings.AutoTaxPanelOpacity = Math.Max(40, Math.Min(100, opacityVal));
 
-                // Parse excluded resources
                 _excludedResources.Clear();
                 if (!string.IsNullOrEmpty(excludedRaw))
                 {
                     foreach (var key in excludedRaw.Split(','))
                     {
                         var trimmed = key.Trim();
-                        if (trimmed.Length > 0 && ResourceKeyToEnum.ContainsKey(trimmed))
+                        if (trimmed.Length > 0 && TPMDataDefinitions.ResourceKeyToEnum.ContainsKey(trimmed))
                             _excludedResources.Add(trimmed);
                     }
                 }
                 settings.AutoTaxExcludedResources = string.Join(",", _excludedResources);
 
-                // Parse per-resource ranges (slot 6)
                 _perResourceRanges.Clear();
                 if (parts.Length > 6 && !string.IsNullOrEmpty(parts[6]))
                 {
@@ -850,7 +730,7 @@ namespace AdvancedTPM
                         if (segments.Length == 3)
                         {
                             var rKey = segments[0].Trim();
-                            if (rKey.Length > 0 && ResourceKeyToEnum.ContainsKey(rKey)
+                            if (rKey.Length > 0 && TPMDataDefinitions.ResourceKeyToEnum.ContainsKey(rKey)
                                 && int.TryParse(segments[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int rMin)
                                 && int.TryParse(segments[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int rMax))
                             {
@@ -874,9 +754,6 @@ namespace AdvancedTPM
             }
         }
 
-        /// <summary>
-        /// Load excluded resource keys from the settings comma-separated string into the HashSet.
-        /// </summary>
         private void LoadExcludedResources(TPMModSettings settings)
         {
             _excludedResources.Clear();
@@ -885,15 +762,11 @@ namespace AdvancedTPM
             foreach (var key in settings.AutoTaxExcludedResources.Split(','))
             {
                 var trimmed = key.Trim();
-                if (trimmed.Length > 0 && ResourceKeyToEnum.ContainsKey(trimmed))
+                if (trimmed.Length > 0 && TPMDataDefinitions.ResourceKeyToEnum.ContainsKey(trimmed))
                     _excludedResources.Add(trimmed);
             }
         }
 
-        /// <summary>
-        /// Load per-resource min/max ranges from the settings string.
-        /// Format: key:min:max,key:min:max,...
-        /// </summary>
         private void LoadPerResourceRanges(TPMModSettings settings)
         {
             _perResourceRanges.Clear();
@@ -905,7 +778,7 @@ namespace AdvancedTPM
                 if (segments.Length == 3)
                 {
                     var rKey = segments[0].Trim();
-                    if (rKey.Length > 0 && ResourceKeyToEnum.ContainsKey(rKey)
+                    if (rKey.Length > 0 && TPMDataDefinitions.ResourceKeyToEnum.ContainsKey(rKey)
                         && int.TryParse(segments[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int rMin)
                         && int.TryParse(segments[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int rMax))
                     {

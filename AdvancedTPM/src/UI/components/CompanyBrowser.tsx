@@ -33,9 +33,8 @@ export interface CompanyVm {
   efficiencyDetails: string;
   brandName: string;
   buildingAddress: string;
-  happiness?: number;
-  producesGarbage?: boolean;
-  producesCrime?: boolean;
+  producesGarbage: boolean;
+  producesCrime: boolean;
   producesMail?: boolean;
   needsElectricity?: boolean;
   needsWater?: boolean;
@@ -60,6 +59,13 @@ export interface CompanyVm {
   buildingIndex?: number;
   buildingVersion?: number;
   iconUrl?: string;
+  storageAmount?: number;
+  storageCapacity?: number;
+  allowedResources?: string;
+  cityEffects?: string;
+  localEffects?: string;
+  attractiveness?: number;
+  attractivenessFactors?: string;
 }
 
 const isRawResource = (resourceKey: string): boolean => {
@@ -67,10 +73,6 @@ const isRawResource = (resourceKey: string): boolean => {
   const k = resourceKey.toLowerCase();
   return ['grain', 'vegetables', 'cotton', 'livestock', 'fish', 'wood', 'ore', 'stone', 'coal', 'oil'].includes(k);
 };
-
-export interface CompanyHappinessMap {
-  [key: string]: Record<string, number>;
-}
 
 /** Convert camelCase / PascalCase internal pack names to readable display names.
  *  e.g. "BridgesAndPorts" → "Bridges And Ports", "SanFranciscoSet" → "San Francisco Set"
@@ -122,7 +124,6 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
       const effDetails = getVal(16);
       const brandName = getVal(17);
       const bldgAddr = getVal(18);
-      const happiness = getVal(19);
       const producesGarbage = getVal(20);
       const producesCrime = getVal(21);
       const producesMail = getVal(22);
@@ -143,6 +144,13 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
       const iconUrl = getVal(37);
       const nativePackIcon = getVal(38);
       const themeIcon = getVal(39);
+      const storageAmount = getVal(40);
+      const storageCapacity = getVal(41);
+      const allowedResources = getVal(42);
+      const cityEffects = getVal(43);
+      const localEffects = getVal(44);
+      const attractiveness = getVal(45);
+      const attractivenessFactors = getVal(46);
 
       const [idx, ver] = (entityPart || '').split(',');
       const [bIdx, bVer] = (buildingEntityPart || '').split(',');
@@ -167,7 +175,6 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
         efficiencyDetails: effDetails || '',
         brandName: brandName || '',
         buildingAddress: bldgAddr || '',
-        happiness: happiness !== '' ? Number(happiness) : undefined,
         producesGarbage: Number(producesGarbage) === 1,
         producesCrime: Number(producesCrime) === 1,
         producesMail: Number(producesMail) === 1,
@@ -189,60 +196,19 @@ export const parseCompanies = (payload: string): CompanyVm[] => {
         buildingIndex: Number(bIdx) || 0,
         buildingVersion: Number(bVer) || 0,
         iconUrl: iconUrl || '',
+        storageAmount: Number(storageAmount) || 0,
+        storageCapacity: Number(storageCapacity) || 0,
+        allowedResources: allowedResources || '',
+        cityEffects: cityEffects || '',
+        localEffects: localEffects || '',
+        attractiveness: Number(attractiveness) || 0,
+        attractivenessFactors: attractivenessFactors || '',
       } as CompanyVm;
     })
     .filter((x): x is CompanyVm => x !== null);
 };
 
-const CycleFilterButton: React.FC<{
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}> = ({ label, value, options, onChange }) => {
-  const safeOptions = options.length > 0 ? options : ['All'];
-  const currentIndex = Math.max(0, safeOptions.indexOf(value));
-  const nextValue = () => onChange(safeOptions[(currentIndex + 1) % safeOptions.length]);
-
-  const isResource = label === 'Resource';
-
-  return (
-    <button
-      type="button"
-      className="cb-cycle-btn"
-      onClick={nextValue}
-      title={`${label}: ${value}. Click to cycle.`}
-      style={{ display: 'flex', alignItems: 'center' }}
-    >
-      {isResource && value !== 'All' ? (
-        <img src={resourceIconSrc(value)} alt="" style={{ width: '14rem', height: '14rem', marginRight: '4rem' }} />
-      ) : null}
-      <span style={{ fontSize: '11rem' }}>
-        {value === 'All' ? `All ${label}s` : (isResource ? resourceLabel(value) : value)}
-      </span>
-    </button>
-  );
-};
-
-// Parse a single-company happiness payload produced by CompanyHappinessSystem
-export const parseCompanyHappinessPayload = (payload: string): [string, Record<string, number>] | null => {
-  // payload shape: "entityIndex,entityVersion|key1:val1,key2:val2"
-  if (!payload) return null;
-  const parts = payload.split('|');
-  if (parts.length < 2) return null;
-  const key = parts[0];
-  const pairs = parts[1].split(',').map(p => p.trim()).filter(p => p.length > 0);
-  const map: Record<string, number> = {};
-  pairs.forEach((pair) => {
-    const [k, v] = pair.split(':');
-    if (!k) return;
-    const num = Number(v || 0);
-    map[k] = isNaN(num) ? 0 : num;
-  });
-  return [key, map];
-};
-
-type SortField = 'name' | 'zoneType' | 'resourceKey' | 'profit' | 'profitabilityTier' | 'workers' | 'tax' | 'happiness' | 'lv';
+type SortField = 'name' | 'zoneType' | 'resourceKey' | 'profit' | 'profitabilityTier' | 'workers' | 'tax' | 'lv';
 type SortDir = 'asc' | 'desc';
 
 const ZONE_FILTERS = ['All', 'RawIndustrial', 'Industrial', 'Storage', 'Commercial', 'Office'];
@@ -255,15 +221,6 @@ const ZONE_LABELS: Record<string, string> = {
   Office: 'Office',
 };
 const TIER_FILTERS = ['All', 'Profitable', 'GettingBy', 'BreakingEven', 'LosingMoney', 'Bankrupt'];
-
-const TIER_ORDER: Record<string, number> = {
-  Bankrupt: 0,
-  LosingMoney: 1,
-  BreakingEven: 2,
-  GettingBy: 3,
-  Profitable: 4,
-  Unknown: -1,
-};
 
 const TIER_LABELS: Record<string, string> = {
   Bankrupt: 'Bankrupt',
@@ -284,12 +241,6 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 const RESOURCE_ICON_BASE = 'Media/Game/Resources/';
-const RESOURCE_STAGE_MAP: Record<string, string> = resourceCategories.reduce((acc, cat) => {
-  cat.resources.forEach((r: { key: string; stage: string }) => { acc[r.key] = r.stage; });
-  return acc;
-}, {} as Record<string, string>);
-
-// Mapping from our lowercase key to CS2's exact SVG filename (without .svg)
 const RESOURCE_ICON_MAP: Record<string, string> = {
   grain: 'Grain', vegetables: 'Vegetables', cotton: 'Cotton', livestock: 'Livestock',
   fish: 'Fish', wood: 'Wood', ore: 'Ore', stone: 'Stone', coal: 'Coal', oil: 'Oil',
@@ -309,8 +260,6 @@ export const resourceIconName = (key: string): string => {
   if (key && key.startsWith('c_') && RESOURCE_ICON_MAP[key.slice(2)]) return RESOURCE_ICON_MAP[key.slice(2)];
   return key;
 };
-export const resourceIconSrc = (key: string): string =>
-  key === 'All' ? 'Media/Game/Icons/Economy.svg' : `${RESOURCE_ICON_BASE}${resourceIconName(key)}.svg`;
 
 const ZONE_BADGE_LABELS: Record<string, string> = {
   RawIndustrial: 'Raw Industrial',
@@ -318,23 +267,6 @@ const ZONE_BADGE_LABELS: Record<string, string> = {
   Storage: 'Storage',
   Commercial: 'Commercial',
   Office: 'Office',
-};
-
-const serviceIcon = (c: string): string | null => {
-  if (c.includes('garbage') || c.includes('waste') || c.includes('landfill') || c.includes('recycling')) return 'Media/Game/Icons/Garbage.svg';
-  if (c.includes('park') || c.includes('recreation') || c.includes('leisure')) return 'Media/Game/Icons/Services.svg';
-  if (c.includes('telecom') || c.includes('internet')) return 'Media/Game/Resources/Telecom.svg';
-  return null;
-};
-
-const resourceStageForZone = (zone: string): string | null => {
-  switch (zone) {
-    case 'RawIndustrial': return 'RawResource';
-    case 'Industrial': return 'Industrial';
-    case 'Commercial': return 'Commercial';
-    case 'Office': return 'Immaterial';
-    default: return null;
-  }
 };
 
 export const resourceLabel = (key: string): string => {
@@ -383,55 +315,48 @@ const EFF_FACTOR_LABELS: Record<string, string> = {
   CityModifierFishInput: 'Fish Input Bonus',
   CityModifierFishHub: 'Fish Hub Bonus',
   LackResources: 'Lacking Resources',
+  NoisePollution: 'Noise Pollution',
+  GroundPollution: 'Ground Pollution',
+  AirPollution: 'Air Pollution',
+  TrafficPenalty: 'Traffic Penalty',
+  DeathPenalty: 'Death Penalty',
 };
 
-// Map efficiency factor enum names to CS2 built-in icon paths
-const ICON_BASE = 'Media/Game/Icons/';
-const RES_BASE = 'Media/Game/Resources/';
-const EFF_FACTOR_ICONS: Record<string, string> = {
-  Destroyed: `${ICON_BASE}FireSafety.svg`,
-  Abandoned: `${ICON_BASE}Household.svg`,
-  Disabled: `${ICON_BASE}Roads.svg`,
-  Fire: `${ICON_BASE}FireSafety.svg`,
-  ServiceBudget: `${ICON_BASE}Money.svg`,
-  NotEnoughEmployees: `${ICON_BASE}Citizen.svg`,
-  SickEmployees: `${ICON_BASE}Healthcare.svg`,
-  EmployeeHappiness: `${ICON_BASE}Citizen.svg`,
-  ElectricitySupply: `${ICON_BASE}Electricity.svg`,
-  ElectricityFee: `${ICON_BASE}Electricity.svg`,
-  WaterSupply: `${ICON_BASE}Water.svg`,
-  DirtyWater: `${ICON_BASE}WaterPollution.svg`,
-  SewageHandling: `${ICON_BASE}Water.svg`,
-  WaterFee: `${ICON_BASE}Water.svg`,
-  Garbage: `${ICON_BASE}Garbage.svg`,
-  Telecom: `${RES_BASE}Telecom.svg`,
-  Mail: `${ICON_BASE}PostService.svg`,
-  MaterialSupply: `${ICON_BASE}ZoneIndustrial.svg`,
-  WindSpeed: `${ICON_BASE}Electricity.svg`,
-  WaterDepth: `${ICON_BASE}Water.svg`,
-  SunIntensity: `${ICON_BASE}Electricity.svg`,
-  NaturalResources: `${ICON_BASE}Fertility.svg`,
-  CityModifierSoftware: `${RES_BASE}Software.svg`,
-  CityModifierElectronics: `${RES_BASE}Electronics.svg`,
-  CityModifierIndustrialEfficiency: `${ICON_BASE}ZoneIndustrial.svg`,
-  CityModifierOfficeEfficiency: `${ICON_BASE}Economy.svg`,
-  CityModifierHospitalEfficiency: `${ICON_BASE}Healthcare.svg`,
-  SpecializationBonus: `${ICON_BASE}Trophy.svg`,
-  CityModifierFishInput: `${RES_BASE}Fish.svg`,
-  CityModifierFishHub: `${RES_BASE}Fish.svg`,
-  LackResources: `${ICON_BASE}ZoneIndustrial.svg`,
+const getEfficiencyFactorIcon = (factorName: string): string => {
+  if (!factorName) return 'Media/Game/Icons/StarNotification.svg';
+  const n = factorName.toLowerCase();
+  if (n.includes('worker') || n.includes('employee') || n.includes('staff')) return 'Media/Game/Icons/Workers.svg';
+  if (n.includes('electric') || n.includes('power')) return 'Media/Game/Icons/Electricity.svg';
+  if (n.includes('water') || n.includes('sewage')) return 'Media/Game/Icons/Water.svg';
+  if (n.includes('garbage') || n.includes('waste')) return 'Media/Game/Icons/Garbage.svg';
+  if (n.includes('mail')) return 'Media/Game/Icons/Mail.svg';
+  if (n.includes('crime')) return 'Media/Game/Icons/Crime.svg';
+  if (n.includes('transport') || n.includes('access') || n.includes('traffic')) return 'Media/Game/Icons/Traffic.svg';
+  if (n.includes('road') || n.includes('network')) return 'Media/Game/Icons/Roads.svg';
+  if (n.includes('healthcare') || n.includes('hospital') || n.includes('sick')) return 'Media/Game/Icons/Healthcare.svg';
+  if (n.includes('education') || n.includes('school') || n.includes('university') || n.includes('college')) return 'Media/Game/Icons/Education.svg';
+  if (n.includes('wealth')) return 'Media/Game/Icons/Wealth.svg';
+  if (n.includes('park') || n.includes('entertainment') || n.includes('attraction') || n.includes('leisure')) return 'Media/Game/Icons/ParksAndRecreation.svg';
+  if (n.includes('welfare') || n.includes('wellbeing')) return 'Media/Game/Icons/Welfare.svg';
+  if (n.includes('fire')) return 'Media/Game/Icons/FireAndRescue.svg';
+  if (n.includes('deathcare') || n.includes('death') || n.includes('cemetery') || n.includes('crematorium')) return 'Media/Game/Icons/Deathcare.svg';
+  if (n.includes('police')) return 'Media/Game/Icons/PoliceAndAdministration.svg';
+  if (n.includes('telecom') || n.includes('network')) return 'Media/Game/Icons/Communications.svg';
+  if (n.includes('pollution')) return 'Media/Game/Icons/Pollution.svg';
+  if (n.includes('tax')) return 'Media/Game/Icons/Economy.svg';
+  return 'Media/Game/Icons/StarNotification.svg';
 };
 
-interface EffFactor { name: string; label: string; change: number; cumulative: number; }
-
-const parseEfficiencyDetails = (details: string): EffFactor[] => {
+const parseEfficiencyDetails = (details: string): { name: string; label: string; change: number; cumulative: number }[] => {
   if (!details) return [];
   return details.split(',').map((part) => {
     const segs = part.split(':');
     const name = segs[0] || '';
     const change = Number(segs[1]) || 0;
     const cumulative = Number(segs[2]) || 0;
-    return { name, label: EFF_FACTOR_LABELS[name] || name, change, cumulative };
+    const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+    const label = EFF_FACTOR_LABELS[capitalizedName] || capitalizedName.replace(/([a-z])([A-Z])/g, '$1 $2');
+    return { name, label, change, cumulative };
   }).filter((f) => f.name);
 };
 
@@ -445,12 +370,7 @@ const effFactorColor = (change: number): string => {
 interface CompanyBrowserProps {
   companies: CompanyVm[];
   summaryData?: string;
-  happinessData?: string;
-  // When true, component is rendered from the Signature Buildings view and
-  // should show the prefab/building name in the address column instead of street address.
   isSignatureView?: boolean;
-  // Optional toggle used by some parent panels to hide/show additional filters
-  showFilters?: boolean;
 }
 
 interface ParsedSummary {
@@ -519,13 +439,11 @@ const parseSummary = (summaryStr: string): ParsedSummary => {
 
 const PAGE_SIZE = 50;
 
-const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summaryData = '', happinessData = '', isSignatureView }) => {
-  // Pause-on-expand: when a row is expanded we freeze incoming data to stop rows jumping
+const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summaryData = '', isSignatureView }) => {
   const [isPaused, setIsPaused] = useState(false);
   const [frozenCompanies, setFrozenCompanies] = useState<CompanyVm[]>([]);
   const [frozenSummary, setFrozenSummary] = useState('');
 
-  // Accept live data only when not paused
   useEffect(() => {
     if (!isPaused) {
       setFrozenCompanies(Array.isArray(companies) ? companies : []);
@@ -551,17 +469,13 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
   const [searchText, setSearchText] = useState('');
   const [profitMin, setProfitMin] = useState(-100);
   const [profitMax, setProfitMax] = useState(100);
-  const LEVEL_MIN_BOUND = 1;
-  const LEVEL_MAX_BOUND = 5;
   const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
-  const [happinessMap, setHappinessMap] = useState<CompanyHappinessMap>({});
+  const [happinessMap, setHappinessMap] = useState<Record<string, Record<string, number>>>({});
   const [happinessLoading, setHappinessLoading] = useState<Record<string, boolean>>({});
   const [currentPage, setCurrentPage] = useState(0);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
-  // Trigger C# filter updates when any UI filter/sort state changes
   useEffect(() => {
-    // Format: zoneFilter|resourceFilter|tierFilter|packFilter|themeFilter|districtFilter|kindFilter|profitMin|profitMax|searchText|sortField|sortDir
     const payload = `${zoneFilter}|${resourceFilter}|${tierFilter}|${packFilter}|${themeFilter}|${districtFilter}|${kindFilter}|${profitMin}|${profitMax}|${searchText}|${sortField}|${sortDir}`;
     trigger('taxProduction', 'updateCompanyFilters', payload);
   }, [zoneFilter, resourceFilter, tierFilter, packFilter, themeFilter, districtFilter, kindFilter, profitMin, profitMax, searchText, sortField, sortDir]);
@@ -573,7 +487,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
         map.set(c.theme, c.themeIcon);
       }
     });
-    // Add defaults
     if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
     if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
     if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
@@ -581,7 +494,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
     return map;
   }, [safeCompanies]);
 
-  // Scroll to top, clear expansion, and resume updates when filters/sort change
   useEffect(() => {
     try { if (bodyRef.current) bodyRef.current.scrollTop = 0; } catch { }
     setExpandedEntity(null);
@@ -591,14 +503,22 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
 
   // Merge incoming single-company happiness payloads into local map
   useEffect(() => {
-    const companyHappinessData = getSafeValue(happinessData, '');
-    if (!companyHappinessData || companyHappinessData.length === 0) return;
-    const parsed = parseCompanyHappinessPayload(companyHappinessData);
-    if (!parsed) return;
-    const [key, map] = parsed;
+    const happinessData = getSafeValue((window as any)._uiBindings?.taxProduction?.companyHappinessData, '');
+    if (!happinessData || happinessData.length === 0) return;
+    const parts = happinessData.split('|');
+    if (parts.length < 2) return;
+    const key = parts[0];
+    const pairs = parts[1].split(',').map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+    const map: Record<string, number> = {};
+    pairs.forEach((pair: string) => {
+      const [k, v] = pair.split(':');
+      if (!k) return;
+      const num = Number(v || 0);
+      map[k] = isNaN(num) ? 0 : num;
+    });
     setHappinessMap((prev) => ({ ...prev, [key]: map }));
     setHappinessLoading((prev) => { const np = { ...prev }; delete np[key]; return np; });
-  }, [happinessData]);
+  }, [(window as any)._uiBindings?.taxProduction?.companyHappinessData]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -612,7 +532,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
   const summary = useMemo(() => parseSummary(frozenSummary || ''), [frozenSummary]);
 
   const visibleResourceFilters = useMemo(() => {
-    // Collect all resources present in the summary for the selected zone
     const availableKeys = new Set(
       summary.resourceKinds
         .filter(rk => zoneFilter === 'All' || rk.zone === zoneFilter)
@@ -678,12 +597,10 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
   const sortIndicator = (field: SortField) =>
     sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
-  // --- Profit range slider helpers ---
   const PROFIT_MIN_BOUND = -100;
   const PROFIT_MAX_BOUND = 100;
   const profitTrackRef = useRef<HTMLDivElement>(null);
   const draggingThumb = useRef<'min' | 'max' | null>(null);
-
 
   const profitFromClientX = useCallback((clientX: number): number => {
     if (!profitTrackRef.current) return 0;
@@ -716,8 +633,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
     document.addEventListener('mouseup', onUp);
   }, [profitFromClientX, profitMin, profitMax]);
 
-  // (no per-pixel level slider anymore)
-
   const handleProfitTrackClick = useCallback((e: React.MouseEvent) => {
     const val = profitFromClientX(e.clientX);
     const distMin = Math.abs(val - profitMin);
@@ -730,23 +645,14 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
   }, [profitFromClientX, profitMin, profitMax]);
   const profitPctOf = (v: number) => ((v - PROFIT_MIN_BOUND) / (PROFIT_MAX_BOUND - PROFIT_MIN_BOUND)) * 100;
 
-  const levelPctOf = (v: number) => ((v - LEVEL_MIN_BOUND) / (LEVEL_MAX_BOUND - LEVEL_MIN_BOUND)) * 100;
-
-  // Using native scroll for company list — custom scrollbar removed to avoid conflicts
-
-  // Summary stats
   const totalCount = summary.total;
   const healthyCount = summary.healthy;
   const losingCount = summary.struggling;
   const bankruptCount = summary.bankrupt;
 
-
-
   return (
     <div className="cb-container">
-      {/* Filters */}
       <div className="cb-filters-vertical">
-        {/* Row 1: Zone selection and Status pills */}
         <div className="cb-filter-row">
           <div className="cb-zone-tabs">
             {ZONE_FILTERS.map((z) => (
@@ -773,7 +679,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
           </div>
         </div>
 
-        {/* Row 2: Secondary Filters (Pack, Theme, District, Profit, Resource) */}
         <div className="cb-filter-row cb-filter-row-mixed">
           <CustomSelect
             label="Pack"
@@ -850,7 +755,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
         </div>
       </div>
 
-      {/* Summary */}
       <div className="cb-summary">
         <span className="cb-summary-total" style={{ marginRight: '16rem' }}>{`${totalCount} total`}</span>
         <span className="cb-summary-profitable" style={{ color: getSafeColor('#8bdb46'), marginRight: '16rem' }}>{`${healthyCount} healthy`}</span>
@@ -858,7 +762,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
         <span className="cb-summary-bankrupt" style={{ color: getSafeColor('#e05050'), marginRight: '16rem' }}>{`${bankruptCount} bankrupt`}</span>
       </div>
 
-      {/* Company rows with custom scrollbar */}
       <div className="cb-table-scroll">
         <div className="cb-table-header">
           <div className="cb-col-name cb-sortable" onClick={() => handleSort('name')}>
@@ -881,9 +784,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
           </div>
           <div className="cb-col-tax">
             <div className="cb-sortable" onClick={() => handleSort('tax')}>Tax %{sortIndicator('tax')}</div>
-          </div>
-          <div className="cb-col-happiness">
-            <div className="cb-sortable" onClick={() => handleSort('happiness')}>Happiness{sortIndicator('happiness')}</div>
           </div>
           <div className="cb-col-tier cb-sortable" onClick={() => handleSort('profitabilityTier')}>
             Status{sortIndicator('profitabilityTier')}
@@ -911,11 +811,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
               const isExpanded = expandedEntity === compKey;
               const rowClickHandler = (e: React.MouseEvent) => {
                 if (isExpanded) {
-                  // Collapsing: resume live updates
                   setExpandedEntity(null);
                   setIsPaused(false);
                 } else {
-                  // Expanding: freeze data so row doesn't jump
                   setExpandedEntity(compKey);
                   setIsPaused(true);
                   setHappinessLoading((prev) => ({ ...prev, [compKey]: true }));
@@ -975,23 +873,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                         {`${c.taxRate}\u00a0%`}
                       </span>
                     </div>
-                    <div className="cb-col-happiness">
-                      {(() => {
-                        const eff = Math.max(0, c.efficiency || 100);
-                        const profitVal = Math.max(-100, Math.min(100, c.profit || 0));
-                        const staffPct = c.maxWorkers > 0 ? Math.round((c.workers / c.maxWorkers) * 100) : 0;
-                        const tax = c.taxRate || 0;
-                        const estimate = (typeof c.happiness === 'number')
-                          ? c.happiness
-                          : Math.max(0, Math.min(100, Math.round(50 + (eff - 100) * 0.2 + profitVal * 0.25 + (staffPct - 75) * 0.3 - Math.max(0, tax - 10) * 0.5)));
-                        const color = estimate >= 75 ? '#8bdb46' : estimate >= 50 ? '#50b8e9' : estimate >= 30 ? '#e88c3a' : '#e05050';
-                        return (
-                          <span style={{ color: getSafeColor(color), fontWeight: 800 }} title={`Estimated company happiness: ${estimate}`}>
-                            {`${estimate}`}
-                          </span>
-                        );
-                      })()}
-                    </div>
                     <div className="cb-col-tier">
                       <span style={{ color: getSafeColor(tierColor) }}>
                         {TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}
@@ -1021,7 +902,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                       </div>
                     </div>
                   </div>
-                  {isExpanded && (
+                  {isExpanded && (() => {
+                    const companyHappinessData = getSafeValue(happinessMap[compKey], null);
+                    return (
                     <div className="cb-expanded-panel">
                       <div className="cb-detail-grid">
                         <div className="cb-detail-main">
@@ -1051,12 +934,26 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                             <span className="cb-detail-value">{c.zoneType}</span>
                           </div>
                           <div className="cb-detail-row">
+                            <span className="cb-detail-label">District</span>
+                            <span className="cb-detail-value">{c.district || 'City'}</span>
+                          </div>
+                          <div className="cb-detail-row">
                             <span className="cb-detail-label">Output</span>
                             <span className="cb-detail-value">
                               {c.resourceKey && <img className="cb-resource-icon" src={`${RESOURCE_ICON_BASE}${resourceIconName(c.resourceKey)}.svg`} />}
                               {resourceLabel(c.resourceKey)}
                             </span>
                           </div>
+                          <div className="cb-detail-row">
+                            <span className="cb-detail-label">Resource Storage</span>
+                            <span className="cb-detail-value">{(c.storageCapacity || 0) > 0 ? `${c.storageAmount || 0} / ${c.storageCapacity} t` : `${c.storageAmount || 0} t`}</span>
+                          </div>
+                          {c.allowedResources && c.allowedResources !== 'NoResource' && (
+                            <div className="cb-detail-row">
+                              <span className="cb-detail-label">Allowed Resources</span>
+                              <span className="cb-detail-value">{c.allowedResources}</span>
+                            </div>
+                          )}
                           <div className="cb-detail-row">
                             <span className="cb-detail-label">Tax Rate</span>
                             <span className="cb-detail-value" style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.8)') }}>
@@ -1089,19 +986,70 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                           </div>
                         </div>
                         <div className="cb-detail-middle">
-                          <div className="cb-detail-section-title">Consumption</div>
+                          <div className="cb-detail-section-title">Consumption (In)</div>
                           <div className="cb-detail-row">
-                            <span className="cb-detail-label">Electricity</span>
+                            <span className="cb-detail-label">
+                              <img src="Media/Game/Icons/Electricity.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                              Electricity
+                            </span>
                             <span className="cb-detail-value">{(c as any).electricityConsumption || '—'} kW</span>
                           </div>
                           <div className="cb-detail-row">
-                            <span className="cb-detail-label">Water</span>
-                            <span className="cb-detail-value">{(c as any).waterConsumption || '—'} m3</span>
+                            <span className="cb-detail-label">
+                              <img src="Media/Game/Icons/Water.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                              Water
+                            </span>
+                            <span className="cb-detail-value">{(c as any).waterConsumption || '—'} m³</span>
                           </div>
+                          {companyHappinessData && companyHappinessData.mailReceiving > 0 && (
+                            <div className="cb-detail-row">
+                              <span className="cb-detail-label">
+                                <img src="Media/Game/Icons/Mail.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                Mail Receiving
+                              </span>
+                              <span className="cb-detail-value">{companyHappinessData.mailReceiving}</span>
+                            </div>
+                          )}
+                          
+                          <div className="cb-detail-divider" />
+                          <div className="cb-detail-section-title">Production (Out)</div>
                           <div className="cb-detail-row">
-                            <span className="cb-detail-label">Garbage</span>
+                            <span className="cb-detail-label">
+                              <img src="Media/Game/Icons/Garbage.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                              Garbage
+                            </span>
                             <span className="cb-detail-value">{(c as any).garbageAccumulation || 0} t</span>
                           </div>
+                          {Number((c as any).mailAccumulation) > 0 && (
+                            <div className="cb-detail-row">
+                              <span className="cb-detail-label">
+                                <img src="Media/Game/Icons/Mail.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                Mail Sending
+                              </span>
+                              <span className="cb-detail-value">{(c as any).mailAccumulation} u</span>
+                            </div>
+                          )}
+                          {Number((c as any).crimeProbability) > 0 && (
+                            <div className="cb-detail-row">
+                              <span className="cb-detail-label">
+                                <img src="Media/Game/Icons/Crime.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                Crime Risk
+                              </span>
+                              <span className="cb-detail-value">{(c as any).crimeProbability} %</span>
+                            </div>
+                          )}
+
+                          {c.attractiveness ? (
+                            <>
+                              <div className="cb-detail-divider" />
+                              <div className="cb-detail-section-title">Attractiveness</div>
+                              <div className="cb-detail-row">
+                                <span className="cb-detail-label">Total Attractiveness</span>
+                                <span className="cb-detail-value" style={{ color: getSafeColor('#3fc9d8') }}>{c.attractiveness}</span>
+                              </div>
+                            </>
+                          ) : null}
+
                           <div className="cb-detail-divider" />
                           <div className="cb-detail-section-title">Efficiency Factors</div>
                           {(() => {
@@ -1115,22 +1063,27 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                             });
                             return factors.map((f, fi) => (
                               <div key={fi} className="cb-detail-row">
-                                <span className="cb-detail-label">{f.label}</span>
+                                <span className="cb-detail-label">
+                                  <img src={getEfficiencyFactorIcon(f.factorName || '')} style={{ width: '16px', height: '16px', opacity: 0.7, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                  {f.label}
+                                </span>
                                 <span className="cb-detail-value" style={{ color: getSafeColor(f.color, '#EAEAEA') }}>{f.status}</span>
                               </div>
                             ));
                           })()}
                         </div>
                         <div className="cb-detail-factors">
-                          <div className="cb-detail-section-title">Public Services</div>
+                          <div className="cb-detail-section-title">Local Effects</div>
                           {(() => {
-                            const companyHappinessData = getSafeValue(happinessMap[compKey], null);
                             if (!companyHappinessData) return <div className="cb-detail-loading-placeholder" style={{ opacity: 0.5, fontSize: '11rem', padding: '4rem 0' }}>Loading factor data...</div>;
 
                             const cond = companyHappinessData.buildingCondition || 0;
                             const maxCond = companyHappinessData.maxCondition || 0;
                             const wearPct = maxCond > 0 ? Math.min(100, Math.round((cond / maxCond) * 100)) : 100;
                             const wearVal = maxCond > 0 ? `${wearPct}% (${formatCurrency(cond)} / ${formatCurrency(maxCond)})` : `${cond} (No Upkeep)`;
+                            
+                            // explicitly handled keys
+                            const excludeKeys = ['buildingCondition', 'maxCondition', 'crimeProbability', 'telecom', 'mailSending', 'mailReceiving', 'electricityConsumption', 'waterConsumption', 'garbageAccumulation', 'mailAccumulation', 'crime', 'garbage', 'mail'];
 
                             return (
                               <>
@@ -1157,15 +1110,58 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                                     {companyHappinessData.telecom !== undefined ? `${companyHappinessData.telecom.toFixed(0)}%` : '—'}
                                   </span>
                                 </div>
-                                <div className="cb-detail-row"><span className="cb-detail-label">Mail Sending</span><span className="cb-detail-value">{companyHappinessData.mailSending || 0}</span></div>
-                                <div className="cb-detail-row"><span className="cb-detail-label">Mail Receiving</span><span className="cb-detail-value">{companyHappinessData.mailReceiving || 0}</span></div>
+
+                                
+                                {Object.keys(companyHappinessData).map(k => {
+                                  if (excludeKeys.includes(k)) return null;
+                                  const val = companyHappinessData[k];
+                                  if (val === 0) return null;
+                                  const capitalizedLabel = k.charAt(0).toUpperCase() + k.slice(1);
+                                  const label = capitalizedLabel.replace(/([a-z])([A-Z])/g, '$1 $2');
+                                  const displayLabel = EFF_FACTOR_LABELS[capitalizedLabel] || label;
+                                  const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
+                                  return (
+                                    <div className="cb-detail-row" key={k}>
+                                      <span className="cb-detail-label">
+                                        <img src={getEfficiencyFactorIcon(k)} style={{ width: '14px', height: '14px', opacity: 0.7, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                        {displayLabel}
+                                      </span>
+                                      <span className="cb-detail-value" style={{ color: getSafeColor(color) }}>{val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1)}</span>
+                                    </div>
+                                  );
+                                })}
                               </>
                             );
                           })()}
                         </div>
+                        { (c.cityEffects || c.localEffects) && (
+                          <div className="cb-detail-factors">
+                            {c.cityEffects && (
+                              <>
+                                <div className="cb-detail-section-title">City Effects</div>
+                                {c.cityEffects.split('^').map((ef, i) => (
+                                  <div key={`ce-${i}`} className="cb-detail-row">
+                                    <span className="cb-detail-label" style={{ flex: '1 1 100%' }}>{ef}</span>
+                                  </div>
+                                ))}
+                              </>
+                            )}
+                            {c.localEffects && (
+                              <>
+                                <div className="cb-detail-section-title" style={{ marginTop: c.cityEffects ? '10rem' : '0' }}>Local Effects</div>
+                                {c.localEffects.split('^').map((ef, i) => (
+                                  <div key={`le-${i}`} className="cb-detail-row">
+                                    <span className="cb-detail-label" style={{ flex: '1 1 100%' }}>{ef}</span>
+                                  </div>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               );
             })}

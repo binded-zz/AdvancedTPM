@@ -27,33 +27,16 @@ interface ResourceRowVm {
 }
 
 const parseRows = (payload: string): ResourceRowVm[] => {
-    if (!payload) return [];
-    return payload
-        .split(';')
-        .map((chunk) => {
-            const parts = chunk.split('|');
-            const [key, label, stage, production, consumption, taxRate, surplus, deficit, taxIncome, incomeSource, resourceIndex, isService, companyCount, maxWorkers, currentWorkers, demand] = parts;
-            if (!key || !label || !stage || production === undefined || taxRate === undefined) return null;
-            return {
-                key,
-                label,
-                stage,
-                resourceIndex: resourceIndex !== undefined ? Number(resourceIndex) : undefined,
-                production: Number(production) || 0,
-                consumption: Number(consumption) || 0,
-                taxRate: Number(taxRate) || 0,
-                surplus: Number(surplus) || 0,
-                deficit: Number(deficit) || 0,
-                taxIncome: Number(taxIncome) || 0,
-                incomeSource: incomeSource || undefined,
-                isService: isService === '1',
-                companyCount: companyCount !== undefined ? Number(companyCount) : 0,
-                maxWorkers: maxWorkers !== undefined ? Number(maxWorkers) : 0,
-                currentWorkers: currentWorkers !== undefined ? Number(currentWorkers) : 0,
-                demand: demand !== undefined ? Number(demand) : 0,
-            } as ResourceRowVm;
-        })
-        .filter((x): x is ResourceRowVm => x !== null);
+    // Return early if there's no payload or it's an empty representation
+    if (!payload || payload === '[]') return [];
+    
+    try {
+        // Parse the native JSON array passed from the C# backend
+        return JSON.parse(payload) as ResourceRowVm[];
+    } catch (e) {
+        console.error("Failed to parse resourceRowsData JSON payload:", e);
+        return [];
+    }
 };
 
 const TaxWindowContent: React.FC<{

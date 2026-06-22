@@ -72,11 +72,19 @@ const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, co
     }
   };
 
+  const debounceTimerRef = useRef<number | null>(null);
+
   const stopInteraction = () => {
     if (interactRef.current.mode !== 'none') {
       const finalRect = draggingRectRef.current;
       setRect(finalRect); // Trigger React render ONLY when mouse is released
-      onSaveRectRef.current(finalRect.x, finalRect.y, finalRect.width, finalRect.height);
+      
+      if (debounceTimerRef.current !== null) {
+        window.clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = window.setTimeout(() => {
+        onSaveRectRef.current(finalRect.x, finalRect.y, finalRect.width, finalRect.height);
+      }, 500);
     }
     interactRef.current.mode = 'none';
     setActiveMode('none');

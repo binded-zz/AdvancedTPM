@@ -29,10 +29,16 @@
 .svc-table-row:hover, .svc-row-expanded { background:rgba(255,255,255,0.05); }
 
 /* Expandable Details */
-.svc-row-details { display:flex; flex-wrap:wrap; padding:10rem 14rem 0; background:rgba(0,0,0,0.2); border-bottom:1rem solid rgba(255,255,255,0.03); font-size:11rem; }
-.svc-detail-group { display:flex; flex-direction:column; min-width:120rem; margin-right:15rem; margin-bottom:10rem; }
-.svc-detail-label { color:rgba(255,255,255,0.4); text-transform:uppercase; font-size:9rem; letter-spacing:0.3rem; margin-bottom:2rem; }
-.svc-detail-value { color:rgba(255,255,255,0.85); font-weight:500; }
+.svc-expanded-panel { padding: 10rem 14rem 10rem; background: rgba(0,0,0,0.2); border-bottom: 1rem solid rgba(255,255,255,0.03); font-size: 11rem; }
+.svc-detail-grid { display: flex; align-items: flex-start; width: 100%; flex-wrap: wrap; gap: 16rem; }
+.svc-detail-main { flex: 1 1 40%; display: flex; flex-direction: column; min-width: 300rem; }
+.svc-detail-middle { flex: 1 1 30%; min-width: 180rem; display: flex; flex-direction: column; }
+.svc-detail-factors { width: 340rem; flex-shrink: 0; display: flex; flex-direction: column; }
+.svc-detail-row { display: flex; align-items: center; margin-bottom: 4rem; font-size: 11rem; }
+.svc-detail-label { width: 150rem; color: rgba(255,255,255,0.5); font-weight: 700; flex-shrink: 0; font-size: 11rem; text-transform: uppercase; display: flex; align-items: center; gap: 4px; }
+.svc-detail-value { color: rgba(255,255,255,0.85); display: flex; align-items: center; font-size: 12rem; }
+.svc-detail-entity-id-row { margin-bottom: 8rem; border-bottom: 1rem solid rgba(255, 255, 255, 0.08); padding-bottom: 6rem; }
+
 
 /* Columns */
 .svc-col-name { flex:1; min-width:0; display:flex; align-items:center; overflow:hidden; }
@@ -137,25 +143,6 @@
   color: #fff;
 }
 
-.svc-detail-grid {
-  display: flex;
-  flex-wrap: wrap;
-}
-.svc-detail-grid > * {
-  width: 200rem;
-  margin-right: 8rem;
-  margin-bottom: 4rem;
-}
-.svc-detail-label {
-  font-size: 11rem;
-  color: rgba(255, 255, 255, 0.5);
-  margin-right: 4rem;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-.svc-detail-value {
-  font-size: 12rem;
-  color: rgba(255, 255, 255, 0.85);
-}
+
 
 .svc-signature-badge { color:#f0c040; margin-right:4rem; font-size:18rem; flex-shrink:0; }

@@ -29,12 +29,19 @@ namespace AdvancedTPM
         private TaxingProductionUISystem _taxingProductionUISystem;
         private readonly HashSet<int> _signaturePrefabIndices = new HashSet<int>();
         private EntityQuery _residentialBuildingQuery;
+        private BufferLookup<Game.Prefabs.CityModifierData> m_CityModifierDataLookup;
+        private BufferLookup<Game.Prefabs.LocalModifierData> m_LocalModifierDataLookup;
         private float m_UpdateTimer = 0f;
         private bool m_WasPanelOpen = false;
         private string m_LastViewMode = "";
         private string m_LastResidentialBrowserData = "{}";
         private string m_LastResidentialBuildingsData = "[]";
         private string m_LastResidentialSignatureBuildingsData = "[]";
+
+        private TerrainAttractivenessSystem m_TerrainAttractivenessSystem;
+        private TerrainSystem m_TerrainSystem;
+        private EntityQuery m_SettingsQuery;
+        private readonly List<string> _efficiencyFactorParts = new List<string>(16);
 
         private int m_LowPlaced = 0;
         private int m_MedPlaced = 0;
@@ -53,12 +60,16 @@ namespace AdvancedTPM
         {
             base.OnCreate();
             Mod.log?.Info("ResidentialBrowserSystem OnCreate started");
-            try { _countResidentialPropertySystem = World.GetOrCreateSystemManaged<CountResidentialPropertySystem>(); } catch { }
-            try { _countHouseholdDataSystem = World.GetOrCreateSystemManaged<CountHouseholdDataSystem>(); } catch { }
-            try { _citySystem = World.GetOrCreateSystemManaged<CitySystem>(); } catch { }
-            try { _nameSystem = World.GetOrCreateSystemManaged<NameSystem>(); } catch { }
-            try { _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>(); } catch { }
-            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch { }
+            try { _countResidentialPropertySystem = World.GetOrCreateSystemManaged<CountResidentialPropertySystem>(); } catch (Exception e) { Mod.log?.Error($"Failed to load CountResidentialPropertySystem: {e.Message}"); }
+            try { _countHouseholdDataSystem = World.GetOrCreateSystemManaged<CountHouseholdDataSystem>(); } catch (Exception e) { Mod.log?.Error($"Failed to load CountHouseholdDataSystem: {e.Message}"); }
+            try { _citySystem = World.GetOrCreateSystemManaged<CitySystem>(); } catch (Exception e) { Mod.log?.Error($"Failed to load CitySystem: {e.Message}"); }
+            try { _nameSystem = World.GetOrCreateSystemManaged<NameSystem>(); } catch (Exception e) { Mod.log?.Error($"Failed to load NameSystem: {e.Message}"); }
+            try { _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>(); } catch (Exception e) { Mod.log?.Error($"Failed to load PrefabSystem: {e.Message}"); }
+            try { _taxingProductionUISystem = World.GetOrCreateSystemManaged<TaxingProductionUISystem>(); } catch (Exception e) { Mod.log?.Error($"Failed to load TaxingProductionUISystem: {e.Message}"); }
+
+            try { m_TerrainAttractivenessSystem = World.GetOrCreateSystemManaged<TerrainAttractivenessSystem>(); } catch { }
+            try { m_TerrainSystem = World.GetOrCreateSystemManaged<TerrainSystem>(); } catch { }
+            m_SettingsQuery = GetEntityQuery(ComponentType.ReadOnly<AttractivenessParameterData>());
 
 
             // Query residential buildings: any building entity with a ResidentialProperty tag/component
@@ -75,9 +86,15 @@ namespace AdvancedTPM
             }
             catch (Exception ex) { Mod.log?.Warn($"ResidentialBrowserSystem Query Error: {ex.Message}"); }
 
+            m_CityModifierDataLookup = GetBufferLookup<Game.Prefabs.CityModifierData>(true);
+            m_LocalModifierDataLookup = GetBufferLookup<Game.Prefabs.LocalModifierData>(true);
+
             AddBinding(_residentialBrowserData = new ValueBinding<string>("taxProduction", "residentialBrowserData", "{}"));
             AddBinding(_residentialBuildingsData = new ValueBinding<string>("taxProduction", "residentialBuildingsData", "[]"));
             AddBinding(_residentialSignatureBuildingsData = new ValueBinding<string>("taxProduction", "residentialSignatureBuildingsData", "[]"));
+            
+            try { InitializeHappinessDependencies(); } catch (Exception ex) { Mod.log?.Warn($"Failed to initialize happiness dependencies: {ex.Message}"); }
+
             Mod.log?.Info("ResidentialBrowserSystem OnCreate finished");
         }
 
@@ -112,6 +129,11 @@ namespace AdvancedTPM
                 return;
             }
             
+            m_CityModifierDataLookup.Update(this);
+            m_LocalModifierDataLookup.Update(this);
+            
+            try { UpdateHappinessDependencies(); } catch (Exception ex) { Mod.log?.Warn($"Failed to update happiness dependencies: {ex.Message}"); }
+
             m_UpdateTimer += World.Time.DeltaTime;
             if (m_UpdateTimer < 10.0f && !justOpened)
             {
@@ -253,6 +275,9 @@ namespace AdvancedTPM
                         string assetPack = "Base Game";
                         string assetPackIcon = "";
                         string themeIcon = "";
+                        string cityEffects = "";
+                        string localEffects = "";
+                        string attractivenessFactors = "";
                         bool isSignature = false;
 
                         if (em.HasComponent<PrefabRef>(ent))
@@ -292,6 +317,27 @@ namespace AdvancedTPM
 
                             // Extract theme and asset pack
                             ExtractThemeAndAssetPack(em, prefab, out theme, out themeIcon, out assetPack, out assetPackIcon);
+
+                            List<string> cEffects = new List<string>();
+                            List<string> lEffects = new List<string>();
+                            if (m_CityModifierDataLookup.HasBuffer(prefab))
+                            {
+                                foreach (var c in m_CityModifierDataLookup[prefab])
+                                {
+                                    string sMode = c.m_Mode == Game.Prefabs.ModifierValueMode.Relative ? "%" : "";
+                                    cEffects.Add($"{c.m_Type} | {c.m_Range.min}{sMode} to {c.m_Range.max}{sMode}");
+                                }
+                            }
+                            if (m_LocalModifierDataLookup.HasBuffer(prefab))
+                            {
+                                foreach (var l in m_LocalModifierDataLookup[prefab])
+                                {
+                                    string sMode = l.m_Mode == Game.Prefabs.ModifierValueMode.Relative ? "%" : "";
+                                    lEffects.Add($"{l.m_Type} | Delta: {l.m_Delta.min}{sMode} to {l.m_Delta.max}{sMode} | Reach: {l.m_Radius.max}");
+                                }
+                            }
+                            cityEffects = string.Join("^", cEffects);
+                            localEffects = string.Join("^", lEffects);
                         }
 
                         // Occupied count from Renter buffer
@@ -311,6 +357,25 @@ namespace AdvancedTPM
                             else if (occupied <= 20) density = "Medium";
                             else density = "High";
                         }
+
+                        // --- Attractiveness ---
+                        int attractiveness = 0;
+                        try
+                        {
+                            if (em.HasComponent<PrefabRef>(ent))
+                            {
+                                Entity prefab = em.GetComponentData<PrefabRef>(ent).m_Prefab;
+                                if (Game.Prefabs.UpgradeUtils.TryGetCombinedComponent<Game.Prefabs.AttractionData>(em, ent, prefab, out var attractionData))
+                                    attractiveness = attractionData.m_Attractiveness;
+                            }
+
+                            if (em.HasComponent<Game.Buildings.AttractivenessProvider>(ent))
+                            {
+                                var attrProv = em.GetComponentData<Game.Buildings.AttractivenessProvider>(ent);
+                                if (attrProv.m_Attractiveness > attractiveness) attractiveness = attrProv.m_Attractiveness;
+                            }
+                        }
+                        catch { }
 
                         // Determine theme (USA/EU)
                         string address = "";
@@ -365,9 +430,10 @@ namespace AdvancedTPM
                             assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
                             assetPackIcon = (assetPackIcon ?? "").Replace("|", "").Replace(";", "");
 
+                            string happinessFactors = GetHappinessFactorsString(ent);
                             parts.Add(string.Format(CultureInfo.InvariantCulture,
-                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}",
-                                ent.Index, ent.Version, address, districtName, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0", assetPackIcon, themeIcon));
+                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}|{13}|{14}|{15}|{16}|{17}",
+                                ent.Index, ent.Version, address, districtName, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0", assetPackIcon, themeIcon, cityEffects, localEffects, attractiveness, attractivenessFactors, happinessFactors));
                         }
                     }
                     catch { }
@@ -481,14 +547,51 @@ namespace AdvancedTPM
                             string assetPackIcon = "";
                             ExtractThemeAndAssetPack(em, prefab, out theme, out themeIcon, out assetPack, out assetPackIcon);
 
+                            int attractiveness = 0;
+                            string attractivenessFactors = "";
+                            try
+                            {
+                                if (Game.Prefabs.UpgradeUtils.TryGetCombinedComponent<Game.Prefabs.AttractionData>(em, ent, prefab, out var attractionData))
+                                    attractiveness = attractionData.m_Attractiveness;
+
+                                if (em.HasComponent<Game.Buildings.AttractivenessProvider>(ent))
+                                {
+                                    var attrProv = em.GetComponentData<Game.Buildings.AttractivenessProvider>(ent);
+                                    if (attrProv.m_Attractiveness > attractiveness) attractiveness = attrProv.m_Attractiveness;
+                                }
+                            } catch { }
+
+                            List<string> cEffects = new List<string>();
+                            List<string> lEffects = new List<string>();
+                            if (m_CityModifierDataLookup.HasBuffer(prefab))
+                            {
+                                foreach (var c in m_CityModifierDataLookup[prefab])
+                                {
+                                    string sMode = c.m_Mode == Game.Prefabs.ModifierValueMode.Relative ? "%" : "";
+                                    cEffects.Add($"{c.m_Type} | {c.m_Range.min}{sMode} to {c.m_Range.max}{sMode}");
+                                }
+                            }
+                            if (m_LocalModifierDataLookup.HasBuffer(prefab))
+                            {
+                                foreach (var l in m_LocalModifierDataLookup[prefab])
+                                {
+                                    string sMode = l.m_Mode == Game.Prefabs.ModifierValueMode.Relative ? "%" : "";
+                                    lEffects.Add($"{l.m_Type} | Delta: {l.m_Delta.min}{sMode} to {l.m_Delta.max}{sMode} | Reach: {l.m_Radius.max}");
+                                }
+                            }
+                            string cityEffects = string.Join("^", cEffects);
+                            string localEffects = string.Join("^", lEffects);
+
                             theme = (theme ?? "Unknown").Replace("|", "-").Replace(";", "-");
                             themeIcon = (themeIcon ?? "").Replace("|", "").Replace(";", "");
                             assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
                             assetPackIcon = (assetPackIcon ?? "").Replace("|", "").Replace(";", "");
 
+                            string happinessFactors = GetHappinessFactorsString(ent);
+
                             signatureBuildings.Add(string.Format(CultureInfo.InvariantCulture,
-                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}",
-                                ent.Index, ent.Version, address, level, occupied, capacity, theme, assetPack, assetPackIcon, themeIcon));
+                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}|{13}|{14}",
+                                ent.Index, ent.Version, address, level, occupied, capacity, theme, assetPack, assetPackIcon, themeIcon, cityEffects, localEffects, attractiveness, attractivenessFactors, happinessFactors));
                         }
                         catch { }
                     }

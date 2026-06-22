@@ -4,6 +4,8 @@ using Game.Economy;
 using Game.Prefabs;
 using Game.Simulation;
 using Game.UI;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -11,6 +13,7 @@ using System.Linq;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
+using AdvancedTPM.Systems;
 
 namespace AdvancedTPM
 {
@@ -45,138 +48,12 @@ namespace AdvancedTPM
         private ResourceSystem _resourceSystem;
         private SimulationSystem _simulationSystem;
         private CityStatisticsSystem _cityStatisticsSystem;
+        private EntityQuery _companyQuery;
         private int _updateCounter;
         private bool _initialTaxRatesLoaded;
         private bool _wasPanelOpen;
         private bool _isRowDataDirty;
         private readonly System.Text.StringBuilder _serializeBuilder = new System.Text.StringBuilder(8192);
-
-        private enum ResourceTaxArea { Industrial, Commercial, Office }
-
-        private static readonly Dictionary<string, ResourceTaxArea> ResourceTaxAreaMap = new Dictionary<string, ResourceTaxArea>
-        {
-            // Raw Materials ΓÇö Industrial
-            ["grain"] = ResourceTaxArea.Industrial,
-            ["vegetables"] = ResourceTaxArea.Industrial,
-            ["cotton"] = ResourceTaxArea.Industrial,
-            ["livestock"] = ResourceTaxArea.Industrial,
-            ["fish"] = ResourceTaxArea.Industrial,
-            ["wood"] = ResourceTaxArea.Industrial,
-            ["ore"] = ResourceTaxArea.Industrial,
-            ["stone"] = ResourceTaxArea.Industrial,
-            ["coal"] = ResourceTaxArea.Industrial,
-            ["oil"] = ResourceTaxArea.Industrial,
-            // Processed Goods ΓÇö Industrial
-            ["food"] = ResourceTaxArea.Industrial,
-            ["beverages"] = ResourceTaxArea.Industrial,
-            ["conveniencefood"] = ResourceTaxArea.Industrial,
-            ["textiles"] = ResourceTaxArea.Industrial,
-            ["timber"] = ResourceTaxArea.Industrial,
-            ["paper"] = ResourceTaxArea.Industrial,
-            ["furniture"] = ResourceTaxArea.Industrial,
-            ["metals"] = ResourceTaxArea.Industrial,
-            ["steel"] = ResourceTaxArea.Industrial,
-            ["minerals"] = ResourceTaxArea.Industrial,
-            ["concrete"] = ResourceTaxArea.Industrial,
-            ["machinery"] = ResourceTaxArea.Industrial,
-            ["electronics"] = ResourceTaxArea.Industrial,
-            ["vehicles"] = ResourceTaxArea.Industrial,
-            ["petrochemicals"] = ResourceTaxArea.Industrial,
-            ["plastics"] = ResourceTaxArea.Industrial,
-            ["chemicals"] = ResourceTaxArea.Industrial,
-            ["pharmaceuticals"] = ResourceTaxArea.Industrial,
-            // Office ΓÇö Software, Telecom, Financial, Media
-            ["software"] = ResourceTaxArea.Office,
-            ["telecom"] = ResourceTaxArea.Office,
-            ["financial"] = ResourceTaxArea.Office,
-            ["media"] = ResourceTaxArea.Office,
-            // Commercial ΓÇö Lodging, Meals, Entertainment, Recreation
-            ["lodging"] = ResourceTaxArea.Commercial,
-            ["meals"] = ResourceTaxArea.Commercial,
-            ["entertainment"] = ResourceTaxArea.Commercial,
-            ["recreation"] = ResourceTaxArea.Commercial,
-            // Commercial Retail ΓÇö goods sold in commercial zones
-            ["c_food"] = ResourceTaxArea.Commercial,
-            ["c_beverages"] = ResourceTaxArea.Commercial,
-            ["c_conveniencefood"] = ResourceTaxArea.Commercial,
-            ["c_textiles"] = ResourceTaxArea.Commercial,
-            ["c_timber"] = ResourceTaxArea.Commercial,
-            ["c_paper"] = ResourceTaxArea.Commercial,
-            ["c_furniture"] = ResourceTaxArea.Commercial,
-            ["c_metals"] = ResourceTaxArea.Commercial,
-            ["c_steel"] = ResourceTaxArea.Commercial,
-            ["c_minerals"] = ResourceTaxArea.Commercial,
-            ["c_concrete"] = ResourceTaxArea.Commercial,
-            ["c_machinery"] = ResourceTaxArea.Commercial,
-            ["c_electronics"] = ResourceTaxArea.Commercial,
-            ["c_vehicles"] = ResourceTaxArea.Commercial,
-            ["c_petrochemicals"] = ResourceTaxArea.Commercial,
-            ["c_plastics"] = ResourceTaxArea.Commercial,
-            ["c_chemicals"] = ResourceTaxArea.Commercial,
-            ["c_pharmaceuticals"] = ResourceTaxArea.Commercial,
-        };
-
-        private static readonly Dictionary<string, Resource> ResourceKeyToEnum = new Dictionary<string, Resource>
-        {
-            // Raw Materials
-            ["grain"]           = Resource.Grain,
-            ["vegetables"]      = Resource.Vegetables,
-            ["cotton"]          = Resource.Cotton,
-            ["livestock"]       = Resource.Livestock,
-            ["fish"]            = Resource.Fish,
-            ["wood"]            = Resource.Wood,
-            ["ore"]             = Resource.Ore,
-            ["stone"]           = Resource.Stone,
-            ["coal"]            = Resource.Coal,
-            ["oil"]             = Resource.Oil,
-            // Processed Goods
-            ["food"]            = Resource.Food,
-            ["beverages"]       = Resource.Beverages,
-            ["conveniencefood"] = Resource.ConvenienceFood,
-            ["textiles"]        = Resource.Textiles,
-            ["timber"]          = Resource.Timber,
-            ["paper"]           = Resource.Paper,
-            ["furniture"]       = Resource.Furniture,
-            ["metals"]          = Resource.Metals,
-            ["steel"]           = Resource.Steel,
-            ["minerals"]        = Resource.Minerals,
-            ["concrete"]        = Resource.Concrete,
-            ["machinery"]       = Resource.Machinery,
-            ["electronics"]     = Resource.Electronics,
-            ["vehicles"]        = Resource.Vehicles,
-            ["petrochemicals"]  = Resource.Petrochemicals,
-            ["plastics"]        = Resource.Plastics,
-            ["chemicals"]       = Resource.Chemicals,
-            ["pharmaceuticals"] = Resource.Pharmaceuticals,
-            // Immaterial Goods
-            ["software"]        = Resource.Software,
-            ["telecom"]         = Resource.Telecom,
-            ["financial"]       = Resource.Financial,
-            ["media"]           = Resource.Media,
-            ["lodging"]         = Resource.Lodging,
-            ["meals"]           = Resource.Meals,
-            ["entertainment"]   = Resource.Entertainment,
-            ["recreation"]      = Resource.Recreation,
-            // Commercial Retail
-            ["c_food"]            = Resource.Food,
-            ["c_beverages"]       = Resource.Beverages,
-            ["c_conveniencefood"] = Resource.ConvenienceFood,
-            ["c_textiles"]        = Resource.Textiles,
-            ["c_timber"]          = Resource.Timber,
-            ["c_paper"]           = Resource.Paper,
-            ["c_furniture"]       = Resource.Furniture,
-            ["c_metals"]          = Resource.Metals,
-            ["c_steel"]           = Resource.Steel,
-            ["c_minerals"]        = Resource.Minerals,
-            ["c_concrete"]        = Resource.Concrete,
-            ["c_machinery"]       = Resource.Machinery,
-            ["c_electronics"]     = Resource.Electronics,
-            ["c_vehicles"]        = Resource.Vehicles,
-            ["c_petrochemicals"]  = Resource.Petrochemicals,
-            ["c_plastics"]        = Resource.Plastics,
-            ["c_chemicals"]       = Resource.Chemicals,
-            ["c_pharmaceuticals"] = Resource.Pharmaceuticals,
-        };
 
         private readonly Dictionary<string, ResourceRowState> _resourceRows = new Dictionary<string, ResourceRowState>
         {
@@ -243,6 +120,12 @@ namespace AdvancedTPM
         protected override void OnCreate()
         {
             base.OnCreate();
+
+            _companyQuery = GetEntityQuery(
+                ComponentType.ReadOnly<Game.Companies.CompanyData>(),
+                ComponentType.ReadOnly<Game.Prefabs.PrefabRef>(),
+                ComponentType.ReadOnly<Game.Buildings.PropertyRenter>()
+            );
 
             var settings = Mod.Settings;
             var defaultTaxRate = settings?.DefaultGlobalTaxRate ?? 15;
@@ -431,21 +314,21 @@ namespace AdvancedTPM
             {
                 bool anyChanged = false;
 
-                foreach (var kvp in ResourceKeyToEnum)
+                foreach (var kvp in TPMDataDefinitions.ResourceKeyToEnum)
                 {
                     if (!_resourceRows.TryGetValue(kvp.Key, out var row)) continue;
-                    if (!ResourceTaxAreaMap.TryGetValue(kvp.Key, out var area)) continue;
+                    if (!TPMDataDefinitions.ResourceTaxAreaMap.TryGetValue(kvp.Key, out var area)) continue;
 
                     int gameRate;
                     switch (area)
                     {
-                        case ResourceTaxArea.Industrial:
+                        case TPMDataDefinitions.ResourceTaxArea.Industrial:
                             gameRate = _taxSystem.GetIndustrialTaxRate(kvp.Value);
                             break;
-                        case ResourceTaxArea.Commercial:
+                        case TPMDataDefinitions.ResourceTaxArea.Commercial:
                             gameRate = _taxSystem.GetCommercialTaxRate(kvp.Value);
                             break;
-                        case ResourceTaxArea.Office:
+                        case TPMDataDefinitions.ResourceTaxArea.Office:
                             gameRate = _taxSystem.GetOfficeTaxRate(kvp.Value);
                             break;
                         default:
@@ -479,20 +362,20 @@ namespace AdvancedTPM
         private void WriteGameTaxRate(string resourceKey, int rate)
         {
             if (_taxSystem == null) return;
-            if (!ResourceKeyToEnum.TryGetValue(resourceKey, out var resource)) return;
-            if (!ResourceTaxAreaMap.TryGetValue(resourceKey, out var area)) return;
+            if (!TPMDataDefinitions.ResourceKeyToEnum.TryGetValue(resourceKey, out var resource)) return;
+            if (!TPMDataDefinitions.ResourceTaxAreaMap.TryGetValue(resourceKey, out var area)) return;
 
             try
             {
                 switch (area)
                 {
-                    case ResourceTaxArea.Industrial:
+                    case TPMDataDefinitions.ResourceTaxArea.Industrial:
                         _taxSystem.SetIndustrialTaxRate(resource, rate);
                         break;
-                    case ResourceTaxArea.Commercial:
+                    case TPMDataDefinitions.ResourceTaxArea.Commercial:
                         _taxSystem.SetCommercialTaxRate(resource, rate);
                         break;
-                    case ResourceTaxArea.Office:
+                    case TPMDataDefinitions.ResourceTaxArea.Office:
                         _taxSystem.SetOfficeTaxRate(resource, rate);
                         break;
                 }
@@ -514,32 +397,27 @@ namespace AdvancedTPM
             {
                 JobHandle productionDeps;
                 NativeArray<int> productionArray = _countCompanyDataSystem.GetProduction(out productionDeps);
-                productionDeps.Complete();
 
                 NativeArray<int> industrialConsumption = default;
                 bool hasIndustrialConsumption = false;
+                JobHandle consumptionDeps = default;
                 if (_industrialDemandSystem != null)
                 {
                     try
                     {
-                        JobHandle consumptionDeps;
                         industrialConsumption = _industrialDemandSystem.GetConsumption(out consumptionDeps);
-                        consumptionDeps.Complete();
-                        hasIndustrialConsumption = industrialConsumption.IsCreated && industrialConsumption.Length > 0;
                     }
                     catch { }
                 }
 
                 NativeArray<int> commercialConsumption = default;
                 bool hasCommercialConsumption = false;
+                JobHandle commercialDeps = default;
                 if (_commercialDemandSystem != null)
                 {
                     try
                     {
-                        JobHandle commercialDeps;
                         commercialConsumption = _commercialDemandSystem.GetConsumption(out commercialDeps);
-                        commercialDeps.Complete();
-                        hasCommercialConsumption = commercialConsumption.IsCreated && commercialConsumption.Length > 0;
                     }
                     catch { }
                 }
@@ -550,16 +428,14 @@ namespace AdvancedTPM
                 NativeArray<int> industrialCurrentWorkers = default;
                 NativeArray<int> industrialDemand = default;
                 bool hasIndustrialCompanyData = false;
+                JobHandle industrialCompanyDeps = default;
                 try
                 {
-                    JobHandle industrialCompanyDeps;
                     var industrialData = _countCompanyDataSystem.GetIndustrialCompanyDatas(out industrialCompanyDeps);
-                    industrialCompanyDeps.Complete();
                     industrialProductionCompanies = industrialData.m_ProductionCompanies;
                     industrialMaxWorkers = industrialData.m_MaxProductionWorkers;
                     industrialCurrentWorkers = industrialData.m_CurrentProductionWorkers;
                     industrialDemand = industrialData.m_Demand;
-                    hasIndustrialCompanyData = industrialProductionCompanies.IsCreated && industrialProductionCompanies.Length > 0;
                 }
                 catch { }
 
@@ -571,34 +447,82 @@ namespace AdvancedTPM
                 NativeArray<int> commercialMaxWorkers = default;
                 NativeArray<int> commercialCurrentWorkers = default;
                 bool hasCommercialCompanyData = false;
+                JobHandle commercialCompanyDeps = default;
                 try
                 {
-                    JobHandle commercialCompanyDeps;
                     var commercialData = _countCompanyDataSystem.GetCommercialCompanyDatas(out commercialCompanyDeps);
-                    commercialCompanyDeps.Complete();
                     commercialProduceCapacity = commercialData.m_ProduceCapacity;
                     commercialTotalAvailables = commercialData.m_TotalAvailables;
                     commercialCurrentAvailables = commercialData.m_CurrentAvailables;
                     commercialServiceCompanies = commercialData.m_ServiceCompanies;
                     commercialMaxWorkers = commercialData.m_MaxServiceWorkers;
                     commercialCurrentWorkers = commercialData.m_CurrentServiceWorkers;
-                    hasCommercialCompanyData = commercialProduceCapacity.IsCreated && commercialProduceCapacity.Length > 0;
                 }
                 catch { }
 
+                var deps1 = JobHandle.CombineDependencies(productionDeps, consumptionDeps, commercialDeps);
+                var deps2 = JobHandle.CombineDependencies(industrialCompanyDeps, commercialCompanyDeps);
+                var combinedDeps = JobHandle.CombineDependencies(deps1, deps2);
+
+                if (!combinedDeps.IsCompleted)
+                {
+                    return;
+                }
+
+                combinedDeps.Complete();
+
+                hasIndustrialConsumption = industrialConsumption.IsCreated && industrialConsumption.Length > 0;
+                hasCommercialConsumption = commercialConsumption.IsCreated && commercialConsumption.Length > 0;
+                hasIndustrialCompanyData = industrialProductionCompanies.IsCreated && industrialProductionCompanies.Length > 0;
+                hasCommercialCompanyData = commercialProduceCapacity.IsCreated && commercialProduceCapacity.Length > 0;
+
+                // EFFICIENCY CALCULATION
+                var companyEntities = _companyQuery.ToEntityArray(Allocator.Temp);
+                var prefabRefs = GetComponentLookup<Game.Prefabs.PrefabRef>(true);
+                var propertyRenters = GetComponentLookup<Game.Buildings.PropertyRenter>(true);
+                var efficiencyBufs = GetBufferLookup<Game.Buildings.Efficiency>(true);
+                var industrialProcessDatas = GetComponentLookup<Game.Prefabs.IndustrialProcessData>(true);
+                float[] totalEfficiency = new float[EconomyUtils.ResourceCount];
+                int[] companyCountWithEfficiency = new int[EconomyUtils.ResourceCount];
+
+                foreach (var entity in companyEntities)
+                {
+                    if (!prefabRefs.TryGetComponent(entity, out var prefabRef)) continue;
+                    if (!propertyRenters.TryGetComponent(entity, out var renter)) continue;
+                    
+                    float efficiency = 1f;
+                    if (efficiencyBufs.TryGetBuffer(renter.m_Property, out var effBuf))
+                    {
+                        efficiency = Game.Buildings.BuildingUtils.GetEfficiency(effBuf);
+                    }
+
+                    int resIndex = -1;
+                    if (industrialProcessDatas.TryGetComponent(prefabRef.m_Prefab, out var processData))
+                    {
+                        resIndex = EconomyUtils.GetResourceIndex(processData.m_Output.m_Resource);
+                    }
+
+                    if (resIndex >= 0 && resIndex < totalEfficiency.Length)
+                    {
+                        totalEfficiency[resIndex] += efficiency;
+                        companyCountWithEfficiency[resIndex]++;
+                    }
+                }
+                companyEntities.Dispose();
+
                 bool anyChanged = false;
 
-                foreach (var kvp in ResourceKeyToEnum)
+                foreach (var kvp in TPMDataDefinitions.ResourceKeyToEnum)
                 {
                     if (!_resourceRows.TryGetValue(kvp.Key, out var row)) continue;
-                    if (!ResourceTaxAreaMap.TryGetValue(kvp.Key, out var taxArea)) continue;
+                    if (!TPMDataDefinitions.ResourceTaxAreaMap.TryGetValue(kvp.Key, out var taxArea)) continue;
 
                     int resourceIndex = EconomyUtils.GetResourceIndex(kvp.Value);
                     if (resourceIndex < 0) continue;
 
                     int productionRaw = 0;
                     int consumptionRaw = 0;
-                    bool useCommercialData = taxArea == ResourceTaxArea.Office || taxArea == ResourceTaxArea.Commercial;
+                    bool useCommercialData = taxArea == TPMDataDefinitions.ResourceTaxArea.Office || taxArea == TPMDataDefinitions.ResourceTaxArea.Commercial;
                     bool isService = row.Stage == "Retail" || row.Stage == "Immaterial";
 
                     if (useCommercialData && hasCommercialCompanyData)
@@ -687,6 +611,12 @@ namespace AdvancedTPM
                         }
                     }
 
+                    float avgEfficiency = 0f;
+                    if (companyCountWithEfficiency[resourceIndex] > 0)
+                    {
+                        avgEfficiency = totalEfficiency[resourceIndex] / companyCountWithEfficiency[resourceIndex];
+                    }
+
                     if (Math.Abs(row.Production - prodTonnes) > 0.01f ||
                         Math.Abs(row.Consumption - consTonnes) > 0.01f ||
                         Math.Abs(row.Surplus - surplus) > 0.01f ||
@@ -695,7 +625,8 @@ namespace AdvancedTPM
                         row.CompanyCount != companyCount ||
                         row.MaxWorkers != maxWorkers ||
                         row.CurrentWorkers != currentWorkers ||
-                        Math.Abs(row.Demand - demand) > 0.01f)
+                        Math.Abs(row.Demand - demand) > 0.01f ||
+                        Math.Abs(row.AverageEfficiency - avgEfficiency) > 0.01f)
                     {
                         row.Production = prodTonnes;
                         row.Consumption = consTonnes;
@@ -706,6 +637,7 @@ namespace AdvancedTPM
                         row.MaxWorkers = maxWorkers;
                         row.CurrentWorkers = currentWorkers;
                         row.Demand = demand;
+                        row.AverageEfficiency = avgEfficiency;
                         anyChanged = true;
                     }
 
@@ -717,13 +649,13 @@ namespace AdvancedTPM
                         StatisticType statType;
                         switch (taxArea)
                         {
-                            case ResourceTaxArea.Industrial:
+                            case TPMDataDefinitions.ResourceTaxArea.Industrial:
                                 statType = StatisticType.IndustrialTaxableIncome;
                                 break;
-                            case ResourceTaxArea.Commercial:
+                            case TPMDataDefinitions.ResourceTaxArea.Commercial:
                                 statType = StatisticType.CommercialTaxableIncome;
                                 break;
-                            case ResourceTaxArea.Office:
+                            case TPMDataDefinitions.ResourceTaxArea.Office:
                                 statType = StatisticType.OfficeTaxableIncome;
                                 break;
                             default:
@@ -900,51 +832,15 @@ namespace AdvancedTPM
 
         private int ClampRate(int rate) => rate < -10 ? -10 : (rate > 30 ? 30 : rate);
 
+        private static readonly JsonSerializerSettings _jsonSettings = new JsonSerializerSettings
+        {
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            Formatting = Formatting.None
+        };
+
         private string SerializeRows()
         {
-            _serializeBuilder.Clear();
-            bool first = true;
-            foreach (var r in _resourceRows.Values)
-            {
-                if (!first)
-                {
-                    _serializeBuilder.Append(';');
-                }
-                first = false;
-
-                _serializeBuilder.Append(r.Key);
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.Label);
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.Stage);
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.Production.ToString("0.##", CultureInfo.InvariantCulture));
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.Consumption.ToString("0.##", CultureInfo.InvariantCulture));
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.TaxRate);
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.Surplus.ToString("0.##", CultureInfo.InvariantCulture));
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.Deficit.ToString("0.##", CultureInfo.InvariantCulture));
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.TaxIncome.ToString("0.#", CultureInfo.InvariantCulture));
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.IncomeSource ?? "unknown");
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(ResourceKeyToEnum.TryGetValue(r.Key, out var res) ? EconomyUtils.GetResourceIndex(res) : -1);
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.IsService ? '1' : '0');
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.CompanyCount);
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.MaxWorkers);
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.CurrentWorkers);
-                _serializeBuilder.Append('|');
-                _serializeBuilder.Append(r.Demand.ToString("0.##", CultureInfo.InvariantCulture));
-            }
-            return _serializeBuilder.ToString();
+            return JsonConvert.SerializeObject(_resourceRows.Values, _jsonSettings);
         }
 
         private class ResourceRowState
@@ -957,11 +853,21 @@ namespace AdvancedTPM
                 Production = production;
                 Consumption = consumption;
                 TaxRate = taxRate;
+                
+                if (TPMDataDefinitions.ResourceKeyToEnum.TryGetValue(key, out var res))
+                {
+                    ResourceIndex = EconomyUtils.GetResourceIndex(res);
+                }
+                else
+                {
+                    ResourceIndex = -1;
+                }
             }
 
             public string Key { get; }
             public string Label { get; }
             public string Stage { get; }
+            public int ResourceIndex { get; }
             public float Production { get; set; }
             public float Consumption { get; set; }
             public int TaxRate { get; set; }
@@ -974,14 +880,19 @@ namespace AdvancedTPM
             public int MaxWorkers { get; set; }
             public int CurrentWorkers { get; set; }
             public float Demand { get; set; }
+            public float AverageEfficiency { get; set; }
         }
 
         private void SetLastAction(string action)
         {
-            _debugLastAction.Update(action);
-            if (_debugEnabled.value)
+            _debugLastAction?.Update(action);
+            if (_debugEnabled?.value == true)
             {
-                Mod.log.Info($"TPM action: {action}");
+                try
+                {
+                    Mod.log?.Info($"TPM action: {action}");
+                }
+                catch { }
             }
         }
 

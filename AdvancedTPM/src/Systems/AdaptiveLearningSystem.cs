@@ -11,6 +11,7 @@ using System.Linq;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
+using AdvancedTPM.Systems;
 
 namespace AdvancedTPM
 {
@@ -59,7 +60,7 @@ namespace AdvancedTPM
         private const float DefaultEmaAlpha = 0.15f;
 
         // Same resource mappings used across the mod
-        private static readonly Dictionary<string, Resource> ResourceKeyToEnum = AutoTaxSystemMaps.ResourceKeyToEnum;
+        private static readonly Dictionary<string, Resource> ResourceKeyToEnum = TPMDataDefinitions.ResourceKeyToEnum;
 
         protected override void OnCreate()
         {
@@ -160,6 +161,7 @@ namespace AdvancedTPM
                 if (CaptureSnapshot(currentTick))
                 {
                     _snapshotCounter = 0f;
+                    CheckForBailouts(currentTick);
                 }
             }
 
@@ -243,18 +245,18 @@ namespace AdvancedTPM
                 if (kvp.Value.SampleCount < 3) continue; // Need minimum data
                 if (kvp.Value.Confidence < 0.2f) continue;
                 if (!ResourceKeyToEnum.TryGetValue(kvp.Key, out var resource)) continue;
-                if (!AutoTaxSystemMaps.ResourceTaxAreaMap.TryGetValue(kvp.Key, out var area)) continue;
+                if (!TPMDataDefinitions.ResourceTaxAreaMap.TryGetValue(kvp.Key, out var area)) continue;
 
                 int currentRate;
                 switch (area)
                 {
-                    case AutoTaxSystemMaps.ResourceTaxArea.Industrial:
+                    case TPMDataDefinitions.ResourceTaxArea.Industrial:
                         currentRate = _taxSystem.GetIndustrialTaxRate(resource);
                         break;
-                    case AutoTaxSystemMaps.ResourceTaxArea.Commercial:
+                    case TPMDataDefinitions.ResourceTaxArea.Commercial:
                         currentRate = _taxSystem.GetCommercialTaxRate(resource);
                         break;
-                    case AutoTaxSystemMaps.ResourceTaxArea.Office:
+                    case TPMDataDefinitions.ResourceTaxArea.Office:
                         currentRate = _taxSystem.GetOfficeTaxRate(resource);
                         break;
                     default:
@@ -312,6 +314,113 @@ namespace AdvancedTPM
             _database.RecentSnapshots.Add(snapshot);
             _database.TrimSnapshots();
             return true;
+        }
+
+        private void CheckForBailouts(uint currentTick)
+        {
+            if (_database == null || _taxSystem == null) return;
+            if (Mod.Settings == null || !Mod.Settings.AutoTaxEnabled) return;
+            bool uiNeedsUpdate = false;
+
+            foreach (var kvp in _database.Profiles)
+            {
+                string key = kvp.Key;
+                var profile = kvp.Value;
+
+                if (!ResourceKeyToEnum.TryGetValue(key, out var resource)) continue;
+                if (!TPMDataDefinitions.ResourceTaxAreaMap.TryGetValue(key, out var area)) continue;
+
+                int currentRate = 0;
+                try
+                {
+                    switch (area)
+                    {
+                        case TPMDataDefinitions.ResourceTaxArea.Industrial:
+                            currentRate = _taxSystem.GetIndustrialTaxRate(resource);
+                            break;
+                        case TPMDataDefinitions.ResourceTaxArea.Commercial:
+                            currentRate = _taxSystem.GetCommercialTaxRate(resource);
+                            break;
+                        case TPMDataDefinitions.ResourceTaxArea.Office:
+                            currentRate = _taxSystem.GetOfficeTaxRate(resource);
+                            break;
+                    }
+                }
+                catch { continue; }
+
+                if (currentRate <= 0 || currentRate >= 25)
+                {
+                    // Rate is extreme. Check if historic outcome is poor.
+                    if (profile.AvgOutcomeScore <= 0.05f)
+                    {
+                        profile.ConsecutiveExtremeEvaluations++;
+
+                        if (profile.ConsecutiveExtremeEvaluations >= 3)
+                        {
+                            // Trigger Bailout
+                            int step = currentRate <= 0 ? 5 : -5;
+                            int newRate = currentRate + step;
+
+                            try
+                            {
+                                switch (area)
+                                {
+                                    case TPMDataDefinitions.ResourceTaxArea.Industrial:
+                                        _taxSystem.SetIndustrialTaxRate(resource, newRate);
+                                        break;
+                                    case TPMDataDefinitions.ResourceTaxArea.Commercial:
+                                        _taxSystem.SetCommercialTaxRate(resource, newRate);
+                                        break;
+                                    case TPMDataDefinitions.ResourceTaxArea.Office:
+                                        _taxSystem.SetOfficeTaxRate(resource, newRate);
+                                        break;
+                                }
+                            }
+                            catch { continue; }
+
+                            // Penalize learning to discourage extreme pushing
+                            profile.Sensitivity *= -0.5f; // Invert and halve
+                            profile.Confidence = Math.Max(0f, profile.Confidence - 0.2f);
+                            profile.ConsecutiveExtremeEvaluations = 0;
+
+                            // Log Decision
+                            var decision = new AdvisorDecision
+                            {
+                                ResourceKey = key,
+                                OldRate = currentRate,
+                                NewRate = newRate,
+                                GameTick = currentTick,
+                                OutcomeScore = profile.AvgOutcomeScore,
+                                Confidence = profile.Confidence,
+                                Summary = $"Bailout Triggered: {currentRate}% tax failed to stimulate. Normalizing rate to {newRate}%."
+                            };
+                            _database.DecisionLog.Add(decision);
+                            _database.TrimDecisionLog();
+                            uiNeedsUpdate = true;
+                            
+                            if (Mod.Settings?.DebugEnabled == true)
+                            {
+                                Mod.log.Info($"Bailout triggered for {key}. Rate {currentRate}% -> {newRate}%.");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Even though it's extreme, it's working well.
+                        profile.ConsecutiveExtremeEvaluations = 0;
+                    }
+                }
+                else
+                {
+                    // Rate is safe
+                    profile.ConsecutiveExtremeEvaluations = 0;
+                }
+            }
+
+            if (uiNeedsUpdate)
+            {
+                UpdateAdvisorBindings();
+            }
         }
 
         private CitySnapshot BuildCurrentSnapshot(uint gameTick, bool forceComplete)
@@ -384,7 +493,7 @@ namespace AdvancedTPM
             {
                 string key = kvp.Key;
                 Resource resource = kvp.Value;
-                if (!AutoTaxSystemMaps.ResourceTaxAreaMap.TryGetValue(key, out var area)) continue;
+                if (!TPMDataDefinitions.ResourceTaxAreaMap.TryGetValue(key, out var area)) continue;
 
                 int resourceIndex = EconomyUtils.GetResourceIndex(resource);
                 if (resourceIndex < 0) continue;
@@ -398,13 +507,13 @@ namespace AdvancedTPM
                     {
                         switch (area)
                         {
-                            case AutoTaxSystemMaps.ResourceTaxArea.Industrial:
+                            case TPMDataDefinitions.ResourceTaxArea.Industrial:
                                 rs.TaxRate = _taxSystem.GetIndustrialTaxRate(resource);
                                 break;
-                            case AutoTaxSystemMaps.ResourceTaxArea.Commercial:
+                            case TPMDataDefinitions.ResourceTaxArea.Commercial:
                                 rs.TaxRate = _taxSystem.GetCommercialTaxRate(resource);
                                 break;
-                            case AutoTaxSystemMaps.ResourceTaxArea.Office:
+                            case TPMDataDefinitions.ResourceTaxArea.Office:
                                 rs.TaxRate = _taxSystem.GetOfficeTaxRate(resource);
                                 break;
                         }
@@ -417,7 +526,7 @@ namespace AdvancedTPM
                     rs.Production = Math.Max(0, productionArray[resourceIndex]) / 1000f;
 
                 // Company count
-                bool useCommercial = area == AutoTaxSystemMaps.ResourceTaxArea.Office || area == AutoTaxSystemMaps.ResourceTaxArea.Commercial;
+                bool useCommercial = area == TPMDataDefinitions.ResourceTaxArea.Office || area == TPMDataDefinitions.ResourceTaxArea.Commercial;
                 if (!useCommercial && hasIndustrialData && resourceIndex < industrialCompanies.Length)
                     rs.CompanyCount = Math.Max(0, industrialCompanies[resourceIndex]);
                 if (useCommercial && hasCommercialData && resourceIndex < commercialCompanies.Length)
@@ -432,10 +541,10 @@ namespace AdvancedTPM
                         StatisticType statType;
                         switch (area)
                         {
-                            case AutoTaxSystemMaps.ResourceTaxArea.Industrial:
+                            case TPMDataDefinitions.ResourceTaxArea.Industrial:
                                 statType = StatisticType.IndustrialTaxableIncome;
                                 break;
-                            case AutoTaxSystemMaps.ResourceTaxArea.Commercial:
+                            case TPMDataDefinitions.ResourceTaxArea.Commercial:
                                 statType = StatisticType.CommercialTaxableIncome;
                                 break;
                             default:
@@ -867,130 +976,5 @@ namespace AdvancedTPM
             public float RevEffDelta;
             public string Summary;
         }
-    }
-
-    /// <summary>
-    /// Shared resource mappings used by both AutoTaxSystem and AdaptiveLearningSystem.
-    /// Avoids duplicating the large dictionaries.
-    /// </summary>
-    public static class AutoTaxSystemMaps
-    {
-        public enum ResourceTaxArea { Industrial, Commercial, Office }
-
-        public static readonly Dictionary<string, ResourceTaxArea> ResourceTaxAreaMap = new Dictionary<string, ResourceTaxArea>
-        {
-            ["grain"] = ResourceTaxArea.Industrial,
-            ["vegetables"] = ResourceTaxArea.Industrial,
-            ["cotton"] = ResourceTaxArea.Industrial,
-            ["livestock"] = ResourceTaxArea.Industrial,
-            ["fish"] = ResourceTaxArea.Industrial,
-            ["wood"] = ResourceTaxArea.Industrial,
-            ["ore"] = ResourceTaxArea.Industrial,
-            ["stone"] = ResourceTaxArea.Industrial,
-            ["coal"] = ResourceTaxArea.Industrial,
-            ["oil"] = ResourceTaxArea.Industrial,
-            ["food"] = ResourceTaxArea.Industrial,
-            ["beverages"] = ResourceTaxArea.Industrial,
-            ["conveniencefood"] = ResourceTaxArea.Industrial,
-            ["textiles"] = ResourceTaxArea.Industrial,
-            ["timber"] = ResourceTaxArea.Industrial,
-            ["paper"] = ResourceTaxArea.Industrial,
-            ["furniture"] = ResourceTaxArea.Industrial,
-            ["metals"] = ResourceTaxArea.Industrial,
-            ["steel"] = ResourceTaxArea.Industrial,
-            ["minerals"] = ResourceTaxArea.Industrial,
-            ["concrete"] = ResourceTaxArea.Industrial,
-            ["machinery"] = ResourceTaxArea.Industrial,
-            ["electronics"] = ResourceTaxArea.Industrial,
-            ["vehicles"] = ResourceTaxArea.Industrial,
-            ["petrochemicals"] = ResourceTaxArea.Industrial,
-            ["plastics"] = ResourceTaxArea.Industrial,
-            ["chemicals"] = ResourceTaxArea.Industrial,
-            ["pharmaceuticals"] = ResourceTaxArea.Industrial,
-            ["software"] = ResourceTaxArea.Office,
-            ["telecom"] = ResourceTaxArea.Office,
-            ["financial"] = ResourceTaxArea.Office,
-            ["media"] = ResourceTaxArea.Office,
-            ["lodging"] = ResourceTaxArea.Commercial,
-            ["meals"] = ResourceTaxArea.Commercial,
-            ["entertainment"] = ResourceTaxArea.Commercial,
-            ["recreation"] = ResourceTaxArea.Commercial,
-            ["c_food"] = ResourceTaxArea.Commercial,
-            ["c_beverages"] = ResourceTaxArea.Commercial,
-            ["c_conveniencefood"] = ResourceTaxArea.Commercial,
-            ["c_textiles"] = ResourceTaxArea.Commercial,
-            ["c_timber"] = ResourceTaxArea.Commercial,
-            ["c_paper"] = ResourceTaxArea.Commercial,
-            ["c_furniture"] = ResourceTaxArea.Commercial,
-            ["c_metals"] = ResourceTaxArea.Commercial,
-            ["c_steel"] = ResourceTaxArea.Commercial,
-            ["c_minerals"] = ResourceTaxArea.Commercial,
-            ["c_concrete"] = ResourceTaxArea.Commercial,
-            ["c_machinery"] = ResourceTaxArea.Commercial,
-            ["c_electronics"] = ResourceTaxArea.Commercial,
-            ["c_vehicles"] = ResourceTaxArea.Commercial,
-            ["c_petrochemicals"] = ResourceTaxArea.Commercial,
-            ["c_plastics"] = ResourceTaxArea.Commercial,
-            ["c_chemicals"] = ResourceTaxArea.Commercial,
-            ["c_pharmaceuticals"] = ResourceTaxArea.Commercial,
-        };
-
-        public static readonly Dictionary<string, Resource> ResourceKeyToEnum = new Dictionary<string, Resource>
-        {
-            ["grain"]           = Resource.Grain,
-            ["vegetables"]      = Resource.Vegetables,
-            ["cotton"]          = Resource.Cotton,
-            ["livestock"]       = Resource.Livestock,
-            ["fish"]            = Resource.Fish,
-            ["wood"]            = Resource.Wood,
-            ["ore"]             = Resource.Ore,
-            ["stone"]           = Resource.Stone,
-            ["coal"]            = Resource.Coal,
-            ["oil"]             = Resource.Oil,
-            ["food"]            = Resource.Food,
-            ["beverages"]       = Resource.Beverages,
-            ["conveniencefood"] = Resource.ConvenienceFood,
-            ["textiles"]        = Resource.Textiles,
-            ["timber"]          = Resource.Timber,
-            ["paper"]           = Resource.Paper,
-            ["furniture"]       = Resource.Furniture,
-            ["metals"]          = Resource.Metals,
-            ["steel"]           = Resource.Steel,
-            ["minerals"]        = Resource.Minerals,
-            ["concrete"]        = Resource.Concrete,
-            ["machinery"]       = Resource.Machinery,
-            ["electronics"]     = Resource.Electronics,
-            ["vehicles"]        = Resource.Vehicles,
-            ["petrochemicals"]  = Resource.Petrochemicals,
-            ["plastics"]        = Resource.Plastics,
-            ["chemicals"]       = Resource.Chemicals,
-            ["pharmaceuticals"] = Resource.Pharmaceuticals,
-            ["software"]        = Resource.Software,
-            ["telecom"]         = Resource.Telecom,
-            ["financial"]       = Resource.Financial,
-            ["media"]           = Resource.Media,
-            ["lodging"]         = Resource.Lodging,
-            ["meals"]           = Resource.Meals,
-            ["entertainment"]   = Resource.Entertainment,
-            ["recreation"]      = Resource.Recreation,
-            ["c_food"]            = Resource.Food,
-            ["c_beverages"]       = Resource.Beverages,
-            ["c_conveniencefood"] = Resource.ConvenienceFood,
-            ["c_textiles"]        = Resource.Textiles,
-            ["c_timber"]          = Resource.Timber,
-            ["c_paper"]           = Resource.Paper,
-            ["c_furniture"]       = Resource.Furniture,
-            ["c_metals"]          = Resource.Metals,
-            ["c_steel"]           = Resource.Steel,
-            ["c_minerals"]        = Resource.Minerals,
-            ["c_concrete"]        = Resource.Concrete,
-            ["c_machinery"]       = Resource.Machinery,
-            ["c_electronics"]     = Resource.Electronics,
-            ["c_vehicles"]        = Resource.Vehicles,
-            ["c_petrochemicals"]  = Resource.Petrochemicals,
-            ["c_plastics"]        = Resource.Plastics,
-            ["c_chemicals"]       = Resource.Chemicals,
-            ["c_pharmaceuticals"] = Resource.Pharmaceuticals,
-        };
     }
 }

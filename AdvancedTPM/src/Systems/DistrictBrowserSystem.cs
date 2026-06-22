@@ -138,6 +138,7 @@ namespace AdvancedTPM
             public int uniCapacity;
             public int uniEnrolled;
             public float uniEligible;
+            public int totalCrime;
             public int workerUneducatedMax;
             public int workerPoorlyEducatedMax;
             public int workerEducatedMax;
@@ -147,6 +148,7 @@ namespace AdvancedTPM
             public int deceased;
             public int students;
             public int movingAway;
+            public int unemployed;
 
             public void Add(DistrictStats other)
             {
@@ -217,6 +219,7 @@ namespace AdvancedTPM
                 deceased += other.deceased;
                 students += other.students;
                 movingAway += other.movingAway;
+                unemployed += other.unemployed;
             }
         }
 
@@ -259,6 +262,7 @@ namespace AdvancedTPM
             [ReadOnly] public ComponentLookup<Game.Buildings.PoliceStation> m_PoliceStationLookup;
             [ReadOnly] public ComponentLookup<Game.Buildings.FireStation> m_FireStationLookup;
             [ReadOnly] public ComponentLookup<Game.Buildings.Park> m_ParkLookup;
+            [ReadOnly] public ComponentLookup<Game.Buildings.CrimeProducer> m_CrimeProducerLookup;
             [ReadOnly] public ComponentLookup<Game.Buildings.DeathcareFacility> m_DeathcareFacilityLookup;
             [ReadOnly] public ComponentLookup<Game.Buildings.GarbageFacility> m_GarbageFacilityLookup;
             [ReadOnly] public ComponentLookup<Game.Prefabs.SchoolData> m_SchoolDataLookup;
@@ -322,6 +326,11 @@ namespace AdvancedTPM
                     bool isSvc = m_ServiceUpgradeLookup.HasComponent(bEnt) || m_HospitalLookup.HasComponent(bEnt) || m_SchoolLookup.HasComponent(bEnt) || m_PoliceStationLookup.HasComponent(bEnt) || m_FireStationLookup.HasComponent(bEnt) || m_ParkLookup.HasComponent(prEnt) || m_DeathcareFacilityLookup.HasComponent(bEnt) || m_GarbageFacilityLookup.HasComponent(bEnt);
                     
                     if (isSvc) stats.svc++;
+
+                    if (m_CrimeProducerLookup.TryGetComponent(bEnt, out var cp))
+                    {
+                        stats.totalCrime += (int)math.round(cp.m_Crime);
+                    }
 
                     if (isRes)
                     {
@@ -508,6 +517,9 @@ namespace AdvancedTPM
             [ReadOnly] public ComponentLookup<Destroyed> m_DestroyedLookup;
             [ReadOnly] public ComponentLookup<UnderConstruction> m_UnderConstructionLookup;
             [ReadOnly] public ComponentLookup<MovingAway> m_MovingAwayLookup;
+            [ReadOnly] public ComponentLookup<Worker> m_WorkerLookup;
+            [ReadOnly] public ComponentLookup<Game.Citizens.Student> m_StudentLookup;
+            [ReadOnly] public ComponentLookup<Game.Citizens.HomelessHousehold> m_HomelessHouseholdLookup;
             public NativeStream.Writer m_Stream;
 
             public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in Unity.Burst.Intrinsics.v128 chunkEnabledMask)
@@ -539,6 +551,9 @@ namespace AdvancedTPM
                             bool isMovingAway = m_MovingAwayLookup.HasComponent(cEnt) || m_MovingAwayLookup.HasComponent(household);
                             if (isMovingAway) stats.movingAway = 1;
 
+                            if (m_StudentLookup.HasComponent(cEnt)) stats.students = 1;
+                            if (m_HomelessHouseholdLookup.HasComponent(household)) stats.homeless = 1;
+
                             if ((hh.m_Flags & HouseholdFlags.Tourist) != 0)
                             {
                                 stats.tourists = 1;
@@ -548,7 +563,8 @@ namespace AdvancedTPM
                                 stats.residents = 1;
                                 stats.citizenCount = 1;
                                 stats.totalHappiness = citizen.Happiness;
-                                switch (citizen.GetAge())
+                                var age = citizen.GetAge();
+                                switch (age)
                                 {
                                     case CitizenAge.Child: stats.children = 1; break;
                                     case CitizenAge.Teen: stats.teens = 1; break;
@@ -563,6 +579,11 @@ namespace AdvancedTPM
                                     case 3: stats.eduWellEducated = 1; break;
                                     case 4: stats.eduHighlyEducated = 1; break;
                                 }
+                                // Unemployment: working-age citizen (teen or adult) with no Worker component
+                                if ((age == CitizenAge.Teen || age == CitizenAge.Adult) && !m_WorkerLookup.HasComponent(cEnt))
+                                {
+                                    stats.unemployed = 1;
+                                }
                             }
                             if (district != Entity.Null) m_Stream.Write(new DistrictDelta { district = district, stats = stats });
                         }
@@ -573,6 +594,9 @@ namespace AdvancedTPM
                         DistrictStats stats = default;
                         stats.residents = 1;
                         stats.adults = 1;
+                        if (m_StudentLookup.HasComponent(cEnt)) stats.students = 1;
+                        // For limbo citizens, if they are not in a household with a property, consider them homeless fallback
+                        stats.homeless = 1;
                         m_Stream.Write(new DistrictDelta { district = citizenCd.m_District, stats = stats });
                     }
                 }
@@ -928,6 +952,7 @@ namespace AdvancedTPM
                     m_PoliceStationLookup = SystemAPI.GetComponentLookup<Game.Buildings.PoliceStation>(true),
                     m_FireStationLookup = SystemAPI.GetComponentLookup<Game.Buildings.FireStation>(true),
                     m_ParkLookup = SystemAPI.GetComponentLookup<Game.Buildings.Park>(true),
+                    m_CrimeProducerLookup = SystemAPI.GetComponentLookup<Game.Buildings.CrimeProducer>(true),
                     m_DeathcareFacilityLookup = SystemAPI.GetComponentLookup<Game.Buildings.DeathcareFacility>(true),
                     m_GarbageFacilityLookup = SystemAPI.GetComponentLookup<Game.Buildings.GarbageFacility>(true),
                     m_SchoolDataLookup = SystemAPI.GetComponentLookup<SchoolData>(true),
@@ -941,7 +966,7 @@ namespace AdvancedTPM
                     m_TaxRates = taxRates,
                     m_Stream = m_Stream1.AsWriter()
                 };
-                var cJob = new UpdateCitizenStatsJob { m_EntityHandle = SystemAPI.GetEntityTypeHandle(), m_CitizenHandle = SystemAPI.GetComponentTypeHandle<Citizen>(true), m_CurrentDistrictLookup = SystemAPI.GetComponentLookup<CurrentDistrict>(true), m_HouseholdMemberLookup = SystemAPI.GetComponentLookup<HouseholdMember>(true), m_HouseholdLookup = SystemAPI.GetComponentLookup<Household>(true), m_PropertyRenterLookup = SystemAPI.GetComponentLookup<PropertyRenter>(true), m_DeletedLookup = SystemAPI.GetComponentLookup<Deleted>(true), m_DestroyedLookup = SystemAPI.GetComponentLookup<Destroyed>(true), m_UnderConstructionLookup = SystemAPI.GetComponentLookup<UnderConstruction>(true), m_MovingAwayLookup = SystemAPI.GetComponentLookup<MovingAway>(true), m_Stream = m_Stream2.AsWriter() };
+                var cJob = new UpdateCitizenStatsJob { m_EntityHandle = SystemAPI.GetEntityTypeHandle(), m_CitizenHandle = SystemAPI.GetComponentTypeHandle<Citizen>(true), m_CurrentDistrictLookup = SystemAPI.GetComponentLookup<CurrentDistrict>(true), m_HouseholdMemberLookup = SystemAPI.GetComponentLookup<HouseholdMember>(true), m_HouseholdLookup = SystemAPI.GetComponentLookup<Household>(true), m_PropertyRenterLookup = SystemAPI.GetComponentLookup<PropertyRenter>(true), m_DeletedLookup = SystemAPI.GetComponentLookup<Deleted>(true), m_DestroyedLookup = SystemAPI.GetComponentLookup<Destroyed>(true), m_UnderConstructionLookup = SystemAPI.GetComponentLookup<UnderConstruction>(true), m_MovingAwayLookup = SystemAPI.GetComponentLookup<MovingAway>(true), m_WorkerLookup = SystemAPI.GetComponentLookup<Worker>(true), m_StudentLookup = SystemAPI.GetComponentLookup<Game.Citizens.Student>(true), m_HomelessHouseholdLookup = SystemAPI.GetComponentLookup<Game.Citizens.HomelessHousehold>(true), m_Stream = m_Stream2.AsWriter() };
                 var pJob = new UpdatePetStatsJob { m_EntityHandle = SystemAPI.GetEntityTypeHandle(), m_PetHandle = SystemAPI.GetComponentTypeHandle<HouseholdPet>(true), m_PropertyRenterLookup = SystemAPI.GetComponentLookup<PropertyRenter>(true), m_CurrentDistrictLookup = SystemAPI.GetComponentLookup<CurrentDistrict>(true), m_Stream = m_Stream3.AsWriter() };
                 var hhJob = new UpdateHouseholdStatsJob { m_EntityHandle = SystemAPI.GetEntityTypeHandle(), m_HouseholdHandle = SystemAPI.GetComponentTypeHandle<Household>(true), m_PropertyRenterLookup = SystemAPI.GetComponentLookup<PropertyRenter>(true), m_CurrentDistrictLookup = SystemAPI.GetComponentLookup<CurrentDistrict>(true), m_BuildingLookup = SystemAPI.GetComponentLookup<Building>(true), m_DestroyedLookup = SystemAPI.GetComponentLookup<Destroyed>(true), m_UnderConstructionLookup = SystemAPI.GetComponentLookup<UnderConstruction>(true), m_ResidentialPropertyLookup = SystemAPI.GetComponentLookup<ResidentialProperty>(true), m_PrefabRefLookup = SystemAPI.GetComponentLookup<PrefabRef>(true), m_ResourcesLookup = SystemAPI.GetBufferLookup<Resources>(true), m_HouseholdCitizenLookup = SystemAPI.GetBufferLookup<HouseholdCitizen>(true), m_WorkerLookup = SystemAPI.GetComponentLookup<Worker>(true), m_CitizenLookup = SystemAPI.GetComponentLookup<Citizen>(true), m_HealthProblemLookup = SystemAPI.GetComponentLookup<HealthProblem>(true), m_EconomyParameters = economyParameters, m_TaxRates = taxRates, m_Stream = m_Stream4.AsWriter() };
 
@@ -1056,7 +1081,7 @@ namespace AdvancedTPM
             cityStats.residents = cityResidentsLive;
             int cityPureRes = math.max(0, cityStats.res - cityStats.mixedProp);
 
-            _itemBuffer.Add($"{{\"entityKey\":\"city\",\"name\":\"City\",\"isCity\":true,\"cityName\":\"{EscapeJson(cityDisplayName)}\",\"policies\":[{string.Join(",", cityPolicies)}],\"res\":{cityStats.res},\"svc\":{cityStats.svc},\"biz\":{cityPureBusiness},\"households\":{cityStats.households},\"householdCap\":{cityStats.householdCap},\"workers\":{cityStats.workers},\"maxWorkers\":{cityStats.maxWorkers},\"avgWealth\":{cityAvgWealth},\"avgIncome\":{cityAvgIncome},\"avgRent\":{cityAvgRent},\"avgHappiness\":{cityAvgHappiness},\"residents\":{cityStats.residents},\"tourists\":{cityStats.tourists},\"children\":{cityStats.children},\"teens\":{cityStats.teens},\"adults\":{cityStats.adults},\"seniors\":{cityStats.seniors},\"eduUneducated\":{cityStats.eduUneducated},\"eduPoorlyEducated\":{cityStats.eduPoorlyEducated},\"eduEducated\":{cityStats.eduEducated},\"eduWellEducated\":{cityStats.eduWellEducated},\"eduHighlyEducated\":{cityStats.eduHighlyEducated},\"workerUneducated\":{cityStats.workerUneducated},\"workerPoorlyEducated\":{cityStats.workerPoorlyEducated},\"workerEducated\":{cityStats.workerEducated},\"workerWellEducated\":{cityStats.workerWellEducated},\"workerHighlyEducated\":{cityStats.workerHighlyEducated},\"workerUneducatedMax\":{cityStats.workerUneducatedMax},\"workerPoorlyEducatedMax\":{cityStats.workerPoorlyEducatedMax},\"workerEducatedMax\":{cityStats.workerEducatedMax},\"workerWellEducatedMax\":{cityStats.workerWellEducatedMax},\"workerHighlyEducatedMax\":{cityStats.workerHighlyEducatedMax},\"elemCapacity\":{cityStats.elemCapacity},\"hsCapacity\":{cityStats.hsCapacity},\"collegeCapacity\":{cityStats.collegeCapacity},\"uniCapacity\":{cityStats.uniCapacity},\"elemEnrolled\":{cityStats.elemEnrolled},\"hsEnrolled\":{cityStats.hsEnrolled},\"collegeEnrolled\":{cityStats.collegeEnrolled},\"uniEnrolled\":{cityStats.uniEnrolled},\"elemEligible\":{(int)math.ceil(cityStats.elemEligible)},\"hsEligible\":{(int)math.ceil(cityStats.hsEligible)},\"collegeEligible\":{(int)math.ceil(cityStats.collegeEligible)},\"uniEligible\":{(int)math.ceil(cityStats.uniEligible)},\"localServices\":{cityStats.localServices},\"serviceMask\":{cityStats.serviceMask},\"propertyCount\":{cityStats.propertyCount},\"resProp\":{cityPureRes},\"comProp\":{cityStats.comProp},\"indProp\":{cityStats.indProp},\"offProp\":{cityStats.offProp},\"storProp\":{cityStats.storProp},\"mixedProp\":{cityStats.mixedProp},\"pets\":{cityStats.pets},\"deceased\":{cityStats.deceased},\"students\":{cityStats.students},\"movingAway\":{gameMovingAwayHouseholds},\"avgBuildingLevel\":{avgBuildingLevelCity},\"buildingLevelSamples\":{cityStats.buildingLevelSamples},\"totalLandValue\":{cityStats.totalLandValue},\"landValueSamples\":{cityStats.landValueSamples},\"homeless\":{cityStats.homeless},\"upkeep\":{cityStats.upkeep},\"resourceCost\":{cityStats.resources},\"feesPaid\":{cityStats.fees},\"area\":{cityStats.area},\"happinessFactors\":[],\"gameAllCitizens\":{gameAllCitizens},\"gameTourists\":{cityStats.tourists},\"gameCommuters\":{gameCommuters},\"gameMovingAway\":{gameMovingAwayHouseholds},\"gameEmployees\":{cityStats.workers}}}");
+            _itemBuffer.Add($"{{\"entityKey\":\"city\",\"name\":\"City\",\"isCity\":true,\"cityName\":\"{EscapeJson(cityDisplayName)}\",\"policies\":[{string.Join(",", cityPolicies)}],\"res\":{cityStats.res},\"svc\":{cityStats.svc},\"biz\":{cityPureBusiness},\"households\":{cityStats.households},\"householdCap\":{cityStats.householdCap},\"workers\":{cityStats.workers},\"maxWorkers\":{cityStats.maxWorkers},\"avgWealth\":{cityAvgWealth},\"avgIncome\":{cityAvgIncome},\"avgRent\":{cityAvgRent},\"avgHappiness\":{cityAvgHappiness},\"residents\":{cityStats.residents},\"tourists\":{cityStats.tourists},\"children\":{cityStats.children},\"teens\":{cityStats.teens},\"adults\":{cityStats.adults},\"seniors\":{cityStats.seniors},\"eduUneducated\":{cityStats.eduUneducated},\"eduPoorlyEducated\":{cityStats.eduPoorlyEducated},\"eduEducated\":{cityStats.eduEducated},\"eduWellEducated\":{cityStats.eduWellEducated},\"eduHighlyEducated\":{cityStats.eduHighlyEducated},\"workerUneducated\":{cityStats.workerUneducated},\"workerPoorlyEducated\":{cityStats.workerPoorlyEducated},\"workerEducated\":{cityStats.workerEducated},\"workerWellEducated\":{cityStats.workerWellEducated},\"workerHighlyEducated\":{cityStats.workerHighlyEducated},\"workerUneducatedMax\":{cityStats.workerUneducatedMax},\"workerPoorlyEducatedMax\":{cityStats.workerPoorlyEducatedMax},\"workerEducatedMax\":{cityStats.workerEducatedMax},\"workerWellEducatedMax\":{cityStats.workerWellEducatedMax},\"workerHighlyEducatedMax\":{cityStats.workerHighlyEducatedMax},\"elemCapacity\":{cityStats.elemCapacity},\"hsCapacity\":{cityStats.hsCapacity},\"collegeCapacity\":{cityStats.collegeCapacity},\"uniCapacity\":{cityStats.uniCapacity},\"elemEnrolled\":{cityStats.elemEnrolled},\"hsEnrolled\":{cityStats.hsEnrolled},\"collegeEnrolled\":{cityStats.collegeEnrolled},\"uniEnrolled\":{cityStats.uniEnrolled},\"elemEligible\":{(int)math.ceil(cityStats.elemEligible)},\"hsEligible\":{(int)math.ceil(cityStats.hsEligible)},\"collegeEligible\":{(int)math.ceil(cityStats.collegeEligible)},\"uniEligible\":{(int)math.ceil(cityStats.uniEligible)},\"localServices\":{cityStats.localServices},\"serviceMask\":{cityStats.serviceMask},\"propertyCount\":{cityStats.propertyCount},\"resProp\":{cityPureRes},\"comProp\":{cityStats.comProp},\"indProp\":{cityStats.indProp},\"offProp\":{cityStats.offProp},\"storProp\":{cityStats.storProp},\"mixedProp\":{cityStats.mixedProp},\"pets\":{cityStats.pets},\"deceased\":{cityStats.deceased},\"students\":{cityStats.students},\"movingAway\":{gameMovingAwayHouseholds},\"avgBuildingLevel\":{avgBuildingLevelCity},\"buildingLevelSamples\":{cityStats.buildingLevelSamples},\"totalLandValue\":{cityStats.totalLandValue},\"landValueSamples\":{cityStats.landValueSamples},\"homeless\":{cityStats.homeless},\"totalCrime\":{cityStats.totalCrime},\"upkeep\":{cityStats.upkeep},\"resourceCost\":{cityStats.resources},\"feesPaid\":{cityStats.fees},\"area\":{cityStats.area},\"happinessFactors\":[],\"gameAllCitizens\":{gameAllCitizens},\"gameTourists\":{cityStats.tourists},\"gameCommuters\":{gameCommuters},\"gameMovingAway\":{gameMovingAwayHouseholds},\"gameEmployees\":{cityStats.workers},\"unemployed\":{cityStats.unemployed}}}");
 
             // RESTORE FULL PAYLOAD FOR DISTRICTS
             // Reuse the pre-allocated per-district active-policies buffer — cleared per district,
@@ -1091,7 +1116,7 @@ namespace AdvancedTPM
                                 districtActivePolicies.Add($"\"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}\"");
                         }
                     }
-                    _itemBuffer.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{EscapeJson(_nameSystem.GetRenderedLabelName(e))}\",\"policies\":[{string.Join(",", districtActivePolicies)}],\"res\":{s.res},\"svc\":{s.svc},\"biz\":{dBiz},\"households\":{s.households},\"householdCap\":{s.householdCap},\"workers\":{s.workers},\"maxWorkers\":{s.maxWorkers},\"avgWealth\":{dAvgWealth},\"avgIncome\":{dAvgIncome},\"avgRent\":{dAvgRent},\"avgHappiness\":{dAvgHappiness},\"residents\":{s.residents},\"tourists\":{s.tourists},\"children\":{s.children},\"teens\":{s.teens},\"adults\":{s.adults},\"seniors\":{s.seniors},\"eduUneducated\":{s.eduUneducated},\"eduPoorlyEducated\":{s.eduPoorlyEducated},\"eduEducated\":{s.eduEducated},\"eduWellEducated\":{s.eduWellEducated},\"eduHighlyEducated\":{s.eduHighlyEducated},\"workerUneducated\":{s.workerUneducated},\"workerPoorlyEducated\":{s.workerPoorlyEducated},\"workerEducated\":{s.workerEducated},\"workerWellEducated\":{s.workerWellEducated},\"workerHighlyEducated\":{s.workerHighlyEducated},\"workerUneducatedMax\":{s.workerUneducatedMax},\"workerPoorlyEducatedMax\":{s.workerPoorlyEducatedMax},\"workerEducatedMax\":{s.workerEducatedMax},\"workerWellEducatedMax\":{s.workerWellEducatedMax},\"workerHighlyEducatedMax\":{s.workerHighlyEducatedMax},\"elemCapacity\":{s.elemCapacity},\"hsCapacity\":{s.hsCapacity},\"collegeCapacity\":{s.collegeCapacity},\"uniCapacity\":{s.uniCapacity},\"elemEnrolled\":{s.elemEnrolled},\"hsEnrolled\":{s.hsEnrolled},\"collegeEnrolled\":{s.collegeEnrolled},\"uniEnrolled\":{s.uniEnrolled},\"elemEligible\":{(int)math.ceil(s.elemEligible)},\"hsEligible\":{(int)math.ceil(s.hsEligible)},\"collegeEligible\":{(int)math.ceil(s.collegeEligible)},\"uniEligible\":{(int)math.ceil(s.uniEligible)},\"localServices\":{s.localServices},\"serviceMask\":{s.serviceMask},\"propertyCount\":{s.propertyCount},\"resProp\":{dPureRes},\"comProp\":{s.comProp},\"indProp\":{s.indProp},\"offProp\":{s.offProp},\"storProp\":{s.storProp},\"mixedProp\":{s.mixedProp},\"pets\":{s.pets},\"deceased\":{s.deceased},\"students\":{s.students},\"movingAway\":{s.movingAway},\"avgBuildingLevel\":{dAvgBuildingLevel},\"buildingLevelSamples\":{s.buildingLevelSamples},\"totalLandValue\":{s.totalLandValue},\"landValueSamples\":{s.landValueSamples},\"homeless\":{s.homeless},\"upkeep\":{s.upkeep},\"resourceCost\":{s.resources},\"feesPaid\":{s.fees},\"area\":{s.area},\"happinessFactors\":[]}}");
+                    _itemBuffer.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{EscapeJson(_nameSystem.GetRenderedLabelName(e))}\",\"policies\":[{string.Join(",", districtActivePolicies)}],\"res\":{s.res},\"svc\":{s.svc},\"biz\":{dBiz},\"households\":{s.households},\"householdCap\":{s.householdCap},\"workers\":{s.workers},\"maxWorkers\":{s.maxWorkers},\"avgWealth\":{dAvgWealth},\"avgIncome\":{dAvgIncome},\"avgRent\":{dAvgRent},\"avgHappiness\":{dAvgHappiness},\"residents\":{s.residents},\"tourists\":{s.tourists},\"children\":{s.children},\"teens\":{s.teens},\"adults\":{s.adults},\"seniors\":{s.seniors},\"eduUneducated\":{s.eduUneducated},\"eduPoorlyEducated\":{s.eduPoorlyEducated},\"eduEducated\":{s.eduEducated},\"eduWellEducated\":{s.eduWellEducated},\"eduHighlyEducated\":{s.eduHighlyEducated},\"workerUneducated\":{s.workerUneducated},\"workerPoorlyEducated\":{s.workerPoorlyEducated},\"workerEducated\":{s.workerEducated},\"workerWellEducated\":{s.workerWellEducated},\"workerHighlyEducated\":{s.workerHighlyEducated},\"workerUneducatedMax\":{s.workerUneducatedMax},\"workerPoorlyEducatedMax\":{s.workerPoorlyEducatedMax},\"workerEducatedMax\":{s.workerEducatedMax},\"workerWellEducatedMax\":{s.workerWellEducatedMax},\"workerHighlyEducatedMax\":{s.workerHighlyEducatedMax},\"elemCapacity\":{s.elemCapacity},\"hsCapacity\":{s.hsCapacity},\"collegeCapacity\":{s.collegeCapacity},\"uniCapacity\":{s.uniCapacity},\"elemEnrolled\":{s.elemEnrolled},\"hsEnrolled\":{s.hsEnrolled},\"collegeEnrolled\":{s.collegeEnrolled},\"uniEnrolled\":{s.uniEnrolled},\"elemEligible\":{(int)math.ceil(s.elemEligible)},\"hsEligible\":{(int)math.ceil(s.hsEligible)},\"collegeEligible\":{(int)math.ceil(s.collegeEligible)},\"uniEligible\":{(int)math.ceil(s.uniEligible)},\"localServices\":{s.localServices},\"serviceMask\":{s.serviceMask},\"propertyCount\":{s.propertyCount},\"resProp\":{dPureRes},\"comProp\":{s.comProp},\"indProp\":{s.indProp},\"offProp\":{s.offProp},\"storProp\":{s.storProp},\"mixedProp\":{s.mixedProp},\"pets\":{s.pets},\"deceased\":{s.deceased},\"students\":{s.students},\"movingAway\":{s.movingAway},\"avgBuildingLevel\":{dAvgBuildingLevel},\"buildingLevelSamples\":{s.buildingLevelSamples},\"totalLandValue\":{s.totalLandValue},\"landValueSamples\":{s.landValueSamples},\"homeless\":{s.homeless},\"totalCrime\":{s.totalCrime},\"upkeep\":{s.upkeep},\"resourceCost\":{s.resources},\"feesPaid\":{s.fees},\"area\":{s.area},\"happinessFactors\":[],\"unemployed\":{s.unemployed}}}");
                 }
             }
             finally

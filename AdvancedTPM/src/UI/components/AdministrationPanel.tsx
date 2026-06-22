@@ -17,7 +17,7 @@ const AdministrationPanel: React.FC<Props> = ({ companyBrowserData, companyHappi
     <div className="adv-table-section">
       {/* Cap companies to avoid heavy rendering when opening administrative services */}
       <ErrorBoundary name="AdministrationPanel">
-        <CompanyBrowser companies={companies.slice(0, 300)} happinessData={companyHappinessData} isSignatureView={false} />
+        <CompanyBrowser companies={companies.slice(0, 300)} isSignatureView={false} />
       </ErrorBoundary>
     </div>
   );

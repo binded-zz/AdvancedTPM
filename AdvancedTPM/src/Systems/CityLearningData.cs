@@ -156,6 +156,12 @@ namespace AdvancedTPM
         /// Used to detect direction reversals for volatility calculation.
         /// </summary>
         public int LastDirection { get; set; }
+
+        /// <summary>
+        /// Number of consecutive evaluations where the tax rate was extreme (<= 0 or >= 25) 
+        /// and the outcome was negative or neutral. Used to trigger bailout overrides.
+        /// </summary>
+        public int ConsecutiveExtremeEvaluations { get; set; }
     }
 
     /// <summary>

@@ -48,6 +48,12 @@ interface ResidentialBuilding {
   assetPack: string;
   assetPackIcon?: string;
   isSignature: boolean;
+  cityEffects?: string;
+  localEffects?: string;
+  attractiveness?: number;
+  attractivenessFactors?: string;
+  happinessFactors?: string;
+  happiness?: number;
 }
 
 const parseResidentialData = (payload: string): ResidentialData | null => {
@@ -105,8 +111,67 @@ const parseResidentialBuildings = (payload: string): ResidentialBuilding[] => {
       isSignature: parts[9] === '1',
       assetPackIcon: parts[10] || '',
       themeIcon: parts[11] || '',
+      cityEffects: parts[12] || '',
+      localEffects: parts[13] || '',
+      attractiveness: Number(parts[14]) || 0,
+      attractivenessFactors: parts[15] || '',
+      happiness: Number((parts[16] || '').split('^')[0]) || 50,
+      happinessFactors: (parts[16] || '').includes('^') ? parts[16].substring(parts[16].indexOf('^') + 1) : '',
     } as ResidentialBuilding;
   }).filter((x): x is ResidentialBuilding => x !== null);
+};
+
+const EFF_FACTOR_LABELS: Record<string, string> = {
+  EmployeeHappiness: 'Employee Happiness',
+  ElectricitySupply: 'Electricity Supply',
+  ElectricityFee: 'Electricity Fee',
+  WaterSupply: 'Water Supply',
+  DirtyWater: 'Dirty Water',
+  SewageHandling: 'Sewage',
+  WaterFee: 'Water Fee',
+  NoisePollution: 'Noise Pollution',
+  GroundPollution: 'Ground Pollution',
+  AirPollution: 'Air Pollution',
+  TrafficPenalty: 'Traffic Penalty',
+  DeathPenalty: 'Death Penalty',
+  Healthcare: 'Healthcare',
+  Entertainment: 'Entertainment',
+  Education: 'Education',
+  Mail: 'Mail',
+  Welfare: 'Welfare',
+  Leisure: 'Leisure',
+  Tax: 'Tax',
+  Buildings: 'Buildings',
+  Consumption: 'Consumption',
+  Homelessness: 'Homelessness',
+  Telecom: 'Telecom',
+  Crime: 'Crime',
+  Apartment: 'Apartment',
+};
+
+const getEfficiencyFactorIcon = (factorName: string): string => {
+  if (!factorName) return 'Media/Game/Icons/StarNotification.svg';
+  const n = factorName.toLowerCase();
+  if (n.includes('worker') || n.includes('employee') || n.includes('staff')) return 'Media/Game/Icons/Workers.svg';
+  if (n.includes('electric') || n.includes('power')) return 'Media/Game/Icons/Electricity.svg';
+  if (n.includes('water') || n.includes('sewage')) return 'Media/Game/Icons/Water.svg';
+  if (n.includes('garbage') || n.includes('waste')) return 'Media/Game/Icons/Garbage.svg';
+  if (n.includes('mail')) return 'Media/Game/Icons/Mail.svg';
+  if (n.includes('crime')) return 'Media/Game/Icons/Crime.svg';
+  if (n.includes('transport') || n.includes('access') || n.includes('traffic')) return 'Media/Game/Icons/Traffic.svg';
+  if (n.includes('road') || n.includes('network')) return 'Media/Game/Icons/Roads.svg';
+  if (n.includes('healthcare') || n.includes('hospital') || n.includes('sick')) return 'Media/Game/Icons/Healthcare.svg';
+  if (n.includes('education') || n.includes('school') || n.includes('university') || n.includes('college')) return 'Media/Game/Icons/Education.svg';
+  if (n.includes('wealth')) return 'Media/Game/Icons/Wealth.svg';
+  if (n.includes('park') || n.includes('entertainment') || n.includes('attraction') || n.includes('leisure') || n.includes('apartment') || n.includes('building')) return 'Media/Game/Icons/ParksAndRecreation.svg';
+  if (n.includes('welfare') || n.includes('wellbeing')) return 'Media/Game/Icons/Welfare.svg';
+  if (n.includes('fire')) return 'Media/Game/Icons/FireAndRescue.svg';
+  if (n.includes('deathcare') || n.includes('death') || n.includes('cemetery') || n.includes('crematorium')) return 'Media/Game/Icons/Deathcare.svg';
+  if (n.includes('police')) return 'Media/Game/Icons/PoliceAndAdministration.svg';
+  if (n.includes('telecom') || n.includes('network')) return 'Media/Game/Icons/Communications.svg';
+  if (n.includes('pollution')) return 'Media/Game/Icons/Pollution.svg';
+  if (n.includes('tax') || n.includes('consumption')) return 'Media/Game/Icons/Economy.svg';
+  return 'Media/Game/Icons/StarNotification.svg';
 };
 
 const formatPackName = (name: string): string => {
@@ -156,7 +221,7 @@ const getResidentialRowTooltip = (b: ResidentialBuilding, data: ResidentialData)
     `District: ${b.district || 'City'}`,
     `Theme: ${normalizeTheme(b)} • Pack: ${b.assetPack || 'Base Game'}`,
     `Occupancy: ${b.occupied}/${b.capacity || 0} (${occPct}%)`,
-    `<br/><b>Estimated Happiness: ${estimate}%</b>`,
+    `<br/><b>True Happiness: ${b.happiness}%</b>`,
     `City Avg: ${cityAvgHappiness}%`,
     `<br/>Signature: ${b.isSignature ? 'Yes' : 'No'}`,
     `Entity: ${b.entityKey}`,
@@ -308,10 +373,10 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
       }
     });
     // Add defaults
-    if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
-    if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
-    if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
-    if (!map.has('USA')) map.set('USA', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    if (!map.has('European')) map.set('European', 'Media/Game/Icons/ThemeEuropean.svg');
+    if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'Media/Game/Icons/ThemeNorthAmerican.svg');
+    if (!map.has('EU')) map.set('EU', 'Media/Game/Icons/ThemeEuropean.svg');
+    if (!map.has('USA')) map.set('USA', 'Media/Game/Icons/ThemeNorthAmerican.svg');
     return map;
   }, [safeBuildings]);
 
@@ -371,14 +436,10 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
       });
     }
 
-    if (minHappiness > 0 || maxHappiness < 100) {
+    if (maxHappiness < 100 || minHappiness > 0) {
       list = list.filter((b) => {
-        const base = data.avgHappiness || 50;
-        const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
-        const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
-        const levelAdj = (b.level - 3) * 2;
-        const estimate = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
-        return estimate >= minHappiness && estimate <= maxHappiness;
+        if (b.happiness === undefined || b.happiness < minHappiness || b.happiness > maxHappiness) return false;
+        return true;
       });
     }
 
@@ -463,13 +524,9 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
   const exportToCSV = useCallback(() => {
     if (safeFilteredBuildings.length === 0) return;
 
-    const headers = ['Address', 'Density', 'Level', 'Theme', 'Asset Pack', 'Occupied', 'Capacity', 'Occupancy %', 'Est. Happiness %', 'Signature'];
+    const headers = ['Address', 'Density', 'Level', 'Theme', 'Asset Pack', 'Occupied', 'Capacity', 'Occupancy %', 'Happiness %', 'Signature'];
     const rows = safeFilteredBuildings.map((b) => {
       const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : (b.occupied > 0 ? 100 : 0);
-      const base = data?.avgHappiness || 50;
-      const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
-      const levelAdj = (b.level - 3) * 2;
-      const happinessEst = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
 
       return [
         `\"${(b.address || '').replace(/\"/g, '\"\"')}\"`,
@@ -480,7 +537,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
         b.occupied || 0,
         b.capacity || 0,
         occPct,
-        happinessEst,
+        b.happiness ?? 50,
         b.isSignature ? 'Yes' : 'No',
       ].join(',');
     });
@@ -495,7 +552,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [safeFilteredBuildings, data]);
+  }, [safeFilteredBuildings]);
 
   if (!data) {
     return <div className="res-panel-empty">Residential data will appear when the simulation is running.</div>;
@@ -725,12 +782,9 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                         <div className="res-bcol-occupancy" style={{ color: getSafeColor(occColor) }}>{occPct}%</div>
                         <div className="res-bcol-happy">
                           {(() => {
-                            const base = data.avgHappiness || 50;
-                            const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
-                            const levelAdj = (b.level - 3) * 2;
-                            const estimate = Math.round(Math.max(0, Math.min(100, base + occupancyAdj + levelAdj)));
-                            const color = estimate >= 75 ? '#8bdb46' : estimate >= 50 ? '#50b8e9' : estimate >= 30 ? '#e88c3a' : '#e05050';
-                            return <span style={{ color: getSafeColor(color), fontWeight: 700 }} title={`Estimated happiness: ${estimate}%`}>{`${estimate}%`}</span>;
+                            const val = b.happiness ?? 50;
+                            const color = val >= 75 ? '#8bdb46' : val >= 50 ? '#50b8e9' : val >= 30 ? '#e88c3a' : '#e05050';
+                            return <span style={{ color: getSafeColor(color), fontWeight: 700 }} title={`True Happiness: ${val}%`}>{`${val}%`}</span>;
                           })()}
                         </div>
                         <div className="res-bcol-action">
@@ -768,7 +822,69 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                             <div><span className="res-bldg-detail-label">Level</span><span className="res-bldg-detail-value">{`Lv ${b.level}`}</span></div>
                             <div><span className="res-bldg-detail-label">Occupancy</span><span className="res-bldg-detail-value">{`${b.occupied}/${b.capacity || 0} (${occPct}%)`}</span></div>
                             <div><span className="res-bldg-detail-label">Signature</span><span className="res-bldg-detail-value">{b.isSignature ? 'Yes' : 'No'}</span></div>
+                            {b.attractiveness ? <div><span className="res-bldg-detail-label">Attractiveness</span><span className="res-bldg-detail-value" style={{ color: getSafeColor('#3fc9d8') }}>{b.attractiveness}</span></div> : null}
+                            {b.attractivenessFactors && b.attractivenessFactors.split('|').map((factor, idx) => {
+                              const parts = factor.split(':');
+                              if (parts.length !== 2) return null;
+                              const capitalizedLabel = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+                              const label = capitalizedLabel.replace(/([a-z])([A-Z])/g, '$1 $2');
+                              const val = Number(parts[1]);
+                              const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
+                              return (
+                                <div key={`attr_${idx}`}>
+                                  <span className="res-bldg-detail-label">{label}</span>
+                                  <span className="res-bldg-detail-value" style={{ color: getSafeColor(color) }}>{val > 0 ? `+${val}` : val}</span>
+                                </div>
+                              );
+                            })}
                           </div>
+                          {b.happinessFactors && (
+                            <div className="res-bldg-detail-grid" style={{ marginTop: '10rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10rem' }}>
+                              <div style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em', fontSize: '10rem', textTransform: 'uppercase', marginBottom: '4rem', gridColumn: '1 / -1' }}>Happiness Factors</div>
+                              {b.happinessFactors && b.happinessFactors.split('^').map((factor, idx) => {
+                                const parts = factor.split(':');
+                                if (parts.length !== 2) return null;
+                                const capitalizedLabel = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+                                const label = capitalizedLabel.replace(/([a-z])([A-Z])/g, '$1 $2');
+                                const displayLabel = EFF_FACTOR_LABELS[capitalizedLabel] || label;
+                                const val = Number(parts[1]);
+                                const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
+                                return (
+                                  <div key={`happ_${idx}`}>
+                                    <span className="res-bldg-detail-label">
+                                      <img src={getEfficiencyFactorIcon(parts[0])} style={{ width: '14px', height: '14px', opacity: 0.7, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                      {displayLabel}
+                                    </span>
+                                    <span className="res-bldg-detail-value" style={{ color: getSafeColor(color) }}>{val > 0 ? `+${val}` : val}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          { (b.cityEffects || b.localEffects) && (
+                            <div className="res-bldg-detail-grid" style={{ marginTop: '10rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10rem', display: 'flex', flexDirection: 'column', gap: '4rem' }}>
+                              {b.cityEffects && (
+                                <>
+                                  <div style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em', fontSize: '10rem', textTransform: 'uppercase', marginBottom: '4rem' }}>City Effects</div>
+                                  {b.cityEffects.split('^').map((ef, i) => (
+                                    <div key={`ce-${i}`} style={{ display: 'flex' }}>
+                                      <span style={{ color: '#fff', fontSize: '12rem' }}>{ef}</span>
+                                    </div>
+                                  ))}
+                                </>
+                              )}
+                              {b.localEffects && (
+                                <>
+                                  <div style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em', fontSize: '10rem', textTransform: 'uppercase', marginBottom: '4rem', marginTop: b.cityEffects ? '8rem' : '0' }}>Local Effects</div>
+                                  {b.localEffects.split('^').map((ef, i) => (
+                                    <div key={`le-${i}`} style={{ display: 'flex' }}>
+                                      <span style={{ color: '#fff', fontSize: '12rem' }}>{ef}</span>
+                                    </div>
+                                  ))}
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </React.Fragment>
