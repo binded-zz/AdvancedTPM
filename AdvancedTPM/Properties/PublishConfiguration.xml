@@ -123,23 +123,25 @@ Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is app
   <!--Link to the forum post where the mod can be discussed-->
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/advanced-tax-production-manager.1917448/" />
   <!--Version of the mod-->
-  <ModVersion Value="1.1.4" />
+  <ModVersion Value="1.1.5" />
   <!--Recommended version of the base game to use the mod-->
-  <GameVersion Value="1..*" />
+  <GameVersion Value="1.6.*" />
   <!--Dependency for the mod, can be set multiple times-->
   <Dependency Id="" />
   <!--Required DLC, can be set multiple times. Supported values are "Landmark Buildings", "San Fransisco Set", "Beach Properties", "Urban Promenades", "Modern Architecture"-->
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
-## v1.1.5 - game version 1.6.0 update
+## v1.1.5 - Game Update & Performance
 
-### Refactored backend json code to use built in game systems
+### Added
+- Expanded the Services tab with new detailed building metrics (Electricity/Water consumption, Garbage/Mail accumulation, Crime probability, Condition, Addons, and local/city modifier effects).
+- Integrated additional data card metrics in the Districts tab (e.g., unemployment rate, total crime, upkeep costs, and detailed policy stats).
 
-### added more data to service buildings in the services tab
-
-### added more data to district dashboard in the districts tab
-
+### Changed
+- Compatibility update for Cities: Skylines II game version 1.6.0.
+- Refactored backend JSON serialization systems to leverage the game's built-in Newtonsoft.Json serialization instead of custom manual string interpolation, improving data flow stability.
+- Performance optimization and code refactoring across UI systems for faster frame updates.
 	</ChangeLog>
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
   <ExternalLink Type="github" Url="https://github.com/binded-zz/AdvancedTPM" />

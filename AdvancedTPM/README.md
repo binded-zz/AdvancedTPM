@@ -57,12 +57,14 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 - **Rename districts** — rename any district in-game directly from the panel.
 - **GO button** — jump the camera to any district with one click.
 - **Sortable columns** — sort all districts by name, residential count, residents, employees, unemployment rate, land value, income, rent, and more.
+- **Extended district metrics** — track total crime, upkeep costs, resource costs, fees paid, land area, and unemployment rate.
 - **Happiness aggregation** — per-district happiness score displayed in the row and detail view.
 - **Card visibility settings** — show or hide individual cards from the settings gear. Reset to default at any time.
 
 ### Services Browser
 - **Filterable panel** — track all city service buildings with live metrics.
 - **Category breakdown** — buildings grouped by service type with live status data.
+- **Detailed service metrics** — view consumption (electricity/water), crime risk, mail/garbage stats, building condition, and localized city effects directly on each building.
 
 ### Auto-Tax Engine
 - **6-factor scoring** — auto-balances profitability, happiness, production, demand, company count, and tax income when recommending rate adjustments.

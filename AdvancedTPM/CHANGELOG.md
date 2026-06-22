@@ -4,12 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [1.1.5] - 2026-06-22
 
+### Added
+- **Service Buildings**: Added detailed metrics to service buildings in the Services tab, including electricity/water consumption, garbage/mail, condition, and localized effects.
+- **District Dashboard**: Added extra data to the District dashboard card views, including crime, upkeep, resource cost, fees, area, and unemployment.
+
 ### Changed
-- **Massive Codebase Refactor**: Completely refactored the UI and Systems architectures for significantly improved performance, maintainability, and stability.
-- Rebuilt `AutoTaxSystem` and `AdaptiveLearningSystem` for better reliability and lower CPU footprint.
-- Optimized `CompanyBrowserSystem`, `DistrictBrowserSystem`, `ServicesBrowserSystem`, and `ResidentialBrowserSystem`.
-- Enhanced frontend components including `CompanyBrowser`, `DistrictsPanel`, `ResidentialPanel`, and `ServicesPanel` to keep the UI smooth and responsive even in the largest cities.
-- **Game Update Compatibility**: Prepared and verified the mod for the latest game update.
+- **Backend Refactor**: Refactored backend JSON code to utilize native built-in game systems (Newtonsoft.Json serialization).
+- **Game Compatibility**: Compatibility update for Cities: Skylines II game version 1.6.0.
+- **Performance & Refactor**: Refactored UI and Systems architectures for improved stability and performance.
 
 ## [1.1.4] - 2026-06-24
 
