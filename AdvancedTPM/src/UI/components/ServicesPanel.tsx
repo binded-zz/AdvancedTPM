@@ -198,27 +198,27 @@ const getStatusIcon = (l: string) => {
 
 // Icon for Efficiency buffer factor types (from Game.Buildings.EfficiencyFactor enum names)
 const getEfficiencyFactorIcon = (factorName: string): string => {
-  if (!factorName) return 'Media/Game/Icons/StarNotification.svg';
+  if (!factorName) return 'Media/Game/Icons/Notifications.svg';
   const n = factorName.toLowerCase();
   if (n.includes('worker') || n.includes('employee') || n.includes('staff')) return 'Media/Game/Icons/Workers.svg';
   if (n.includes('electric') || n.includes('power')) return 'Media/Game/Icons/Electricity.svg';
   if (n.includes('water') || n.includes('sewage')) return 'Media/Game/Icons/Water.svg';
   if (n.includes('garbage') || n.includes('waste')) return 'Media/Game/Icons/Garbage.svg';
-  if (n.includes('mail')) return 'Media/Game/Icons/Mail.svg';
-  if (n.includes('crime')) return 'Media/Game/Icons/Crime.svg';
+  if (n.includes('mail')) return 'Media/Game/Icons/PostService.svg';
+  if (n.includes('crime')) return 'Media/Game/Icons/Police.svg';
   if (n.includes('transport') || n.includes('access')) return 'Media/Game/Icons/Traffic.svg';
   if (n.includes('road') || n.includes('network')) return 'Media/Game/Icons/Roads.svg';
   if (n.includes('healthcare') || n.includes('hospital') || n.includes('sick')) return 'Media/Game/Icons/Healthcare.svg';
   if (n.includes('education') || n.includes('school') || n.includes('university') || n.includes('college')) return 'Media/Game/Icons/Education.svg';
   if (n.includes('wealth')) return 'Media/Game/Icons/Wealth.svg';
   if (n.includes('park') || n.includes('entertainment') || n.includes('attraction') || n.includes('leisure')) return 'Media/Game/Icons/ParksAndRecreation.svg';
-  if (n.includes('welfare') || n.includes('wellbeing')) return 'Media/Game/Icons/Welfare.svg';
+  if (n.includes('welfare') || n.includes('wellbeing')) return 'Media/Game/Icons/Wellbeing.svg';
   if (n.includes('fire')) return 'Media/Game/Icons/FireAndRescue.svg';
   if (n.includes('deathcare') || n.includes('cemetery') || n.includes('crematorium')) return 'Media/Game/Icons/Deathcare.svg';
   if (n.includes('police')) return 'Media/Game/Icons/PoliceAndAdministration.svg';
   if (n.includes('telecom') || n.includes('network')) return 'Media/Game/Icons/Communications.svg';
   if (n.includes('pollution') || n.includes('noise')) return 'Media/Game/Icons/Pollution.svg';
-  return 'Media/Game/Icons/StarNotification.svg';
+  return 'Media/Game/Icons/Notifications.svg';
 };
 
 const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserData?: string }> = ({ servicesBuildingsData = '', servicesBrowserData = '' }) => {

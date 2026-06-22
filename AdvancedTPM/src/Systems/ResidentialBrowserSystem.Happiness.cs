@@ -126,6 +126,11 @@ namespace AdvancedTPM
                     return "";
                 }
 
+                if (_citySystem == null || m_GroundPollutionSystem == null || m_AirPollutionSystem == null || m_NoisePollutionSystem == null || m_TelecomCoverageSystem == null || m_TaxSystem == null)
+                {
+                    return "";
+                }
+
                 CitizenHappinessParameterData citizenParams = m_CitizenHappinessParameterQuery.GetSingleton<CitizenHappinessParameterData>();
                 GarbageParameterData garbageParams = m_GarbageParameterQuery.GetSingleton<GarbageParameterData>();
                 HealthcareParameterData healthParams = m_HealthcareParameterQuery.GetSingleton<HealthcareParameterData>();
@@ -241,7 +246,7 @@ namespace AdvancedTPM
             }
             catch (Exception ex)
             {
-                Mod.log?.Warn($"Error in GetHappinessFactorsString: {ex.Message}");
+                UnityEngine.Debug.LogWarning($"[AdvancedTPM] GetHappinessFactorsString failed: {ex}");
                 return "";
             }
         }

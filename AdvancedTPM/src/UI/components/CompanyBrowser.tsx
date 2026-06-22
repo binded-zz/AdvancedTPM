@@ -323,28 +323,28 @@ const EFF_FACTOR_LABELS: Record<string, string> = {
 };
 
 const getEfficiencyFactorIcon = (factorName: string): string => {
-  if (!factorName) return 'Media/Game/Icons/StarNotification.svg';
+  if (!factorName) return 'Media/Game/Icons/Notifications.svg';
   const n = factorName.toLowerCase();
   if (n.includes('worker') || n.includes('employee') || n.includes('staff')) return 'Media/Game/Icons/Workers.svg';
   if (n.includes('electric') || n.includes('power')) return 'Media/Game/Icons/Electricity.svg';
   if (n.includes('water') || n.includes('sewage')) return 'Media/Game/Icons/Water.svg';
   if (n.includes('garbage') || n.includes('waste')) return 'Media/Game/Icons/Garbage.svg';
-  if (n.includes('mail')) return 'Media/Game/Icons/Mail.svg';
-  if (n.includes('crime')) return 'Media/Game/Icons/Crime.svg';
+  if (n.includes('mail')) return 'Media/Game/Icons/PostService.svg';
+  if (n.includes('crime')) return 'Media/Game/Icons/Police.svg';
   if (n.includes('transport') || n.includes('access') || n.includes('traffic')) return 'Media/Game/Icons/Traffic.svg';
   if (n.includes('road') || n.includes('network')) return 'Media/Game/Icons/Roads.svg';
   if (n.includes('healthcare') || n.includes('hospital') || n.includes('sick')) return 'Media/Game/Icons/Healthcare.svg';
   if (n.includes('education') || n.includes('school') || n.includes('university') || n.includes('college')) return 'Media/Game/Icons/Education.svg';
   if (n.includes('wealth')) return 'Media/Game/Icons/Wealth.svg';
   if (n.includes('park') || n.includes('entertainment') || n.includes('attraction') || n.includes('leisure')) return 'Media/Game/Icons/ParksAndRecreation.svg';
-  if (n.includes('welfare') || n.includes('wellbeing')) return 'Media/Game/Icons/Welfare.svg';
+  if (n.includes('welfare') || n.includes('wellbeing')) return 'Media/Game/Icons/Wellbeing.svg';
   if (n.includes('fire')) return 'Media/Game/Icons/FireAndRescue.svg';
   if (n.includes('deathcare') || n.includes('death') || n.includes('cemetery') || n.includes('crematorium')) return 'Media/Game/Icons/Deathcare.svg';
   if (n.includes('police')) return 'Media/Game/Icons/PoliceAndAdministration.svg';
   if (n.includes('telecom') || n.includes('network')) return 'Media/Game/Icons/Communications.svg';
   if (n.includes('pollution')) return 'Media/Game/Icons/Pollution.svg';
   if (n.includes('tax')) return 'Media/Game/Icons/Economy.svg';
-  return 'Media/Game/Icons/StarNotification.svg';
+  return 'Media/Game/Icons/Notifications.svg';
 };
 
 const parseEfficiencyDetails = (details: string): { name: string; label: string; change: number; cumulative: number }[] => {
@@ -1004,7 +1004,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                           {companyHappinessData && companyHappinessData.mailReceiving > 0 && (
                             <div className="cb-detail-row">
                               <span className="cb-detail-label">
-                                <img src="Media/Game/Icons/Mail.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                <img src="Media/Game/Icons/PostService.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
                                 Mail Receiving
                               </span>
                               <span className="cb-detail-value">{companyHappinessData.mailReceiving}</span>
@@ -1023,7 +1023,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                           {Number((c as any).mailAccumulation) > 0 && (
                             <div className="cb-detail-row">
                               <span className="cb-detail-label">
-                                <img src="Media/Game/Icons/Mail.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                <img src="Media/Game/Icons/PostService.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
                                 Mail Sending
                               </span>
                               <span className="cb-detail-value">{(c as any).mailAccumulation} u</span>
@@ -1032,7 +1032,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                           {Number((c as any).crimeProbability) > 0 && (
                             <div className="cb-detail-row">
                               <span className="cb-detail-label">
-                                <img src="Media/Game/Icons/Crime.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                <img src="Media/Game/Icons/Police.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
                                 Crime Risk
                               </span>
                               <span className="cb-detail-value">{(c as any).crimeProbability} %</span>
