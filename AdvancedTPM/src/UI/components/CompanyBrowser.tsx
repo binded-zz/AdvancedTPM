@@ -863,16 +863,16 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                      <div className="cb-col-pack" title={formatPackName(c.assetPack || 'Base Game')}>
                        <PackIcon pack={c.assetPack} theme={c.theme} iconUrl={c.nativePackIcon || c.assetPackIcon} size={24} />
                      </div>
-                    <div className="cb-col-profit">
-                      <span style={{ color: getSafeColor(profitColor) }}>
-                        {`${c.profit > 0 ? '+' : ''}${c.profit}%`}
-                      </span>
-                    </div>
-                    <div className="cb-col-tax">
-                      <span style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>
-                        {`${c.taxRate}%`}
-                      </span>
-                    </div>
+                     <div className="cb-col-profit">
+                       <span style={{ color: getSafeColor(profitColor), whiteSpace: 'nowrap' }}>
+                         {`${c.profit > 0 ? '+' : ''}${c.profit}%`}
+                       </span>
+                     </div>
+                     <div className="cb-col-tax">
+                       <span style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)'), whiteSpace: 'nowrap' }}>
+                         {`${c.taxRate}%`}
+                       </span>
+                     </div>
                     <div className="cb-col-tier">
                       <span style={{ color: getSafeColor(tierColor) }}>
                         {TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}
@@ -944,10 +944,16 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                               {resourceLabel(c.resourceKey)}
                             </span>
                           </div>
+                          {((c.storageAmount || 0) > 0 || (c.storageCapacity || 0) > 0) && (
                           <div className="cb-detail-row">
-                            <span className="cb-detail-label">Resource Storage</span>
-                            <span className="cb-detail-value">{(c.storageCapacity || 0) > 0 ? `${c.storageAmount || 0} / ${c.storageCapacity} t` : `${c.storageAmount || 0} t`}</span>
+                            <span className="cb-detail-label" title="Physical goods stored (t = metric tonnes). Cash balance excluded.">Resource Storage</span>
+                            <span className="cb-detail-value">
+                              {(c.storageCapacity || 0) > 0
+                                ? `${c.storageAmount || 0} / ${c.storageCapacity} t`
+                                : `${c.storageAmount || 0} t`}
+                            </span>
                           </div>
+                          )}
                           {c.allowedResources && c.allowedResources !== 'NoResource' && (
                             <div className="cb-detail-row">
                               <span className="cb-detail-label">Allowed Resources</span>

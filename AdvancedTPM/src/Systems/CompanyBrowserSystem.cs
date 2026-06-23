@@ -1139,33 +1139,53 @@ namespace AdvancedTPM
                     catch { }
 
                     // --- Resource Storage ---
-                    int totalStorageAmount = 0;
+                    // m_Amount in Game.Economy.Resources is stored in kg.
+                    // Proved by game panel: Coal 0.231t = 231 units, Metals 5.221t = 5221 units, etc.
+                    // Simply sum physical resource amounts (exclude Money, Software, etc.) and divide by 1000.
+                    int totalStorageKg = 0;
+                    int rawUnitSum = 0;
                     if (em.HasBuffer<Game.Economy.Resources>(entity))
                     {
                         var resBuffer = em.GetBuffer<Game.Economy.Resources>(entity);
                         for (int r = 0; r < resBuffer.Length; r++)
                         {
-                            totalStorageAmount += resBuffer[r].m_Amount;
+                            var res = resBuffer[r].m_Resource;
+                            if (IsPhysicalResource(res))
+                            {
+                                int amt = resBuffer[r].m_Amount;
+                                if (amt > 0)
+                                {
+                                    rawUnitSum += amt;
+                                    totalStorageKg += amt; // already in kg
+                                }
+                            }
                         }
                     }
-                    info.StorageAmount = totalStorageAmount;
-                    
+                    info.StorageAmount = (int)Math.Round(totalStorageKg / 1000f);
+                    if (info.StorageAmount == 0 && rawUnitSum > 0) info.StorageAmount = 1; // Floor at 1t if physical goods exist
+
                     int storageCapacity = 0;
                     if (prop != Entity.Null && em.Exists(prop) && em.HasComponent<PrefabRef>(prop))
                     {
                         Entity propPrefab = em.GetComponentData<PrefabRef>(prop).m_Prefab;
-                        
-                        if (em.HasComponent<Game.Companies.StorageLimitData>(propPrefab) && 
+
+                        if (em.HasComponent<Game.Companies.StorageLimitData>(propPrefab) &&
                             em.HasComponent<Game.Prefabs.SpawnableBuildingData>(propPrefab) &&
                             em.HasComponent<Game.Prefabs.BuildingData>(propPrefab))
                         {
                             var limitData = em.GetComponentData<Game.Companies.StorageLimitData>(propPrefab);
                             var spawnable = em.GetComponentData<Game.Prefabs.SpawnableBuildingData>(propPrefab);
                             var buildingData = em.GetComponentData<Game.Prefabs.BuildingData>(propPrefab);
-                            storageCapacity = limitData.GetAdjustedLimitForWarehouse(spawnable, buildingData);
+
+                            // StorageLimitData is natively in kilograms. Convert to Tons.
+                            int limitKg = limitData.GetAdjustedLimitForWarehouse(spawnable, buildingData);
+                            storageCapacity = (int)Math.Round(limitKg / 1000f);
                         }
                     }
                     info.StorageCapacity = storageCapacity;
+                    // DEBUG: log first non-zero storage result to confirm Money is excluded and units are tonnes
+                    if (info.StorageAmount > 0 && rawUnitSum > 0)
+                        Mod.log.Debug($"[Storage] {info.Name}: rawUnits={rawUnitSum}, storageTonnes={info.StorageAmount}, capacityTonnes={info.StorageCapacity}");
 
                     string allowedResources = "";
                     if (prop != Entity.Null && em.Exists(prop))
@@ -1555,6 +1575,68 @@ namespace AdvancedTPM
                 case Resource.Entertainment: return "entertainment";
                 case Resource.Recreation: return "recreation";
                 default: return "";
+            }
+        }
+
+        /// <summary>Returns the approximate weight per game unit in kg for a physical resource.
+        /// Based on CS2 EconomyUtils.GetWeight() known values. Used to convert raw buffer units → tonnes.
+        /// Service/virtual resources (Money, Software, etc.) are excluded upstream via IsPhysicalResource.
+        /// </summary>
+        private static float GetResourceWeightKgPerUnit(Resource resource)
+        {
+            switch (resource)
+            {
+                // Raw bulk materials — heavy per unit
+                case Resource.Grain:          return 360f;
+                case Resource.Vegetables:     return 360f;
+                case Resource.Cotton:         return 200f;
+                case Resource.Livestock:      return 450f;
+                case Resource.Fish:           return 360f;
+                case Resource.Wood:           return 500f;
+                case Resource.Ore:            return 1800f;
+                case Resource.Stone:          return 1800f;
+                case Resource.Coal:           return 800f;
+                case Resource.Oil:            return 850f;
+                // Processed goods — moderate weight
+                case Resource.Food:           return 250f;
+                case Resource.Beverages:      return 300f;
+                case Resource.ConvenienceFood:return 200f;
+                case Resource.Textiles:       return 150f;
+                case Resource.Timber:         return 600f;
+                case Resource.Paper:          return 200f;
+                case Resource.Furniture:      return 300f;
+                case Resource.Metals:         return 1200f;
+                case Resource.Steel:          return 1500f;
+                case Resource.Minerals:       return 1500f;
+                case Resource.Concrete:       return 1600f;
+                case Resource.Machinery:      return 800f;
+                case Resource.Electronics:    return 100f;
+                case Resource.Vehicles:       return 1200f;
+                case Resource.Petrochemicals: return 700f;
+                case Resource.Plastics:       return 200f;
+                case Resource.Chemicals:      return 400f;
+                case Resource.Pharmaceuticals:return 50f;
+                default:                      return 100f; // safe fallback for unknown physical resources
+            }
+        }
+
+        private static bool IsPhysicalResource(Resource resource)
+        {
+            switch (resource)
+            {
+                case Resource.Money:
+                case Resource.Software:
+                case Resource.Telecom:
+                case Resource.Financial:
+                case Resource.Media:
+                case Resource.Entertainment:
+                case Resource.Recreation:
+                case Resource.Lodging:
+                case Resource.Meals:
+                case Resource.NoResource:
+                    return false;
+                default:
+                    return true;
             }
         }
 

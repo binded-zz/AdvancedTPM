@@ -455,7 +455,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                    <div className="svc-col-level">{b.level > 0 ? `Lv ${b.level}` : '—'}</div>
                    <div className="svc-col-cap">{b.capacity.toFixed(0)}</div>
                    <div className="svc-col-usage">{b.usage.toFixed(0)}</div>
-                   <div className="svc-col-eff" style={{ color: getSafeColor(b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#50b8e9' : '#e05050') }}>{b.efficiency.toFixed(0)}%</div>
+                   <div className="svc-col-eff" style={{ color: getSafeColor(b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#50b8e9' : '#e05050'), whiteSpace: 'nowrap' }}>{b.efficiency.toFixed(0)}%</div>
                    <div className="svc-col-go">
                      <button className="svc-go-btn" onClick={(e) => { e.stopPropagation(); focusEntityKey(b.entityKey); }}>GO</button>
                    </div>
@@ -564,7 +564,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                                    return (
                                      <div key={`det-${i}`} className="svc-detail-row" style={{ marginBottom: '3rem' }}>
                                        <span className="svc-detail-label">
-                                         <img src={iconUrl} style={{ width: '14px', height: '14px', opacity: 0.7 }} alt="" />
+                                         <img src={iconUrl} style={{ width: '14rem', height: '14rem', opacity: 0.7 }} alt="" />
                                          {label}
                                        </span>
                                        <span className="svc-detail-value" style={{ color: effColor }}>{value}</span>
@@ -606,7 +606,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                             {b.attractiveness > 0 && (
                               <div className="svc-detail-row">
                                 <span className="svc-detail-label">
-                                  <img src="Media/Game/Icons/Attractions.svg" style={{ width: '16px', height: '16px', filter: 'brightness(0.9)' }} alt="" />
+                                  <img src="Media/Game/Icons/Attractions.svg" style={{ width: '16rem', height: '16rem', filter: 'brightness(0.9)' }} alt="" title="Attractiveness" />
                                   Attractiveness
                                 </span>
                                 <span className="svc-detail-value" style={{ color: getSafeColor('#3fc9d8') }}>{b.attractiveness}</span>
@@ -636,7 +636,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                                   {b.cityEffects.map((ef, i) => (
                                     <div key={`ce-${i}`} className="svc-detail-row">
                                       <span className="svc-detail-label" style={{ flex: '1 1 100%' }}>
-                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '14px', height: '14px', opacity: 0.7, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '14rem', height: '14rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                                         {ef}
                                       </span>
                                     </div>
@@ -651,7 +651,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                                   {b.localEffects.map((ef, i) => (
                                     <div key={`le-${i}`} className="svc-detail-row">
                                       <span className="svc-detail-label" style={{ flex: '1 1 100%' }}>
-                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '14px', height: '14px', opacity: 0.7, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '14rem', height: '14rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                                         {ef}
                                       </span>
                                     </div>
