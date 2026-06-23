@@ -212,7 +212,6 @@ namespace AdvancedTPM
 
 
 
-        private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
             if (!IsSystemActive)
@@ -610,7 +609,6 @@ namespace AdvancedTPM
             public string CityEffects;
             public string LocalEffects;
             public int Attractiveness;
-            public string AttractivenessFactors;
         }
 
         private void CollectCompanyData(List<CompanyInfo> result)
@@ -1183,9 +1181,6 @@ namespace AdvancedTPM
                         }
                     }
                     info.StorageCapacity = storageCapacity;
-                    // DEBUG: log first non-zero storage result to confirm Money is excluded and units are tonnes
-                    if (info.StorageAmount > 0 && rawUnitSum > 0)
-                        Mod.log.Debug($"[Storage] {info.Name}: rawUnits={rawUnitSum}, storageTonnes={info.StorageAmount}, capacityTonnes={info.StorageCapacity}");
 
                     string allowedResources = "";
                     if (prop != Entity.Null && em.Exists(prop))
@@ -1520,17 +1515,12 @@ namespace AdvancedTPM
                    .Append(EscapePipe(c.AllowedResources ?? "")).Append('|')
                    .Append(EscapePipe(c.CityEffects ?? "")).Append('|')
                    .Append(EscapePipe(c.LocalEffects ?? "")).Append('|')
-                   .Append(c.Attractiveness).Append('|')
-                   .Append(c.AttractivenessFactors ?? "");
+                   .Append(c.Attractiveness);
             }
             return _sb.ToString();
         }
 
-        private void RefreshSignatureCache()
-        {
-            // CRITICAL: Internal query reflection is unstable.
-            // Neutralized to prevent native crashes.
-        }
+        private void RefreshSignatureCache() { }
 
         private static string EscapePipe(string s) { return s.Replace("|", " ").Replace(";", " "); }
 
@@ -1575,48 +1565,6 @@ namespace AdvancedTPM
                 case Resource.Entertainment: return "entertainment";
                 case Resource.Recreation: return "recreation";
                 default: return "";
-            }
-        }
-
-        /// <summary>Returns the approximate weight per game unit in kg for a physical resource.
-        /// Based on CS2 EconomyUtils.GetWeight() known values. Used to convert raw buffer units → tonnes.
-        /// Service/virtual resources (Money, Software, etc.) are excluded upstream via IsPhysicalResource.
-        /// </summary>
-        private static float GetResourceWeightKgPerUnit(Resource resource)
-        {
-            switch (resource)
-            {
-                // Raw bulk materials — heavy per unit
-                case Resource.Grain:          return 360f;
-                case Resource.Vegetables:     return 360f;
-                case Resource.Cotton:         return 200f;
-                case Resource.Livestock:      return 450f;
-                case Resource.Fish:           return 360f;
-                case Resource.Wood:           return 500f;
-                case Resource.Ore:            return 1800f;
-                case Resource.Stone:          return 1800f;
-                case Resource.Coal:           return 800f;
-                case Resource.Oil:            return 850f;
-                // Processed goods — moderate weight
-                case Resource.Food:           return 250f;
-                case Resource.Beverages:      return 300f;
-                case Resource.ConvenienceFood:return 200f;
-                case Resource.Textiles:       return 150f;
-                case Resource.Timber:         return 600f;
-                case Resource.Paper:          return 200f;
-                case Resource.Furniture:      return 300f;
-                case Resource.Metals:         return 1200f;
-                case Resource.Steel:          return 1500f;
-                case Resource.Minerals:       return 1500f;
-                case Resource.Concrete:       return 1600f;
-                case Resource.Machinery:      return 800f;
-                case Resource.Electronics:    return 100f;
-                case Resource.Vehicles:       return 1200f;
-                case Resource.Petrochemicals: return 700f;
-                case Resource.Plastics:       return 200f;
-                case Resource.Chemicals:      return 400f;
-                case Resource.Pharmaceuticals:return 50f;
-                default:                      return 100f; // safe fallback for unknown physical resources
             }
         }
 

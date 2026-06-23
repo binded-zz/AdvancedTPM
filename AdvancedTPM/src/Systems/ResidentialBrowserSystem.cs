@@ -9,7 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Reflection;
 using Unity.Collections;
 using Unity.Entities;
 
@@ -97,8 +96,6 @@ namespace AdvancedTPM
 
             Mod.log?.Info("ResidentialBrowserSystem OnCreate finished");
         }
-
-        private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
             if (!IsSystemActive)

@@ -135,7 +135,6 @@ namespace AdvancedTPM
             Mod.log.Info("ServicesBrowserSystem OnCreate finished");
         }
 
-        private int m_FrameCounter = 0;
         protected override void OnUpdate()
         {
             if (!IsSystemActive)
@@ -613,11 +612,7 @@ namespace AdvancedTPM
             }
         }
 
-        private void RefreshSignatureCache()
-        {
-            // CRITICAL: World system iteration with reflection is unstable.
-            // Neutralized to prevent native crashes.
-        }
+        private void RefreshSignatureCache() { }
 
         private void UpdateServicesData(bool forceUpdate = false)
         {
@@ -671,16 +666,9 @@ namespace AdvancedTPM
 
 
 
-        private static Type FindType(string typeName)
-        {
-            // CRITICAL: Type discovery via assembly scanning is unstable.
-            return null;
-        }
-        
-        private void ReadServiceBuffer(EntityManager em, Entity city, string bufferName, Type serviceEnumType, Dictionary<int, ServiceInfo> map, string[] serviceFields, string[] valueFields, Action<ServiceInfo, float> setter)
-        {
-            // CRITICAL: Reflection-based buffer reading is unstable.
-        }
+        private static Type FindType(string typeName) => null;
+
+        private void ReadServiceBuffer(EntityManager em, Entity city, string bufferName, Type serviceEnumType, Dictionary<int, ServiceInfo> map, string[] serviceFields, string[] valueFields, Action<ServiceInfo, float> setter) { }
 
         private sealed class ServiceInfo
         {
