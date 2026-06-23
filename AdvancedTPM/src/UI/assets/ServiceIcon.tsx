@@ -6,12 +6,16 @@ const ServiceIcon: React.FC<{ category?: string; size?: number; style?: React.CS
   if (c === 'storage') {
     return (
       <svg
-        width={size}
-        height={size}
         viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        style={{ marginRight: '6rem', flexShrink: 0, ...style }}
+        style={{
+          width: `${size}rem`,
+          height: `${size}rem`,
+          marginRight: '6rem',
+          flexShrink: 0,
+          ...style
+        }}
       >
         <path
           d="M3 10 L12 4 L21 10 V20 C21 20.5523 20.5523 21 20 21 H4 C3.44772 21 3 20.5523 3 20 V10 Z"
@@ -68,9 +72,13 @@ const ServiceIcon: React.FC<{ category?: string; size?: number; style?: React.CS
   return (
     <img
       src={pickIcon()}
-      width={size}
-      height={size}
-      style={{ marginRight: '6rem', flexShrink: 0, ...style }}
+      style={{
+        width: `${size}rem`,
+        height: `${size}rem`,
+        marginRight: '6rem',
+        flexShrink: 0,
+        ...style
+      }}
       alt=""
       onError={(e) => {
         const el = e.currentTarget;

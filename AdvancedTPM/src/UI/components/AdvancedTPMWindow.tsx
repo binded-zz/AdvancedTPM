@@ -253,7 +253,7 @@ const ResourceSubRow = React.memo<{
   autoTaxDir?: AutoTaxResourceInfo;
   onRateChange: (key: string, rate: number) => void;
   onSelect: (key: string) => void;
-  onTooltipShow: (lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
+  onTooltipShow: (lines: any[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
   onTooltipHide: () => void;
 }>(({ resource, icon, localRate, selected, autoTaxDir, onRateChange, onSelect, onTooltipShow, onTooltipHide }) => {
   const [hover, setHover] = useState(false);
@@ -401,7 +401,7 @@ const CategoryGroupRow = React.memo<{
   autoTaxDirections: Map<string, AutoTaxResourceInfo>;
   onRateChange: (key: string, rate: number) => void;
   onSelect: (key: string) => void;
-  onTooltipShow: (lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
+  onTooltipShow: (lines: any[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
   onTooltipHide: () => void;
   // when true (viewing 'All' resources) this group should start collapsed on mount
   isAllView?: boolean;
@@ -771,8 +771,8 @@ districtPoliciesData,
 
   // Tooltip state â€” rendered OUTSIDE .adv-window to escape overflow:hidden clipping in CoHTML
   // Tooltip may be anchored to an element (`rect`) or to explicit client coords (`x`,`y`) to float/follow cursor.
-  const [tooltip, setTooltip] = useState<{ lines: string[]; rect?: DOMRect; alignRight?: boolean; x?: number; y?: number } | null>(null);
-  const showTooltip = useCallback((lines: string[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => {
+  const [tooltip, setTooltip] = useState<{ lines: any[]; rect?: DOMRect; alignRight?: boolean; x?: number; y?: number } | null>(null);
+  const showTooltip = useCallback((lines: any[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => {
     if (clientX != null && clientY != null) {
       setTooltip({ lines, x: clientX, y: clientY, alignRight: !!alignRight });
     } else if (el) {
@@ -983,13 +983,22 @@ districtPoliciesData,
 
       {viewMode === 'residential' && (
         <div className="adv-table-section">
-          <ResidentialPanel residentialBrowserData={residentialBrowserData} residentialBuildingsData={residentialBuildingsData} />
+          <ResidentialPanel
+            residentialBrowserData={residentialBrowserData}
+            residentialBuildingsData={residentialBuildingsData}
+            onTooltipShow={showTooltip}
+            onTooltipHide={hideTooltip}
+          />
         </div>
       )}
 
       {viewMode === 'services' && (
         <div className="adv-table-section">
-          <ServicesPanel servicesBuildingsData={servicesBuildingsData} />
+          <ServicesPanel
+            servicesBuildingsData={servicesBuildingsData}
+            onTooltipShow={showTooltip}
+            onTooltipHide={hideTooltip}
+          />
         </div>
       )}
 
@@ -1003,6 +1012,8 @@ districtPoliciesData,
             districtPoliciesData={districtPoliciesData}
             onToggleDebug={onToggleModDebug}
             showDebug={showModDebug}
+            onTooltipShow={showTooltip}
+            onTooltipHide={hideTooltip}
           />
         </div>
       )}

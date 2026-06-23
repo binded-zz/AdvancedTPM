@@ -140,7 +140,19 @@ const getServiceRowTooltip = (b: ServiceBuildingInfo, labels?: any) => {
   const capLabel = labels?.cap || 'Capacity';
   const useLabel = labels?.use || 'Usage';
   const effLabel = labels?.eff || 'Efficiency';
-  return `${b.address || b.name}\nLevel: ${b.level > 0 ? b.level : 'N/A'}\n${capLabel}: ${b.capacity.toFixed(0)}\n${useLabel}: ${b.usage.toFixed(0)}\n${effLabel}: ${b.efficiency.toFixed(0)}%\nTheme/Pack: ${b.theme || 'Base'} / ${b.assetPack || 'Base'}`;
+  const lines = [
+    <span style={{ fontWeight: 800, color: '#50b8e9', display: 'block', marginBottom: '2rem' }}>{b.address || b.name}</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Level: {b.level > 0 ? `Lv ${b.level}` : 'N/A'}</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>{capLabel}: {b.capacity.toFixed(0)}</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>{useLabel}: {b.usage.toFixed(0)}</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>{effLabel}: {b.efficiency.toFixed(0)}%</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Theme/Pack: {b.theme || 'Base'} / {b.assetPack || 'Base'}</span>
+  ];
+  if (b.isSignature) {
+    lines.push(<span style={{ display: 'block', fontSize: '10rem', color: '#f0c040', fontWeight: 'bold', marginTop: '2rem' }}>★ Signature Building</span>);
+  }
+  lines.push(<span style={{ display: 'block', fontSize: '9rem', color: '#50b8e9', fontStyle: 'italic', marginTop: '4rem' }}>Click row to expand details</span>);
+  return lines;
 };
 
 const focusEntityKey = (entityKey: string) => {
@@ -184,7 +196,7 @@ const CycleFilterButton: React.FC<CycleFilterButtonProps> = ({ label, value, opt
 const getStatusIcon = (l: string) => {
   if (l.includes('patient') || l.includes('health')) return 'Media/Game/Icons/TraumaCenter.svg';
   if (l.includes('ambulance')) return 'Media/Game/Icons/Healthcare.svg'; // Or MedicalHelicopters
-  if (l.includes('inmate') || l.includes('jail')) return 'Media/Game/Icons/Prison.svg'; // Or Police
+  if (l.includes('inmate') || l.includes('jail')) return 'Media/Game/Icons/Police.svg'; // Or Police
   if (l.includes('patrol')) return 'Media/Game/Icons/Police.svg';
   if (l.includes('fire')) return 'Media/Game/Icons/Flame.svg';
   if (l.includes('garbage') || l.includes('truck')) return 'Media/Game/Icons/Garbage.svg';
@@ -221,7 +233,17 @@ const getEfficiencyFactorIcon = (factorName: string): string => {
   return 'Media/Game/Icons/Notifications.svg';
 };
 
-const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserData?: string }> = ({ servicesBuildingsData = '', servicesBrowserData = '' }) => {
+const ServicesPanel: React.FC<{
+  servicesBuildingsData?: string;
+  servicesBrowserData?: string;
+  onTooltipShow?: (lines: any[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
+  onTooltipHide?: () => void;
+}> = ({
+  servicesBuildingsData = '',
+  servicesBrowserData = '',
+  onTooltipShow,
+  onTooltipHide
+}) => {
    const { translate } = useLocalization();
    const buildings = useMemo(() => parseServiceBuildingsData(servicesBuildingsData || ''), [servicesBuildingsData]);
    const summaries = useMemo(() => parseServiceSummaries(servicesBrowserData || ''), [servicesBrowserData]);
@@ -308,7 +330,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
      if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
      else { setSortField(field); setSortDir(field === 'name' || field === 'address' || field === 'category' || field === 'assetPack' ? 'asc' : 'desc'); }
    };
-   const sortIndicator = (field: SortField) => sortField === field ? (sortDir === 'asc' ? ' (asc)' : ' (desc)') : '';
+   const sortIndicator = (field: SortField) => sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
    const serviceLabels = useMemo(() => {
      const k = (categoryFilter || '').toLowerCase();
@@ -443,10 +465,10 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                         setIsPaused(true);
                       }
                     }}
-                    title={getServiceRowTooltip(b, serviceLabels)}>
+                  >
                     <div className="svc-col-name">
                       <span className="svc-expand-arrow">{expandedEntity === b.entityKey ? '\u25BC' : '\u25B6'}</span>
-                      {b.isSignature && <span className="svc-signature-badge" title="Signature Building">★</span>}
+                      {b.isSignature && <span className="svc-signature-badge">★</span>}
                       <ServiceIcon category={b.category} size={24} />
                       <span>{b.address || b.name}</span>
                     </div>
@@ -483,7 +505,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                                   <img src={
                                     b.category.includes('Education') ? 'Media/Game/Icons/Education.svg' :
                                     b.category.includes('Healthcare') ? 'Media/Game/Icons/TraumaCenter.svg' :
-                                    b.category.includes('Police') ? 'Media/Game/Icons/Prison.svg' :
+                                    b.category.includes('Police') ? 'Media/Game/Icons/Police.svg' :
                                     'Media/Game/Icons/Citizens.svg'
                                   } style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)' }} alt="" title="Occupancy" />
                                   Occupancy
@@ -564,7 +586,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                                    return (
                                      <div key={`det-${i}`} className="svc-detail-row" style={{ marginBottom: '3rem' }}>
                                        <span className="svc-detail-label">
-                                         <img src={iconUrl} style={{ width: '14rem', height: '14rem', opacity: 0.7 }} alt="" />
+                                         <img src={iconUrl} style={{ width: '18rem', height: '18rem', opacity: 0.7, flexShrink: 0 }} alt="" />
                                          {label}
                                        </span>
                                        <span className="svc-detail-value" style={{ color: effColor }}>{value}</span>
@@ -606,7 +628,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                             {b.attractiveness > 0 && (
                               <div className="svc-detail-row">
                                 <span className="svc-detail-label">
-                                  <img src="Media/Game/Icons/Attractions.svg" style={{ width: '16rem', height: '16rem', filter: 'brightness(0.9)' }} alt="" title="Attractiveness" />
+                                  <img src="Media/Game/Icons/Attractions.svg" style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)', flexShrink: 0 }} alt="" title="Attractiveness" />
                                   Attractiveness
                                 </span>
                                 <span className="svc-detail-value" style={{ color: getSafeColor('#3fc9d8') }}>{b.attractiveness}</span>
@@ -636,7 +658,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                                   {b.cityEffects.map((ef, i) => (
                                     <div key={`ce-${i}`} className="svc-detail-row">
                                       <span className="svc-detail-label" style={{ flex: '1 1 100%' }}>
-                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '14rem', height: '14rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
+                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle', flexShrink: 0 }} alt="" />
                                         {ef}
                                       </span>
                                     </div>
@@ -651,7 +673,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                                   {b.localEffects.map((ef, i) => (
                                     <div key={`le-${i}`} className="svc-detail-row">
                                       <span className="svc-detail-label" style={{ flex: '1 1 100%' }}>
-                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '14rem', height: '14rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
+                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle', flexShrink: 0 }} alt="" />
                                         {ef}
                                       </span>
                                     </div>

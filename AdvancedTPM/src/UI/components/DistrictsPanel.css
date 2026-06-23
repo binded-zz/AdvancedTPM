@@ -170,6 +170,7 @@
 
 .dp-body {
   flex: 1;
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
@@ -903,6 +904,8 @@
   padding: 1rem 6rem;
   border-radius: 3rem;
 }
+
+
 
 
 

@@ -16,15 +16,59 @@ interface Props {
   activeTab?: string;
   onToggleDebug?: () => void;
   showDebug?: boolean;
+  onTooltipShow?: (lines: any[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
+  onTooltipHide?: () => void;
 }
 
 type DistrictSortField = 'name' | 'residential' | 'services' | 'businesses' | 'mixed' | 'resTotal' | 'total' | 'policies' | 'residents' | 'workers' | 'unemploymentRate' | 'avgLandValue' | 'avgIncome' | 'avgRent';
 
-interface PolicyPrefab { entityKey: string; name: string; icon?: string; isCity?: boolean; isDistrict?: boolean; }
+interface PolicyPrefab {
+  entityKey: string; name: string; icon?: string; isCity?: boolean; isDistrict?: boolean;
+  hasSlider?: boolean; sliderDefault?: number; sliderMin?: number; sliderMax?: number;
+}
+interface ActivePolicy { k: string; adj: number; }
+
+const getPolicyTooltipLines = (pol: PolicyPrefab, on: boolean, adj?: number): React.ReactNode[] => {
+  const name = pol.name.replace(/([A-Z])/g, ' $1').replace(/^\s/, '');
+  const lines: React.ReactNode[] = [
+    <span style={{ fontWeight: 800, color: '#50b8e9', fontSize: '12rem', display: 'block', marginBottom: '3rem' }}>{name}</span>
+  ];
+  
+  lines.push(
+    <span style={{ fontWeight: 700, color: on ? '#3fcf8f' : '#fa5252', display: 'block', marginBottom: '3rem' }}>
+      {on ? '✓ Active' : '✗ Inactive'}
+    </span>
+  );
+  
+  if (pol.hasSlider) {
+    if (on && adj !== undefined) {
+      const n = parseFloat(adj.toFixed(2));
+      lines.push(
+        <span style={{ display: 'block', marginBottom: '3rem', color: 'rgba(255, 255, 255, 0.8)' }}>
+          Value: <strong style={{ color: '#50b8e9' }}>{n}</strong> <span style={{ fontSize: '9rem', color: 'rgba(255, 255, 255, 0.5)' }}>({pol.sliderMin ?? 0} – {pol.sliderMax ?? 100})</span>
+        </span>
+      );
+    } else {
+      lines.push(
+        <span style={{ display: 'block', marginBottom: '3rem', color: 'rgba(255, 255, 255, 0.8)' }}>
+          Default: <strong style={{ color: '#50b8e9' }}>{pol.sliderDefault ?? 0}</strong>
+        </span>
+      );
+    }
+  }
+  
+  lines.push(
+    <span style={{ fontSize: '10rem', fontStyle: 'italic', color: 'rgba(255, 255, 255, 0.4)', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '3rem', display: 'block', marginTop: '3rem' }}>
+      {on ? 'Click to deactivate' : 'Click to activate'}
+    </span>
+  );
+  
+  return lines;
+};
 
 interface DistrictRow {
   entityKey: string | null; name: string; residential: number; services: number; businesses: number; mixed: number; resTotal: number; total: number;
-  activePolicies: string[]; isCity: boolean; cityName: string;
+  activePolicies: ActivePolicy[]; isCity: boolean; cityName: string;
   households: number; householdCap: number; workers: number; maxWorkers: number;
   avgWealth: number; avgIncome: number; avgRent: number; avgHappiness: number;
   unemploymentRate?: number; avgLandValue?: number;
@@ -208,9 +252,23 @@ export const DistrictsPanel: React.FC<Props> = ({
   districtPoliciesData = '[]',
   activeTab,
   onToggleDebug,
-  showDebug = false
+  showDebug = false,
+  onTooltipShow,
+  onTooltipHide
 }) => {
   const [editingName, setEditingName] = useState<string | null>(null);
+
+  const showTooltip = (pol: PolicyPrefab, on: boolean, adj?: number, clientX?: number, clientY?: number) => {
+    if (onTooltipShow) {
+      onTooltipShow(getPolicyTooltipLines(pol, on, adj), undefined, false, clientX, clientY);
+    }
+  };
+
+  const hideTooltip = () => {
+    if (onTooltipHide) {
+      onTooltipHide();
+    }
+  };
   const [tempName, setTempName] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [lockedTooltip, setLockedTooltip] = useState<string | null>(null);
@@ -336,7 +394,7 @@ export const DistrictsPanel: React.FC<Props> = ({
       const k = name || 'City';
       if (!map.has(k)) map.set(k, {
         entityKey: null, name: k, residential: 0, services: 0, businesses: 0, mixed: 0, resTotal: 0, total: 0,
-        activePolicies: [], isCity: k === 'City', cityName: k, households: 0, householdCap: 0, workers: 0, maxWorkers: 0,
+        activePolicies: [] as ActivePolicy[], isCity: k === 'City', cityName: k, households: 0, householdCap: 0, workers: 0, maxWorkers: 0,
         avgWealth: 0, avgIncome: 0, avgRent: 0, avgHappiness: 0, residents: 0, children: 0, teens: 0, adults: 0, seniors: 0,
         unemploymentRate: 0, avgLandValue: 0,
         eduUneducated: 0, eduPoorlyEducated: 0, eduEducated: 0, eduWellEducated: 0, eduHighlyEducated: 0,
@@ -353,7 +411,11 @@ export const DistrictsPanel: React.FC<Props> = ({
 
     apiDistricts.forEach((a: any) => {
       const d = ensure(a.name);
-      d.entityKey = a.entityKey; d.activePolicies = a.policies || [];
+      d.entityKey = a.entityKey;
+      // policies are now {k, adj} objects — parse defensively (could be string in old saves)
+      d.activePolicies = (a.policies || []).map((p: any) =>
+        typeof p === 'string' ? { k: p, adj: 0 } : { k: p.k, adj: p.adj ?? 0 }
+      ) as ActivePolicy[];
       if (a.isCity) { d.isCity = true; d.cityName = a.cityName || 'City'; }
       d.avgWealth = a.avgWealth || 0; d.avgIncome = a.avgIncome || 0; d.avgRent = a.avgRent || 0; d.avgHappiness = a.avgHappiness || 0;
       // Per-district unemployment: use real unemployed citizen count from C# if available,
@@ -433,8 +495,8 @@ export const DistrictsPanel: React.FC<Props> = ({
     out.forEach(r => { r.total = r.residential + r.services + r.businesses + r.mixed; });
     out.sort((a, b) => {
       if (a.isCity !== b.isCity) return a.isCity ? -1 : 1;
-      const vA = sortField === 'policies' ? a.activePolicies.length : (a as any)[sortField];
-      const vB = sortField === 'policies' ? b.activePolicies.length : (b as any)[sortField];
+      const vA = sortField === 'policies' ? a.activePolicies.length : (a as any)[sortField] as number;
+      const vB = sortField === 'policies' ? b.activePolicies.length : (b as any)[sortField] as number;
       if (vA < vB) return sortDir === 'asc' ? -1 : 1;
       if (vA > vB) return sortDir === 'asc' ? 1 : -1;
       return 0;
@@ -562,8 +624,8 @@ export const DistrictsPanel: React.FC<Props> = ({
         <div className="dp-col-policies" onClick={() => handleSort('policies')}>Policies</div>
         <div className="dp-col-go">Go</div>
       </div>
-      <div className="dp-body-wrapper" style={{ flex: 1, position: 'relative', display: 'flex', overflow: 'hidden' }}>
-        <Scrollable vertical={true} className="dp-body" style={{ flex: 1 }} trackVisibility="scrollable">
+      <div className="dp-body-wrapper" style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <Scrollable vertical={true} className="dp-body" style={{ flex: 1, minHeight: 0 }} trackVisibility="scrollable">
           {rows.map(r => {
             const hI = happinessInfo(r.avgHappiness);
             const isExp = expandedRow === r.name;
@@ -593,11 +655,16 @@ export const DistrictsPanel: React.FC<Props> = ({
                       {policyPrefabs.map(pol => {
                         if (r.isCity && !pol.isCity) return null;
                         if (!r.isCity && !pol.isDistrict) return null;
-                        const on = r.activePolicies.includes(pol.entityKey);
+                        const ap = r.activePolicies.find(p => p.k === pol.entityKey);
+                        const on = !!ap;
                         if (!on && !isExp) return null;
                         return (
-                          <div key={pol.entityKey} className={`dp-row-policy-icon ${on ? 'active' : ''}`} title={pol.name}
-                            onClick={e => { e.stopPropagation(); r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}>
+                          <div key={pol.entityKey} className={`dp-row-policy-icon ${on ? 'active' : ''} dp-policy-wrap`}
+                            onClick={e => { e.stopPropagation(); r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}
+                            onMouseOver={e => showTooltip(pol, on, ap?.adj, e.clientX, e.clientY)}
+                            onMouseMove={e => showTooltip(pol, on, ap?.adj, e.clientX, e.clientY)}
+                            onMouseOut={hideTooltip}
+                          >
                             {pol.icon ? <img src={pol.icon} className="dp-policy-img-small" alt="" /> : <span className="dp-policy-text-small">{pol.name.substring(0, 2)}</span>}
                           </div>
                         );
@@ -798,14 +865,19 @@ export const DistrictsPanel: React.FC<Props> = ({
 
                             case 'policies':
                               return (
-                                <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8rem' }}>
                                   {policyPrefabs.map(pol => {
                                     if (r.isCity && !pol.isCity) return null;
                                     if (!r.isCity && !pol.isDistrict) return null;
-                                    const on = r.activePolicies.includes(pol.entityKey);
+                                    const ap = r.activePolicies.find(p => p.k === pol.entityKey);
+                                    const on = !!ap;
                                     return (
-                                      <div key={pol.entityKey} className={`dp-inline-policy-icon ${on ? 'active' : ''}`} title={pol.name}
-                                        onClick={e => { e.stopPropagation(); r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}>
+                                      <div key={pol.entityKey} className={`dp-inline-policy-icon ${on ? 'active' : ''} dp-policy-wrap`}
+                                        onClick={e => { e.stopPropagation(); r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}
+                                        onMouseOver={e => showTooltip(pol, on, ap?.adj, e.clientX, e.clientY)}
+                                        onMouseMove={e => showTooltip(pol, on, ap?.adj, e.clientX, e.clientY)}
+                                        onMouseOut={hideTooltip}
+                                      >
                                         {pol.icon ? <img src={pol.icon} className="dp-policy-img" alt="" /> : <span className="dp-policy-text">{pol.name.substring(0, 2).toUpperCase()}</span>}
                                       </div>
                                     );

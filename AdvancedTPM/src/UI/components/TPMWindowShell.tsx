@@ -124,7 +124,7 @@ const TPMWindowShell: React.FC<TPMWindowShellProps> = ({ x, y, width, height, co
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="tpm-window-shell" style={{ flexGrow: 1, width: '100%', position: 'relative' }}>
+      <div className="tpm-window-shell" style={{ flexGrow: 1, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden' }}>
         {children}
       </div>
       <div

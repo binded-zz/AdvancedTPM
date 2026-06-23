@@ -11,6 +11,8 @@ using System.Globalization;
 using System.Linq;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
+using Game.Economy;
 
 namespace AdvancedTPM
 {
@@ -257,6 +259,8 @@ namespace AdvancedTPM
             var em = EntityManager;
             var parts = new List<string>(256);
             var entities = _residentialBuildingQuery.ToEntityArray(Allocator.Temp);
+            // Create happiness context once for all buildings
+            var happinessCtx = CreateHappinessContext();
             try
             {
                 for (int i = 0; i < entities.Length; i++)
@@ -427,7 +431,7 @@ namespace AdvancedTPM
                             assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
                             assetPackIcon = (assetPackIcon ?? "").Replace("|", "").Replace(";", "");
 
-                            string happinessFactors = GetHappinessFactorsString(ent);
+                            string happinessFactors = GetHappinessFactorsString(ent, in happinessCtx);
                             parts.Add(string.Format(CultureInfo.InvariantCulture,
                                 "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}|{13}|{14}|{15}|{16}|{17}",
                                 ent.Index, ent.Version, address, districtName, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0", assetPackIcon, themeIcon, cityEffects, localEffects, attractiveness, attractivenessFactors, happinessFactors));
@@ -483,6 +487,8 @@ namespace AdvancedTPM
         {
             if (_residentialSignatureBuildingsData == null) return;
 
+            // Create happiness context once for all signature buildings
+            var happinessCtx = CreateHappinessContext();
             try
             {
                 var em = EntityManager;
@@ -584,7 +590,7 @@ namespace AdvancedTPM
                             assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
                             assetPackIcon = (assetPackIcon ?? "").Replace("|", "").Replace(";", "");
 
-                            string happinessFactors = GetHappinessFactorsString(ent);
+                            string happinessFactors = GetHappinessFactorsString(ent, in happinessCtx);
 
                             signatureBuildings.Add(string.Format(CultureInfo.InvariantCulture,
                                 "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}|{13}|{14}",
@@ -603,6 +609,90 @@ namespace AdvancedTPM
                 }
             }
             catch (Exception ex) { try { Mod.log?.Warn($"ResidentialBrowserSystem UpdateSignatureResidentialBuildings Error: {ex.Message}"); } catch { } }
+        }
+
+        /// <summary>
+        /// Creates a pre-fetched HappinessCalculationContext so that expensive
+        /// pollution map queries and job completions happen exactly once per
+        /// update frame instead of once per building.
+        /// </summary>
+        private HappinessCalculationContext CreateHappinessContext()
+        {
+            try
+            {
+                if (m_CitizenHappinessParameterQuery.IsEmptyIgnoreFilter ||
+                    m_GarbageParameterQuery.IsEmptyIgnoreFilter ||
+                    m_HealthcareParameterQuery.IsEmptyIgnoreFilter ||
+                    m_ParkParameterQuery.IsEmptyIgnoreFilter ||
+                    m_EducationParameterQuery.IsEmptyIgnoreFilter ||
+                    m_TelecomParameterQuery.IsEmptyIgnoreFilter ||
+                    m_ServiceFeeParameterQuery.IsEmptyIgnoreFilter ||
+                    m_HappinessFactorParameterQuery.IsEmptyIgnoreFilter)
+                {
+                    return default;
+                }
+
+                if (_citySystem == null || m_GroundPollutionSystem == null || m_AirPollutionSystem == null ||
+                    m_NoisePollutionSystem == null || m_TelecomCoverageSystem == null || m_TaxSystem == null)
+                {
+                    return default;
+                }
+
+                var citizenParams = m_CitizenHappinessParameterQuery.GetSingleton<CitizenHappinessParameterData>();
+                var garbageParams = m_GarbageParameterQuery.GetSingleton<GarbageParameterData>();
+                var healthParams = m_HealthcareParameterQuery.GetSingleton<HealthcareParameterData>();
+                var parkParams = m_ParkParameterQuery.GetSingleton<ParkParameterData>();
+                var eduParams = m_EducationParameterQuery.GetSingleton<EducationParameterData>();
+                var telecomParams = m_TelecomParameterQuery.GetSingleton<TelecomParameterData>();
+                var feeParams = m_ServiceFeeParameterQuery.GetSingleton<ServiceFeeParameterData>();
+
+                var factorParams = EntityManager.GetBuffer<HappinessFactorParameterData>(
+                    m_HappinessFactorParameterQuery.GetSingletonEntity(), true);
+
+                // Complete all pollution/telecom map jobs once
+                var groundMap = m_GroundPollutionSystem.GetMap(true, out var h1);
+                var airMap    = m_AirPollutionSystem.GetMap(true, out var h2);
+                var noiseMap  = m_NoisePollutionSystem.GetMap(true, out var h3);
+                var telecomMap = m_TelecomCoverageSystem.GetData(true, out var h4);
+                h1.Complete(); h2.Complete(); h3.Complete(); h4.Complete();
+
+                var taxRates = m_TaxSystem.GetTaxRates();
+                var serviceFees = EntityManager.GetBuffer<ServiceFee>(_citySystem.City, true);
+
+                float relElecFee = 1f;
+                float relWaterFee = 1f;
+                if (feeParams.m_ElectricityFee.m_Default > 0)
+                    relElecFee = ServiceFeeSystem.GetFee(PlayerResource.Electricity, serviceFees) / feeParams.m_ElectricityFee.m_Default;
+                if (feeParams.m_WaterFee.m_Default > 0)
+                    relWaterFee = ServiceFeeSystem.GetFee(PlayerResource.Water, serviceFees) / feeParams.m_WaterFee.m_Default;
+
+                var localEffectData = m_LocalEffectSystem.GetReadData(out var localEffectDeps);
+                localEffectDeps.Complete();
+
+                return new HappinessCalculationContext
+                {
+                    citizenParams   = citizenParams,
+                    garbageParams   = garbageParams,
+                    healthParams    = healthParams,
+                    parkParams      = parkParams,
+                    eduParams       = eduParams,
+                    telecomParams   = telecomParams,
+                    factorParams    = factorParams,
+                    groundMap       = groundMap,
+                    airMap          = airMap,
+                    noiseMap        = noiseMap,
+                    telecomMap      = telecomMap,
+                    taxRates        = taxRates,
+                    relElecFee      = relElecFee,
+                    relWaterFee     = relWaterFee,
+                    localEffectData = localEffectData
+                };
+            }
+            catch (Exception ex)
+            {
+                Mod.log?.Warn($"CreateHappinessContext failed: {ex.Message}");
+                return default;
+            }
         }
     }
 }

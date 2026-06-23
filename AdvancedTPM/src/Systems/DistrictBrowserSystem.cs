@@ -886,7 +886,16 @@ namespace AdvancedTPM
                         bool isDistrictPolicy = _prefabSystem.EntityManager.HasComponent<DistrictOptionData>(entity) ||
                                                 _prefabSystem.EntityManager.HasComponent<DistrictModifierData>(entity);
 
-                        _policyBuffer.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{name}\",\"icon\":\"{EscapeJson(icon)}\",\"isCity\":{isCityPolicy.ToString().ToLower()},\"isDistrict\":{isDistrictPolicy.ToString().ToLower()}}}");
+                        // Include slider metadata so the UI can show current value + range in tooltips.
+                        bool hasSlider = _prefabSystem.EntityManager.HasComponent<PolicySliderData>(entity);
+                        string sliderJson = ",\"hasSlider\":false";
+                        if (hasSlider)
+                        {
+                            var sd = _prefabSystem.EntityManager.GetComponentData<PolicySliderData>(entity);
+                            sliderJson = $",\"hasSlider\":true,\"sliderDefault\":{sd.m_Default.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"sliderMin\":{sd.m_Range.min.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"sliderMax\":{sd.m_Range.max.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+                        }
+
+                        _policyBuffer.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{name}\",\"icon\":\"{EscapeJson(icon)}\",\"isCity\":{isCityPolicy.ToString().ToLower()},\"isDistrict\":{isDistrictPolicy.ToString().ToLower()}{sliderJson}}}");
                     }
                 }
             }
@@ -1051,7 +1060,7 @@ namespace AdvancedTPM
                 for (int i = 0; i < policies.Length; i++)
                 {
                     if ((policies[i].m_Flags & Game.Policies.PolicyFlags.Active) != 0)
-                        cityPolicies.Add($"\"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}\"");
+                        cityPolicies.Add($"{{\"k\":\"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}\",\"adj\":{policies[i].m_Adjustment.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}");
                 }
             }
             string cityDisplayName = _cityConfigurationSystem?.cityName;
@@ -1113,7 +1122,7 @@ namespace AdvancedTPM
                         for (int i = 0; i < policies.Length; i++)
                         {
                             if ((policies[i].m_Flags & Game.Policies.PolicyFlags.Active) != 0)
-                                districtActivePolicies.Add($"\"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}\"");
+                                districtActivePolicies.Add($"{{\"k\":\"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}\",\"adj\":{policies[i].m_Adjustment.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}");
                         }
                     }
                     _itemBuffer.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{EscapeJson(_nameSystem.GetRenderedLabelName(e))}\",\"policies\":[{string.Join(",", districtActivePolicies)}],\"res\":{s.res},\"svc\":{s.svc},\"biz\":{dBiz},\"households\":{s.households},\"householdCap\":{s.householdCap},\"workers\":{s.workers},\"maxWorkers\":{s.maxWorkers},\"avgWealth\":{dAvgWealth},\"avgIncome\":{dAvgIncome},\"avgRent\":{dAvgRent},\"avgHappiness\":{dAvgHappiness},\"residents\":{s.residents},\"tourists\":{s.tourists},\"children\":{s.children},\"teens\":{s.teens},\"adults\":{s.adults},\"seniors\":{s.seniors},\"eduUneducated\":{s.eduUneducated},\"eduPoorlyEducated\":{s.eduPoorlyEducated},\"eduEducated\":{s.eduEducated},\"eduWellEducated\":{s.eduWellEducated},\"eduHighlyEducated\":{s.eduHighlyEducated},\"workerUneducated\":{s.workerUneducated},\"workerPoorlyEducated\":{s.workerPoorlyEducated},\"workerEducated\":{s.workerEducated},\"workerWellEducated\":{s.workerWellEducated},\"workerHighlyEducated\":{s.workerHighlyEducated},\"workerUneducatedMax\":{s.workerUneducatedMax},\"workerPoorlyEducatedMax\":{s.workerPoorlyEducatedMax},\"workerEducatedMax\":{s.workerEducatedMax},\"workerWellEducatedMax\":{s.workerWellEducatedMax},\"workerHighlyEducatedMax\":{s.workerHighlyEducatedMax},\"elemCapacity\":{s.elemCapacity},\"hsCapacity\":{s.hsCapacity},\"collegeCapacity\":{s.collegeCapacity},\"uniCapacity\":{s.uniCapacity},\"elemEnrolled\":{s.elemEnrolled},\"hsEnrolled\":{s.hsEnrolled},\"collegeEnrolled\":{s.collegeEnrolled},\"uniEnrolled\":{s.uniEnrolled},\"elemEligible\":{(int)math.ceil(s.elemEligible)},\"hsEligible\":{(int)math.ceil(s.hsEligible)},\"collegeEligible\":{(int)math.ceil(s.collegeEligible)},\"uniEligible\":{(int)math.ceil(s.uniEligible)},\"localServices\":{s.localServices},\"serviceMask\":{s.serviceMask},\"propertyCount\":{s.propertyCount},\"resProp\":{dPureRes},\"comProp\":{s.comProp},\"indProp\":{s.indProp},\"offProp\":{s.offProp},\"storProp\":{s.storProp},\"mixedProp\":{s.mixedProp},\"pets\":{s.pets},\"deceased\":{s.deceased},\"students\":{s.students},\"movingAway\":{s.movingAway},\"avgBuildingLevel\":{dAvgBuildingLevel},\"buildingLevelSamples\":{s.buildingLevelSamples},\"totalLandValue\":{s.totalLandValue},\"landValueSamples\":{s.landValueSamples},\"homeless\":{s.homeless},\"totalCrime\":{s.totalCrime},\"upkeep\":{s.upkeep},\"resourceCost\":{s.resources},\"feesPaid\":{s.fees},\"area\":{s.area},\"happinessFactors\":[],\"unemployed\":{s.unemployed}}}");
@@ -1140,6 +1149,8 @@ namespace AdvancedTPM
                 Entity policyEntity = ParseEntityKey(policyPrefabKey);
                 if (districtEntity == Entity.Null || policyEntity == Entity.Null) return;
 
+                // Try to read the existing adjustment from the policy buffer so we preserve
+                // slider values (e.g. Taxi Base Fare, Parking Fee) when toggling off/on.
                 float adjustment = 0f;
                 if (EntityManager.HasBuffer<Game.Policies.Policy>(districtEntity))
                 {
@@ -1151,6 +1162,18 @@ namespace AdvancedTPM
                             adjustment = policies[i].m_Adjustment;
                             break;
                         }
+                    }
+                }
+
+                // If the policy is being turned ON and has a slider, ensure it has a non-zero value.
+                // If the adjustment is zero (either because it is not found in the buffer or is explicitly 0),
+                // use the prefab's default value. If that is also zero, default to 10f.
+                if (active && EntityManager.HasComponent<Game.Prefabs.PolicySliderData>(policyEntity))
+                {
+                    if (Math.Abs(adjustment) < 0.001f)
+                    {
+                        var sliderData = EntityManager.GetComponentData<Game.Prefabs.PolicySliderData>(policyEntity);
+                        adjustment = sliderData.m_Default != 0f ? sliderData.m_Default : 10f;
                     }
                 }
 

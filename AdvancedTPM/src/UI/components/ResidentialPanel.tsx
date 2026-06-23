@@ -212,22 +212,20 @@ const formatThresholdLabel = (prefix: string, value: string) => {
 const getResidentialRowTooltip = (b: ResidentialBuilding, data: ResidentialData) => {
   const occPct = b.capacity > 0 ? pct(b.occupied, b.capacity) : (b.occupied > 0 ? 100 : 0);
   const cityAvgHappiness = data.avgHappiness || 50;
-  const occupancyAdj = (b.capacity > 0) ? (occPct - 75) * 0.3 : (b.occupied > 0 ? 5 : -10);
-  const levelAdj = (b.level - 3) * 2;
-  const estimate = Math.round(Math.max(0, Math.min(100, cityAvgHappiness + occupancyAdj + levelAdj)));
   const lines = [
-    `<b>${b.address}</b>`,
-    `<br/>Density: ${b.density} • Level: Lv ${b.level}`,
-    `District: ${b.district || 'City'}`,
-    `Theme: ${normalizeTheme(b)} • Pack: ${b.assetPack || 'Base Game'}`,
-    `Occupancy: ${b.occupied} / ${b.capacity || 0} (${occPct}%)`,
-    `<br/><b>True Happiness: ${b.happiness}%</b>`,
-    `City Avg: ${cityAvgHappiness}%`,
-    `<br/>Signature: ${b.isSignature ? 'Yes' : 'No'}`,
-    `Entity: ${b.entityKey}`,
-    `<br/><i>Click row to expand details</i>`,
+    <span style={{ fontWeight: 800, color: '#50b8e9', display: 'block', marginBottom: '2rem' }}>{b.address}</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Density: {b.density} • Level: Lv {b.level}</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>District: {b.district || 'City'}</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Theme: {normalizeTheme(b)} • Pack: {b.assetPack || 'Base Game'}</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Occupancy: {b.occupied} / {b.capacity || 0} ({occPct}%)</span>,
+    <span style={{ display: 'block', fontWeight: 700, color: '#ffb74d', marginTop: '4rem' }}>True Happiness: {b.happiness}%</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.6)' }}>City Avg: {cityAvgHappiness}%</span>
   ];
-  return lines.join('\n');
+  if (b.isSignature) {
+    lines.push(<span style={{ display: 'block', fontSize: '10rem', color: '#f0c040', fontWeight: 'bold', marginTop: '2rem' }}>★ Signature Building</span>);
+  }
+  lines.push(<span style={{ display: 'block', fontSize: '9rem', color: '#50b8e9', fontStyle: 'italic', marginTop: '4rem' }}>Click row to expand details</span>);
+  return lines;
 };
 
 const CycleFilterButton: React.FC<{
@@ -256,9 +254,16 @@ const CycleFilterButton: React.FC<{
   );
 };
 
-const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialBuildingsData?: string }> = ({
+const ResidentialPanel: React.FC<{
+  residentialBrowserData?: string;
+  residentialBuildingsData?: string;
+  onTooltipShow?: (lines: any[], el?: HTMLElement, alignRight?: boolean, clientX?: number, clientY?: number) => void;
+  onTooltipHide?: () => void;
+}> = ({
   residentialBrowserData = '',
   residentialBuildingsData = '',
+  onTooltipShow,
+  onTooltipHide
 }) => {
   const data = useMemo(() => parseResidentialData(residentialBrowserData || ''), [residentialBrowserData]);
   const buildings = useMemo(() => parseResidentialBuildings(residentialBuildingsData || ''), [residentialBuildingsData]);
@@ -748,20 +753,19 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                   return (
                     <React.Fragment key={b.entityKey}>
                       <div className={`res-bldg-row${b.entityKey.charCodeAt(0) % 2 === 0 ? '' : ' res-bldg-row-alt'}${selectedBuildingKey === b.entityKey || isExpanded ? ' res-bldg-row-selected' : ''}`}
-                        title={getResidentialRowTooltip(b, data)}
-                         onClick={() => {
-                           setSelectedBuildingKey(b.entityKey);
-                           if (isExpanded) {
-                             setExpandedBuildingKey(null);
-                             setIsPaused(false);
-                           } else {
-                             setExpandedBuildingKey(b.entityKey);
-                             setIsPaused(true);
-                           }
-                         }}>
+                        onClick={() => {
+                          setSelectedBuildingKey(b.entityKey);
+                          if (isExpanded) {
+                            setExpandedBuildingKey(null);
+                            setIsPaused(false);
+                          } else {
+                            setExpandedBuildingKey(b.entityKey);
+                            setIsPaused(true);
+                          }
+                        }}>
                         <div className="res-bcol-address">
                            <span className="res-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-                           {b.isSignature && <span className="res-signature-badge" title="Signature Building">★</span>}
+                           {b.isSignature && <span className="res-signature-badge">★</span>}
                            <img className="res-row-icon" src={RESIDENTIAL_ICON} alt="" />
                            {b.address}
                         </div>
@@ -831,9 +835,9 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                               const val = Number(parts[1]);
                               const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
                               return (
-                                <div key={`attr_${idx}`}>
-                                  <span className="res-bldg-detail-label">{label}</span>
-                                  <span className="res-bldg-detail-value" style={{ color: getSafeColor(color) }}>{val > 0 ? `+${val}` : val}</span>
+                                <div key={`attr_${idx}`} style={{ display: 'flex', alignItems: 'center' }}>
+                                  <span className="res-bldg-detail-label" style={{ marginRight: '8rem' }}>{label}</span>
+                                  <span className="res-bldg-detail-value" style={{ color: getSafeColor(color), fontWeight: 700 }}>{val > 0 ? `+${val}` : val}</span>
                                 </div>
                               );
                             })}
@@ -850,12 +854,12 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                                 const val = Number(parts[1]);
                                 const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
                                 return (
-                                  <div key={`happ_${idx}`}>
-                                    <span className="res-bldg-detail-label">
-                                      <img src={getEfficiencyFactorIcon(parts[0])} style={{ width: '14px', height: '14px', opacity: 0.7, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                  <div key={`happ_${idx}`} style={{ display: 'flex', alignItems: 'center' }}>
+                                    <span className="res-bldg-detail-label" style={{ display: 'inline-flex', alignItems: 'center', marginRight: '8rem' }}>
+                                      <img src={getEfficiencyFactorIcon(parts[0])} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', flexShrink: 0 }} alt="" />
                                       {displayLabel}
                                     </span>
-                                    <span className="res-bldg-detail-value" style={{ color: getSafeColor(color) }}>{val > 0 ? `+${val}` : val}</span>
+                                    <span className="res-bldg-detail-value" style={{ color: getSafeColor(color), fontWeight: 700 }}>{val > 0 ? `+${val}` : val}</span>
                                   </div>
                                 );
                               })}

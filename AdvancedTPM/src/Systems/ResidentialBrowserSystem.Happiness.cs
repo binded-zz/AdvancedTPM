@@ -54,6 +54,25 @@ namespace AdvancedTPM
         private BufferLookup<HouseholdCitizen> m_HouseholdCitizenLookup;
         private ComponentLookup<BuildingData> m_BuildingDataLookup;
 
+        private struct HappinessCalculationContext
+        {
+            public CitizenHappinessParameterData citizenParams;
+            public GarbageParameterData garbageParams;
+            public HealthcareParameterData healthParams;
+            public ParkParameterData parkParams;
+            public EducationParameterData eduParams;
+            public TelecomParameterData telecomParams;
+            public DynamicBuffer<HappinessFactorParameterData> factorParams;
+            public NativeArray<GroundPollution> groundMap;
+            public NativeArray<AirPollution> airMap;
+            public NativeArray<NoisePollution> noiseMap;
+            public CellMapData<TelecomCoverage> telecomMap;
+            public NativeArray<int> taxRates;
+            public float relElecFee;
+            public float relWaterFee;
+            public LocalEffectSystem.ReadData localEffectData;
+        }
+
         private void InitializeHappinessDependencies()
         {
             m_CitizenHappinessParameterQuery = GetEntityQuery(ComponentType.ReadOnly<CitizenHappinessParameterData>());
@@ -112,140 +131,100 @@ namespace AdvancedTPM
             m_BuildingDataLookup.Update(this);
         }
 
-        private string GetHappinessFactorsString(Entity property)
+        private string GetHappinessFactorsString(Entity property, in HappinessCalculationContext ctx)
         {
             try
             {
-                if (m_CitizenHappinessParameterQuery.IsEmptyIgnoreFilter ||
-                    m_GarbageParameterQuery.IsEmptyIgnoreFilter ||
-                    m_HealthcareParameterQuery.IsEmptyIgnoreFilter ||
-                    m_ParkParameterQuery.IsEmptyIgnoreFilter ||
-                    m_EducationParameterQuery.IsEmptyIgnoreFilter ||
-                    m_TelecomParameterQuery.IsEmptyIgnoreFilter ||
-                    m_ServiceFeeParameterQuery.IsEmptyIgnoreFilter ||
-                    m_HappinessFactorParameterQuery.IsEmptyIgnoreFilter)
-                {
-                    return "";
-                }
-
-                if (_citySystem == null || m_GroundPollutionSystem == null || m_AirPollutionSystem == null || m_NoisePollutionSystem == null || m_TelecomCoverageSystem == null || m_TaxSystem == null)
-                {
-                    return "";
-                }
-
-                CitizenHappinessParameterData citizenParams = m_CitizenHappinessParameterQuery.GetSingleton<CitizenHappinessParameterData>();
-                GarbageParameterData garbageParams = m_GarbageParameterQuery.GetSingleton<GarbageParameterData>();
-                HealthcareParameterData healthParams = m_HealthcareParameterQuery.GetSingleton<HealthcareParameterData>();
-                ParkParameterData parkParams = m_ParkParameterQuery.GetSingleton<ParkParameterData>();
-                EducationParameterData eduParams = m_EducationParameterQuery.GetSingleton<EducationParameterData>();
-                TelecomParameterData telecomParams = m_TelecomParameterQuery.GetSingleton<TelecomParameterData>();
-                ServiceFeeParameterData feeParams = m_ServiceFeeParameterQuery.GetSingleton<ServiceFeeParameterData>();
-                
-                DynamicBuffer<HappinessFactorParameterData> factorParams = EntityManager.GetBuffer<HappinessFactorParameterData>(m_HappinessFactorParameterQuery.GetSingletonEntity(), true);
-
-                NativeArray<GroundPollution> groundMap = m_GroundPollutionSystem.GetMap(true, out JobHandle h1);
-                NativeArray<AirPollution> airMap = m_AirPollutionSystem.GetMap(true, out JobHandle h2);
-                NativeArray<NoisePollution> noiseMap = m_NoisePollutionSystem.GetMap(true, out JobHandle h3);
-                CellMapData<TelecomCoverage> telecomMap = m_TelecomCoverageSystem.GetData(true, out JobHandle h4);
-                h1.Complete(); h2.Complete(); h3.Complete(); h4.Complete();
-
-                NativeArray<int> taxRates = m_TaxSystem.GetTaxRates();
-                DynamicBuffer<ServiceFee> serviceFees = EntityManager.GetBuffer<ServiceFee>(_citySystem.City, true);
-                
-                float relElecFee = 1f;
-                float relWaterFee = 1f;
-                if (feeParams.m_ElectricityFee.m_Default > 0)
-                    relElecFee = ServiceFeeSystem.GetFee(PlayerResource.Electricity, serviceFees) / feeParams.m_ElectricityFee.m_Default;
-                if (feeParams.m_WaterFee.m_Default > 0)
-                    relWaterFee = ServiceFeeSystem.GetFee(PlayerResource.Water, serviceFees) / feeParams.m_WaterFee.m_Default;
-
                 NativeArray<int2> factors = new NativeArray<int2>(28, Allocator.Temp);
-                LocalEffectSystem.ReadData localEffectData = m_LocalEffectSystem.GetReadData(out JobHandle localEffectDeps);
-                localEffectDeps.Complete();
-                
-                BuildingHappiness.GetResidentialBuildingHappinessFactors(
-                    _citySystem.City,
-                    taxRates,
-                    property,
-                    factors,
-                    ref m_PrefabRefLookup,
-                    ref m_SpawnableBuildingDataLookup,
-                    ref m_BuildingPropertyDataLookup,
-                    ref m_CityModifierLookup,
-                    ref m_BuildingLookup,
-                    ref m_ElectricityConsumerLookup,
-                    ref m_WaterConsumerLookup,
-                    ref m_ServiceCoverageLookup,
-                    ref m_LockedLookup,
-                    ref m_TransformLookup,
-                    ref m_GarbageProducerLookup,
-                    ref m_CrimeProducerLookup,
-                    ref m_MailProducerLookup,
-                    ref m_RenterLookup,
-                    ref m_CitizenLookup,
-                    ref m_HouseholdCitizenLookup,
-                    ref m_BuildingDataLookup,
-                    ref localEffectData,
-                    citizenParams,
-                    garbageParams,
-                    healthParams,
-                    parkParams,
-                    eduParams,
-                    telecomParams,
-                    factorParams,
-                    groundMap,
-                    noiseMap,
-                    airMap,
-                    telecomMap,
-                    relElecFee,
-                    relWaterFee
-                );
-
-                int totalHappiness = 0;
-                int citizenCount = 0;
-                if (m_RenterLookup.HasBuffer(property))
+                var localEffectData = ctx.localEffectData;
+                try
                 {
-                    DynamicBuffer<Renter> renters = m_RenterLookup[property];
-                    for (int i = 0; i < renters.Length; i++)
+                    BuildingHappiness.GetResidentialBuildingHappinessFactors(
+                        _citySystem.City,
+                        ctx.taxRates,
+                        property,
+                        factors,
+                        ref m_PrefabRefLookup,
+                        ref m_SpawnableBuildingDataLookup,
+                        ref m_BuildingPropertyDataLookup,
+                        ref m_CityModifierLookup,
+                        ref m_BuildingLookup,
+                        ref m_ElectricityConsumerLookup,
+                        ref m_WaterConsumerLookup,
+                        ref m_ServiceCoverageLookup,
+                        ref m_LockedLookup,
+                        ref m_TransformLookup,
+                        ref m_GarbageProducerLookup,
+                        ref m_CrimeProducerLookup,
+                        ref m_MailProducerLookup,
+                        ref m_RenterLookup,
+                        ref m_CitizenLookup,
+                        ref m_HouseholdCitizenLookup,
+                        ref m_BuildingDataLookup,
+                        ref localEffectData,
+                        ctx.citizenParams,
+                        ctx.garbageParams,
+                        ctx.healthParams,
+                        ctx.parkParams,
+                        ctx.eduParams,
+                        ctx.telecomParams,
+                        ctx.factorParams,
+                        ctx.groundMap,
+                        ctx.noiseMap,
+                        ctx.airMap,
+                        ctx.telecomMap,
+                        ctx.relElecFee,
+                        ctx.relWaterFee
+                    );
+
+                    int totalHappiness = 0;
+                    int citizenCount = 0;
+                    if (m_RenterLookup.HasBuffer(property))
                     {
-                        Entity renterEntity = renters[i].m_Renter;
-                        if (m_HouseholdCitizenLookup.HasBuffer(renterEntity))
+                        DynamicBuffer<Renter> renters = m_RenterLookup[property];
+                        for (int i = 0; i < renters.Length; i++)
                         {
-                            DynamicBuffer<HouseholdCitizen> householdCitizens = m_HouseholdCitizenLookup[renterEntity];
-                            for (int j = 0; j < householdCitizens.Length; j++)
+                            Entity renterEntity = renters[i].m_Renter;
+                            if (m_HouseholdCitizenLookup.HasBuffer(renterEntity))
                             {
-                                Entity citizenEntity = householdCitizens[j].m_Citizen;
-                                if (m_CitizenLookup.HasComponent(citizenEntity))
+                                DynamicBuffer<HouseholdCitizen> householdCitizens = m_HouseholdCitizenLookup[renterEntity];
+                                for (int j = 0; j < householdCitizens.Length; j++)
                                 {
-                                    totalHappiness += m_CitizenLookup[citizenEntity].Happiness;
-                                    citizenCount++;
+                                    Entity citizenEntity = householdCitizens[j].m_Citizen;
+                                    if (m_CitizenLookup.HasComponent(citizenEntity))
+                                    {
+                                        totalHappiness += m_CitizenLookup[citizenEntity].Happiness;
+                                        citizenCount++;
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                
-                int trueAvgHappiness = 50;
-                if (citizenCount > 0)
-                {
-                    trueAvgHappiness = (int)math.round((float)totalHappiness / citizenCount);
-                }
-
-                List<string> parts = new List<string>();
-                for (int i = 0; i < factors.Length; i++)
-                {
-                    int weight = factors[i].x;
-                    int happiness = factors[i].y;
-                    if (happiness != 0)
+                    
+                    int trueAvgHappiness = 50;
+                    if (citizenCount > 0)
                     {
-                        string factorName = ((Game.Simulation.CitizenHappinessSystem.HappinessFactor)i).ToString();
-                        parts.Add(factorName + ":" + happiness.ToString());
+                        trueAvgHappiness = (int)math.round((float)totalHappiness / citizenCount);
                     }
+
+                    List<string> parts = new List<string>();
+                    for (int i = 0; i < (int)Game.Simulation.CitizenHappinessSystem.HappinessFactor.Count; i++)
+                    {
+                        int weight = factors[i].x;
+                        int happiness = factors[i].y;
+                        if (happiness != 0)
+                        {
+                            string factorName = ((Game.Simulation.CitizenHappinessSystem.HappinessFactor)i).ToString();
+                            parts.Add(factorName + ":" + happiness.ToString());
+                        }
+                    }
+                    
+                    return trueAvgHappiness.ToString() + "^" + string.Join("^", parts);
                 }
-                
-                factors.Dispose();
-                
-                return trueAvgHappiness.ToString() + "^" + string.Join("^", parts);
+                finally
+                {
+                    factors.Dispose();
+                }
             }
             catch (Exception ex)
             {

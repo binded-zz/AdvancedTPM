@@ -11,10 +11,15 @@ interface PackIconProps {
 const PackIcon: React.FC<PackIconProps> = ({ pack, theme, iconUrl, size = 18, style }) => {
   let finalIconUrl = iconUrl;
   
+  // If the path is the invalid base game svg, clear it to avoid loading errors
+  if (finalIconUrl === 'coui://uil/Colored/BaseGame.svg') {
+    finalIconUrl = '';
+  }
+
   // If no iconUrl was provided from the backend, we can fallback dynamically
   if (!finalIconUrl && pack) {
     if (pack === 'Base Game') {
-      finalIconUrl = 'coui://uil/Colored/BaseGame.svg';
+      finalIconUrl = '';
     }
   }
 
