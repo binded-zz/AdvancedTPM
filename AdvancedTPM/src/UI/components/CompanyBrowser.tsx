@@ -780,10 +780,10 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
             Pk
           </div>
           <div className="cb-col-profit cb-sortable" onClick={() => handleSort('profit')}>
-            {'Profit\u00a0%' + sortIndicator('profit')}
+            {'Profit%' + sortIndicator('profit')}
           </div>
           <div className="cb-col-tax">
-            <div className="cb-sortable" onClick={() => handleSort('tax')}>Tax %{sortIndicator('tax')}</div>
+            <div className="cb-sortable" onClick={() => handleSort('tax')}>Tax%{sortIndicator('tax')}</div>
           </div>
           <div className="cb-col-tier cb-sortable" onClick={() => handleSort('profitabilityTier')}>
             Status{sortIndicator('profitabilityTier')}
@@ -865,12 +865,12 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                      </div>
                     <div className="cb-col-profit">
                       <span style={{ color: getSafeColor(profitColor) }}>
-                        {`${c.profit > 0 ? '+' : ''}${c.profit}\u00a0%`}
+                        {`${c.profit > 0 ? '+' : ''}${c.profit}%`}
                       </span>
                     </div>
                     <div className="cb-col-tax">
                       <span style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>
-                        {`${c.taxRate}\u00a0%`}
+                        {`${c.taxRate}%`}
                       </span>
                     </div>
                     <div className="cb-col-tier">
