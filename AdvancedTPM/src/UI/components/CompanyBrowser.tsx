@@ -946,7 +946,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                           </div>
                           <div className="cb-detail-row">
                             <span className="cb-detail-label">Resource Storage</span>
-                            <span className="cb-detail-value">{(c.storageCapacity || 0) > 0 ? `${c.storageAmount || 0} / ${c.storageCapacity} t` : `${c.storageAmount || 0} t`}</span>
+                            <span className="cb-detail-value">{(c.storageCapacity || 0) > 0 ? `${c.storageAmount || 0}/${c.storageCapacity}t` : `${c.storageAmount || 0}t`}</span>
                           </div>
                           {c.allowedResources && c.allowedResources !== 'NoResource' && (
                             <div className="cb-detail-row">
@@ -975,7 +975,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                           <div className="cb-detail-row">
                             <span className="cb-detail-label">Workers</span>
                             <span className="cb-detail-value">
-                              {c.maxWorkers > 0 ? `${c.workers} / ${c.maxWorkers} (${workerPct}%)` : '\u2014'}
+                              {c.maxWorkers > 0 ? `${c.workers}/${c.maxWorkers} (${workerPct}%)` : '\u2014'}
                             </span>
                           </div>
                           <div className="cb-detail-row">
@@ -989,22 +989,22 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                           <div className="cb-detail-section-title">Consumption (In)</div>
                           <div className="cb-detail-row">
                             <span className="cb-detail-label">
-                              <img src="Media/Game/Icons/Electricity.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                              <img src="Media/Game/Icons/Electricity.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                               Electricity
                             </span>
-                            <span className="cb-detail-value">{(c as any).electricityConsumption || '—'} kW</span>
+                            <span className="cb-detail-value">{(c as any).electricityConsumption || '—'}kW</span>
                           </div>
                           <div className="cb-detail-row">
                             <span className="cb-detail-label">
-                              <img src="Media/Game/Icons/Water.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                              <img src="Media/Game/Icons/Water.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                               Water
                             </span>
-                            <span className="cb-detail-value">{(c as any).waterConsumption || '—'} m³</span>
+                            <span className="cb-detail-value">{(c as any).waterConsumption || '—'}m³</span>
                           </div>
                           {companyHappinessData && companyHappinessData.mailReceiving > 0 && (
                             <div className="cb-detail-row">
                               <span className="cb-detail-label">
-                                <img src="Media/Game/Icons/PostService.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                <img src="Media/Game/Icons/PostService.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                                 Mail Receiving
                               </span>
                               <span className="cb-detail-value">{companyHappinessData.mailReceiving}</span>
@@ -1015,27 +1015,27 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                           <div className="cb-detail-section-title">Production (Out)</div>
                           <div className="cb-detail-row">
                             <span className="cb-detail-label">
-                              <img src="Media/Game/Icons/Garbage.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                              <img src="Media/Game/Icons/Garbage.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                               Garbage
                             </span>
-                            <span className="cb-detail-value">{(c as any).garbageAccumulation || 0} t</span>
+                            <span className="cb-detail-value">{(c as any).garbageAccumulation || 0}t</span>
                           </div>
                           {Number((c as any).mailAccumulation) > 0 && (
                             <div className="cb-detail-row">
                               <span className="cb-detail-label">
-                                <img src="Media/Game/Icons/PostService.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                <img src="Media/Game/Icons/PostService.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                                 Mail Sending
                               </span>
-                              <span className="cb-detail-value">{(c as any).mailAccumulation} u</span>
+                              <span className="cb-detail-value">{(c as any).mailAccumulation}u</span>
                             </div>
                           )}
                           {Number((c as any).crimeProbability) > 0 && (
                             <div className="cb-detail-row">
                               <span className="cb-detail-label">
-                                <img src="Media/Game/Icons/Police.svg" style={{ width: '16px', height: '16px', opacity: 0.8, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                <img src="Media/Game/Icons/Police.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                                 Crime Risk
                               </span>
-                              <span className="cb-detail-value">{(c as any).crimeProbability} %</span>
+                              <span className="cb-detail-value">{(c as any).crimeProbability}%</span>
                             </div>
                           )}
 
@@ -1064,7 +1064,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                             return factors.map((f, fi) => (
                               <div key={fi} className="cb-detail-row">
                                 <span className="cb-detail-label">
-                                  <img src={getEfficiencyFactorIcon(f.factorName || '')} style={{ width: '16px', height: '16px', opacity: 0.7, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                  <img src={getEfficiencyFactorIcon(f.factorName || '')} style={{ width: '20rem', height: '20rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                                   {f.label}
                                 </span>
                                 <span className="cb-detail-value" style={{ color: getSafeColor(f.color, '#EAEAEA') }}>{f.status}</span>
@@ -1080,7 +1080,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                             const cond = companyHappinessData.buildingCondition || 0;
                             const maxCond = companyHappinessData.maxCondition || 0;
                             const wearPct = maxCond > 0 ? Math.min(100, Math.round((cond / maxCond) * 100)) : 100;
-                            const wearVal = maxCond > 0 ? `${wearPct}% (${formatCurrency(cond)} / ${formatCurrency(maxCond)})` : `${cond} (No Upkeep)`;
+                            const wearVal = maxCond > 0 ? `${wearPct}% (${formatCurrency(cond)}/${formatCurrency(maxCond)})` : `${cond} (No Upkeep)`;
                             
                             // explicitly handled keys
                             const excludeKeys = ['buildingCondition', 'maxCondition', 'crimeProbability', 'telecom', 'mailSending', 'mailReceiving', 'electricityConsumption', 'waterConsumption', 'garbageAccumulation', 'mailAccumulation', 'crime', 'garbage', 'mail'];
@@ -1088,7 +1088,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                             return (
                               <>
                                 <div className="cb-detail-row">
-                                  <span className="cb-detail-label">Condition / Wear</span>
+                                  <span className="cb-detail-label">Condition/Wear</span>
                                   <span className="cb-detail-value">{wearVal}</span>
                                 </div>
                                 <div className="cb-detail-row">
@@ -1123,7 +1123,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                                   return (
                                     <div className="cb-detail-row" key={k}>
                                       <span className="cb-detail-label">
-                                        <img src={getEfficiencyFactorIcon(k)} style={{ width: '14px', height: '14px', opacity: 0.7, marginRight: '6px', verticalAlign: 'middle' }} alt="" />
+                                        <img src={getEfficiencyFactorIcon(k)} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
                                         {displayLabel}
                                       </span>
                                       <span className="cb-detail-value" style={{ color: getSafeColor(color) }}>{val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1)}</span>
