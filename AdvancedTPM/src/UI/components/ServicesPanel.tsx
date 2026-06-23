@@ -485,7 +485,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                                     b.category.includes('Healthcare') ? 'Media/Game/Icons/TraumaCenter.svg' :
                                     b.category.includes('Police') ? 'Media/Game/Icons/Prison.svg' :
                                     'Media/Game/Icons/Citizens.svg'
-                                  } style={{ width: '16px', height: '16px', filter: 'brightness(0.9)' }} alt="" />
+                                  } style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)' }} alt="" title="Occupancy" />
                                   Occupancy
                                 </span>
                                 <span className="svc-detail-value">
@@ -503,7 +503,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                                     b.category.includes('Garbage') ? 'Media/Game/Icons/Garbage.svg' :
                                     b.category.includes('Deathcare') ? 'Media/Game/Icons/Deathcare.svg' :
                                     'Media/Game/Icons/TransportBus.svg'
-                                  } style={{ width: '16px', height: '16px', filter: 'brightness(0.9)' }} alt="" />
+                                  } style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)' }} alt="" title="Active Vehicles" />
                                   Active Vehicles
                                 </span>
                                 <span className="svc-detail-value">
@@ -513,7 +513,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                             )}
                             <div className="svc-detail-row">
                               <span className="svc-detail-label">
-                                <img src="Media/Game/Icons/Workers.svg" style={{ width: '16px', height: '16px', filter: 'brightness(0.9)' }} alt="" />
+                                <img src="Media/Game/Icons/Workers.svg" style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)' }} alt="" title="Employees" />
                                 Employees
                               </span>
                               <span className="svc-detail-value">
@@ -529,7 +529,7 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                             </div>
                             <div className="svc-detail-row">
                               <span className="svc-detail-label">
-                                <img src="Media/Game/Icons/Electricity.svg" style={{ width: '16px', height: '16px' }} alt="" /> {translate('Properties.ELECTRICITY', 'Electricity')}
+                                <img src="Media/Game/Icons/Electricity.svg" style={{ width: '18rem', height: '18rem' }} alt="" title="Electricity Consumption" /> {translate('Properties.ELECTRICITY', 'Electricity')}
                               </span>
                               <span className="svc-detail-value">
                                 {b.electricityConsumption > 0 ? `${b.electricityConsumption.toFixed(0)} kW` : b.electricityConsumption < 0 ? `+${Math.abs(b.electricityConsumption).toFixed(0)} kW` : '0'}
@@ -537,13 +537,13 @@ const ServicesPanel: React.FC<{ servicesBuildingsData?: string; servicesBrowserD
                             </div>
                             <div className="svc-detail-row">
                               <span className="svc-detail-label">
-                                <img src="Media/Game/Icons/Water.svg" style={{ width: '16px', height: '16px' }} alt="" /> {translate('Properties.WATER', 'Water')}
+                                <img src="Media/Game/Icons/Water.svg" style={{ width: '18rem', height: '18rem' }} alt="" title="Water Consumption" /> {translate('Properties.WATER', 'Water')}
                               </span>
                               <span className="svc-detail-value">{b.waterConsumption > 0 ? `${b.waterConsumption.toFixed(0)} m³` : '0'}</span>
                             </div>
                             <div className="svc-detail-row">
                               <span className="svc-detail-label">
-                                <img src="Media/Game/Icons/Garbage.svg" style={{ width: '16px', height: '16px' }} alt="" /> {translate('Properties.GARBAGE', 'Garbage')}
+                                <img src="Media/Game/Icons/Garbage.svg" style={{ width: '18rem', height: '18rem' }} alt="" title="Garbage Accumulation" /> {translate('Properties.GARBAGE', 'Garbage')}
                               </span>
                               <span className="svc-detail-value">{b.garbageAccumulation > 0 ? `${b.garbageAccumulation.toFixed(0)} t` : '0'}</span>
                             </div>
