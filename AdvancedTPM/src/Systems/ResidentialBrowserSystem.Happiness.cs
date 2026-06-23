@@ -34,6 +34,7 @@ namespace AdvancedTPM
         private NoisePollutionSystem m_NoisePollutionSystem;
         private TelecomCoverageSystem m_TelecomCoverageSystem;
         private TaxSystem m_TaxSystem;
+        private LocalEffectSystem m_LocalEffectSystem;
         
         private ComponentLookup<PrefabRef> m_PrefabRefLookup;
         private ComponentLookup<SpawnableBuildingData> m_SpawnableBuildingDataLookup;
@@ -69,6 +70,7 @@ namespace AdvancedTPM
             m_NoisePollutionSystem = World.GetOrCreateSystemManaged<NoisePollutionSystem>();
             m_TelecomCoverageSystem = World.GetOrCreateSystemManaged<TelecomCoverageSystem>();
             m_TaxSystem = World.GetOrCreateSystemManaged<TaxSystem>();
+            m_LocalEffectSystem = World.GetOrCreateSystemManaged<LocalEffectSystem>();
 
             m_PrefabRefLookup = GetComponentLookup<PrefabRef>(true);
             m_SpawnableBuildingDataLookup = GetComponentLookup<SpawnableBuildingData>(true);
@@ -158,7 +160,8 @@ namespace AdvancedTPM
                     relWaterFee = ServiceFeeSystem.GetFee(PlayerResource.Water, serviceFees) / feeParams.m_WaterFee.m_Default;
 
                 NativeArray<int2> factors = new NativeArray<int2>(28, Allocator.Temp);
-                LocalEffectSystem.ReadData dummyReadData = default;
+                LocalEffectSystem.ReadData localEffectData = m_LocalEffectSystem.GetReadData(out JobHandle localEffectDeps);
+                localEffectDeps.Complete();
                 
                 BuildingHappiness.GetResidentialBuildingHappinessFactors(
                     _citySystem.City,
@@ -182,7 +185,7 @@ namespace AdvancedTPM
                     ref m_CitizenLookup,
                     ref m_HouseholdCitizenLookup,
                     ref m_BuildingDataLookup,
-                    ref dummyReadData,
+                    ref localEffectData,
                     citizenParams,
                     garbageParams,
                     healthParams,
