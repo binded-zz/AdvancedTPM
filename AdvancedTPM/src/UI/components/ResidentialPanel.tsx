@@ -220,7 +220,7 @@ const getResidentialRowTooltip = (b: ResidentialBuilding, data: ResidentialData)
     `<br/>Density: ${b.density} • Level: Lv ${b.level}`,
     `District: ${b.district || 'City'}`,
     `Theme: ${normalizeTheme(b)} • Pack: ${b.assetPack || 'Base Game'}`,
-    `Occupancy: ${b.occupied}/${b.capacity || 0} (${occPct}%)`,
+    `Occupancy: ${b.occupied} / ${b.capacity || 0} (${occPct}%)`,
     `<br/><b>True Happiness: ${b.happiness}%</b>`,
     `City Avg: ${cityAvgHappiness}%`,
     `<br/>Signature: ${b.isSignature ? 'Yes' : 'No'}`,
@@ -820,7 +820,7 @@ const ResidentialPanel: React.FC<{ residentialBrowserData?: string; residentialB
                             <div><span className="res-bldg-detail-label">Theme</span><span className="res-bldg-detail-value">{normalizeTheme(b)}</span></div>
                              <div><span className="res-bldg-detail-label">Pack</span><span className="res-bldg-detail-value" style={{ display: 'flex', alignItems: 'center' }}><PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={20} style={{ marginRight: '6rem' }} />{b.assetPack || 'Base Game'}</span></div>
                             <div><span className="res-bldg-detail-label">Level</span><span className="res-bldg-detail-value">{`Lv ${b.level}`}</span></div>
-                            <div><span className="res-bldg-detail-label">Occupancy</span><span className="res-bldg-detail-value">{`${b.occupied}/${b.capacity || 0} (${occPct}%)`}</span></div>
+                            <div><span className="res-bldg-detail-label">Occupancy</span><span className="res-bldg-detail-value">{`${b.occupied} / ${b.capacity || 0} (${occPct}%)`}</span></div>
                             <div><span className="res-bldg-detail-label">Signature</span><span className="res-bldg-detail-value">{b.isSignature ? 'Yes' : 'No'}</span></div>
                             {b.attractiveness ? <div><span className="res-bldg-detail-label">Attractiveness</span><span className="res-bldg-detail-value" style={{ color: getSafeColor('#3fc9d8') }}>{b.attractiveness}</span></div> : null}
                             {b.attractivenessFactors && b.attractivenessFactors.split('|').map((factor, idx) => {

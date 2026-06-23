@@ -706,7 +706,7 @@ export const DistrictsPanel: React.FC<Props> = ({
                                     { label: 'Highly Educated', value: r.workerHighlyEducated || 0, color: '#64b5f6' },
                                   ]} />
                                   <div style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
-                                    <StatRow label="Employees" val={`${fmt(r.workers)}/${fmt(r.maxWorkers)}`} rawKey="workers" showRaw={showRawData} style={{ fontWeight: 'bold', color: getSafeColor('#50b8e9') }} />
+                                    <StatRow label="Employees" val={`${fmt(r.workers)} / ${fmt(r.maxWorkers)}`} rawKey="workers" showRaw={showRawData} style={{ fontWeight: 'bold', color: getSafeColor('#50b8e9') }} />
                                     {(r.unemployed || 0) > 0 && (
                                       <StatRow label="Unemployed (working-age)" val={fmt(r.unemployed || 0)} rawKey="unemployed" showRaw={showRawData} style={{ color: getSafeColor((r.unemploymentRate || 0) > 15 ? '#e05050' : '#ffb74d') }} />
                                     )}
