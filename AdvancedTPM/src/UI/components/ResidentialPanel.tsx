@@ -7,6 +7,8 @@ import { DetailRow } from './common';
 import './ResidentialPanel.css';
 import CustomSelect from './CustomSelect';
 import PackIcon from '../assets/PackIcon';
+import { useTableSort } from '../hooks/useTableSort';
+import { ICONS, EFF_FACTOR_LABELS, getEfficiencyFactorIcon, getThemeIconMap } from '../data/iconLibrary';
 
 interface ResidentialData {
   lowTotal: number;
@@ -118,58 +120,7 @@ const getBuildingHappinessFactors = (b: ResidentialBuilding): string => {
 };
 
 
-const EFF_FACTOR_LABELS: Record<string, string> = {
-  EmployeeHappiness: 'Employee Happiness',
-  ElectricitySupply: 'Electricity Supply',
-  ElectricityFee: 'Electricity Fee',
-  WaterSupply: 'Water Supply',
-  DirtyWater: 'Dirty Water',
-  SewageHandling: 'Sewage',
-  WaterFee: 'Water Fee',
-  NoisePollution: 'Noise Pollution',
-  GroundPollution: 'Ground Pollution',
-  AirPollution: 'Air Pollution',
-  TrafficPenalty: 'Traffic Penalty',
-  DeathPenalty: 'Death Penalty',
-  Healthcare: 'Healthcare',
-  Entertainment: 'Entertainment',
-  Education: 'Education',
-  Mail: 'Mail',
-  Welfare: 'Welfare',
-  Leisure: 'Leisure',
-  Tax: 'Tax',
-  Buildings: 'Buildings',
-  Consumption: 'Consumption',
-  Homelessness: 'Homelessness',
-  Telecom: 'Telecom',
-  Crime: 'Crime',
-  Apartment: 'Apartment',
-};
 
-const getEfficiencyFactorIcon = (factorName: string): string => {
-  if (!factorName) return 'Media/Game/Icons/Notifications.svg';
-  const n = factorName.toLowerCase();
-  if (n.includes('worker') || n.includes('employee') || n.includes('staff')) return 'Media/Game/Icons/Workers.svg';
-  if (n.includes('electric') || n.includes('power')) return 'Media/Game/Icons/Electricity.svg';
-  if (n.includes('water') || n.includes('sewage')) return 'Media/Game/Icons/Water.svg';
-  if (n.includes('garbage') || n.includes('waste')) return 'Media/Game/Icons/Garbage.svg';
-  if (n.includes('mail')) return 'Media/Game/Icons/PostService.svg';
-  if (n.includes('crime')) return 'Media/Game/Icons/Police.svg';
-  if (n.includes('transport') || n.includes('access') || n.includes('traffic')) return 'Media/Game/Icons/Traffic.svg';
-  if (n.includes('road') || n.includes('network')) return 'Media/Game/Icons/Roads.svg';
-  if (n.includes('healthcare') || n.includes('hospital') || n.includes('sick')) return 'Media/Game/Icons/Healthcare.svg';
-  if (n.includes('education') || n.includes('school') || n.includes('university') || n.includes('college')) return 'Media/Game/Icons/Education.svg';
-  if (n.includes('wealth')) return 'Media/Game/Icons/Wealth.svg';
-  if (n.includes('park') || n.includes('entertainment') || n.includes('attraction') || n.includes('leisure') || n.includes('apartment') || n.includes('building')) return 'Media/Game/Icons/ParksAndRecreation.svg';
-  if (n.includes('welfare') || n.includes('wellbeing')) return 'Media/Game/Icons/Wellbeing.svg';
-  if (n.includes('fire')) return 'Media/Game/Icons/FireAndRescue.svg';
-  if (n.includes('deathcare') || n.includes('death') || n.includes('cemetery') || n.includes('crematorium')) return 'Media/Game/Icons/Deathcare.svg';
-  if (n.includes('police')) return 'Media/Game/Icons/PoliceAndAdministration.svg';
-  if (n.includes('telecom') || n.includes('network')) return 'Media/Game/Icons/Communications.svg';
-  if (n.includes('pollution')) return 'Media/Game/Icons/Pollution.svg';
-  if (n.includes('tax') || n.includes('consumption')) return 'Media/Game/Icons/Economy.svg';
-  return 'Media/Game/Icons/Notifications.svg';
-};
 
 const formatPackName = (name: string): string => {
   if (!name || name === 'Base Game' || name === 'Custom' || name === 'DLC') return name;
@@ -186,7 +137,7 @@ const DENSITY_COLORS: Record<string, string> = {
   Residential: 'rgba(255,255,255,0.6)',
 };
 
-const RESIDENTIAL_ICON = 'Media/Game/Icons/ZoneResidential.svg';
+
 
 const normalizeTheme = (building: ResidentialBuilding): string => {
   const t = building.theme;
@@ -276,8 +227,7 @@ const ResidentialPanel: React.FC<{
   const [occupancyStateFilter, setOccupancyStateFilter] = useState('All');
   const [minHappiness, setMinHappiness] = useState(0);
   const [maxHappiness, setMaxHappiness] = useState(100);
-  const [sortField, setSortField] = useState<ResBldgSortField>('occupied');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const { sortField, sortDir, handleSort, sortIndicator } = useTableSort<ResBldgSortField>('occupied', 'desc', ' (asc)', ' (desc)');
   const [searchText, setSearchText] = useState('');
   const [selectedBuildingKey, setSelectedBuildingKey] = useState<string | null>(null);
   const [expandedBuildingKey, setExpandedBuildingKey] = useState<string | null>(null);
@@ -293,11 +243,7 @@ const ResidentialPanel: React.FC<{
     setIsPaused(false);
   }, [densityFilter, themeFilter, assetPackFilter, districtFilter, levelFilter, showSignatureOnly, occupancyStateFilter, minHappiness, maxHappiness, searchText, sortField, sortDir]);
 
-  const handleSort = (field: ResBldgSortField) => {
-    if (sortField === field) { setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); }
-    else { setSortField(field); setSortDir(field === 'address' ? 'asc' : 'desc'); }
-  };
-  const sortIndicator = (field: ResBldgSortField) => sortField === field ? (sortDir === 'asc' ? ' (asc)' : ' (desc)') : '';
+
 
   const happinessFromClientX = useCallback((clientX: number): number => {
     if (!happinessTrackRef.current) return 0;
@@ -376,11 +322,10 @@ const ResidentialPanel: React.FC<{
       }
     });
     // Add defaults
-    if (!map.has('European')) map.set('European', 'Media/Game/Icons/ThemeEuropean.svg');
-    if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'Media/Game/Icons/ThemeNorthAmerican.svg');
-    if (!map.has('North American')) map.set('North American', 'Media/Game/Icons/ThemeNorthAmerican.svg');
-    if (!map.has('EU')) map.set('EU', 'Media/Game/Icons/ThemeEuropean.svg');
-    if (!map.has('USA')) map.set('USA', 'Media/Game/Icons/ThemeNorthAmerican.svg');
+    const defaults = getThemeIconMap();
+    defaults.forEach((val, key) => {
+      if (!map.has(key)) map.set(key, val);
+    });
     return map;
   }, [safeBuildings]);
 
@@ -725,13 +670,13 @@ const ResidentialPanel: React.FC<{
           <div className="res-bldg-table">
             <div className="panel-table-header">
               <div className="res-bcol-address res-sortable" onClick={() => handleSort('address')}>Name/Address{sortIndicator('address')}</div>
-              <div className="res-bcol-density res-sortable" onClick={() => handleSort('density')}>Zone Density{sortIndicator('density')}</div>
-              <div className="res-bcol-level res-sortable" onClick={() => handleSort('level')}>Lv{sortIndicator('level')}</div>
-              <div className="res-bcol-theme res-sortable" onClick={() => handleSort('theme')}>Theme{sortIndicator('theme')}</div>
-              <div className="res-bcol-assetpack res-sortable" onClick={() => handleSort('assetPack')}>Asset Pack{sortIndicator('assetPack')}</div>
-              <div className="res-bcol-occupied res-sortable" onClick={() => handleSort('occupied')}>Active Households{sortIndicator('occupied')}</div>
-              <div className="res-bcol-capacity res-sortable" onClick={() => handleSort('capacity')}>Property Size{sortIndicator('capacity')}</div>
-              <div className="res-bcol-occupancy res-sortable" onClick={() => handleSort('occupancy')}>Occ%{sortIndicator('occupancy')}</div>
+              <div className="res-bcol-density res-sortable" onClick={() => handleSort('density', true)}>Zone Density{sortIndicator('density')}</div>
+              <div className="res-bcol-level res-sortable" onClick={() => handleSort('level', true)}>Lv{sortIndicator('level')}</div>
+              <div className="res-bcol-theme res-sortable" onClick={() => handleSort('theme', true)}>Theme{sortIndicator('theme')}</div>
+              <div className="res-bcol-assetpack res-sortable" onClick={() => handleSort('assetPack', true)}>Asset Pack{sortIndicator('assetPack')}</div>
+              <div className="res-bcol-occupied res-sortable" onClick={() => handleSort('occupied', true)}>Active Households{sortIndicator('occupied')}</div>
+              <div className="res-bcol-capacity res-sortable" onClick={() => handleSort('capacity', true)}>Property Size{sortIndicator('capacity')}</div>
+              <div className="res-bcol-occupancy res-sortable" onClick={() => handleSort('occupancy', true)}>Occ%{sortIndicator('occupancy')}</div>
               <div className="res-bcol-happy">Happy</div>
               <div className="res-bcol-action">Go</div>
             </div>
@@ -766,7 +711,7 @@ const ResidentialPanel: React.FC<{
                         <div className="res-bcol-address">
                             <span className="panel-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
                             {b.isSignature && <span className="res-signature-badge">★</span>}
-                            <img className="res-row-icon" src={RESIDENTIAL_ICON} alt="" />
+                            <img className="res-row-icon" src={ICONS.ZONE_RESIDENTIAL} alt="" />
                             {b.address}
                          </div>
                          <div className="res-bcol-density" style={{ color: getSafeColor(DENSITY_COLORS[b.density] || 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>{b.density}</div>

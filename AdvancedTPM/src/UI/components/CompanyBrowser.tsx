@@ -11,6 +11,8 @@ import PackIcon from '../assets/PackIcon';
 import { DetailRow, ProgressBar } from './common';
 import './CompanyBrowser.css';
 import CustomSelect from './CustomSelect';
+import { useTableSort } from '../hooks/useTableSort';
+import { getThemeIconMap, getEfficiencyFactorIcon, EFF_FACTOR_LABELS } from '../data/iconLibrary';
 
 export interface CompanyVm {
   entityKey: string;
@@ -171,70 +173,7 @@ export const formatCurrency = (val: number): string => {
   return val.toString();
 };
 
-// Efficiency factor friendly labels (from Game.Buildings.EfficiencyFactor enum)
-const EFF_FACTOR_LABELS: Record<string, string> = {
-  Destroyed: 'Destroyed',
-  Abandoned: 'Abandoned',
-  Disabled: 'Disabled',
-  Fire: 'On Fire',
-  ServiceBudget: 'Service Budget',
-  NotEnoughEmployees: 'Not Enough Employees',
-  SickEmployees: 'Sick Employees',
-  EmployeeHappiness: 'Employee Happiness',
-  ElectricitySupply: 'Electricity Supply',
-  ElectricityFee: 'Electricity Fee',
-  WaterSupply: 'Water Supply',
-  DirtyWater: 'Dirty Water',
-  SewageHandling: 'Sewage',
-  WaterFee: 'Water Fee',
-  Garbage: 'Garbage Collection',
-  Telecom: 'Telecom Coverage',
-  Mail: 'Mail Service',
-  MaterialSupply: 'Material Supply',
-  WindSpeed: 'Wind Speed',
-  WaterDepth: 'Water Depth',
-  SunIntensity: 'Sun Intensity',
-  NaturalResources: 'Natural Resources',
-  CityModifierSoftware: 'City Software Bonus',
-  CityModifierElectronics: 'City Electronics Bonus',
-  CityModifierIndustrialEfficiency: 'Industrial Efficiency',
-  CityModifierOfficeEfficiency: 'Office Efficiency',
-  CityModifierHospitalEfficiency: 'Hospital Efficiency',
-  SpecializationBonus: 'Specialization Bonus',
-  CityModifierFishInput: 'Fish Input Bonus',
-  CityModifierFishHub: 'Fish Hub Bonus',
-  LackResources: 'Lacking Resources',
-  NoisePollution: 'Noise Pollution',
-  GroundPollution: 'Ground Pollution',
-  AirPollution: 'Air Pollution',
-  TrafficPenalty: 'Traffic Penalty',
-  DeathPenalty: 'Death Penalty',
-};
 
-const getEfficiencyFactorIcon = (factorName: string): string => {
-  if (!factorName) return 'Media/Game/Icons/Notifications.svg';
-  const n = factorName.toLowerCase();
-  if (n.includes('worker') || n.includes('employee') || n.includes('staff')) return 'Media/Game/Icons/Workers.svg';
-  if (n.includes('electric') || n.includes('power')) return 'Media/Game/Icons/Electricity.svg';
-  if (n.includes('water') || n.includes('sewage')) return 'Media/Game/Icons/Water.svg';
-  if (n.includes('garbage') || n.includes('waste')) return 'Media/Game/Icons/Garbage.svg';
-  if (n.includes('mail')) return 'Media/Game/Icons/PostService.svg';
-  if (n.includes('crime')) return 'Media/Game/Icons/Police.svg';
-  if (n.includes('transport') || n.includes('access') || n.includes('traffic')) return 'Media/Game/Icons/Traffic.svg';
-  if (n.includes('road') || n.includes('network')) return 'Media/Game/Icons/Roads.svg';
-  if (n.includes('healthcare') || n.includes('hospital') || n.includes('sick')) return 'Media/Game/Icons/Healthcare.svg';
-  if (n.includes('education') || n.includes('school') || n.includes('university') || n.includes('college')) return 'Media/Game/Icons/Education.svg';
-  if (n.includes('wealth')) return 'Media/Game/Icons/Wealth.svg';
-  if (n.includes('park') || n.includes('entertainment') || n.includes('attraction') || n.includes('leisure')) return 'Media/Game/Icons/ParksAndRecreation.svg';
-  if (n.includes('welfare') || n.includes('wellbeing')) return 'Media/Game/Icons/Wellbeing.svg';
-  if (n.includes('fire')) return 'Media/Game/Icons/FireAndRescue.svg';
-  if (n.includes('deathcare') || n.includes('death') || n.includes('cemetery') || n.includes('crematorium')) return 'Media/Game/Icons/Deathcare.svg';
-  if (n.includes('police')) return 'Media/Game/Icons/PoliceAndAdministration.svg';
-  if (n.includes('telecom') || n.includes('network')) return 'Media/Game/Icons/Communications.svg';
-  if (n.includes('pollution')) return 'Media/Game/Icons/Pollution.svg';
-  if (n.includes('tax')) return 'Media/Game/Icons/Economy.svg';
-  return 'Media/Game/Icons/Notifications.svg';
-};
 
 const parseEfficiencyDetails = (details: string): { name: string; label: string; change: number; cumulative: number }[] => {
   if (!details) return [];
@@ -331,8 +270,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
   const [themeFilter, setThemeFilter] = useState('All');
   const [districtFilter, setDistrictFilter] = useState('All');
   const [kindFilter, setKindFilter] = useState('All');
-  const [sortField, setSortField] = useState<SortField>('profit');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const { sortField, sortDir, handleSort, sortIndicator } = useTableSort<SortField>('profit', 'desc');
   const [searchText, setSearchText] = useState('');
   const [profitMin, setProfitMin] = useState(-100);
   const [profitMax, setProfitMax] = useState(100);
@@ -340,6 +278,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
   const [happinessMap, setHappinessMap] = useState<Record<string, Record<string, number>>>({});
   const [happinessLoading, setHappinessLoading] = useState<Record<string, boolean>>({});
   const [currentPage, setCurrentPage] = useState(0);
+  const [showSignatureOnly, setShowSignatureOnly] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -354,11 +293,10 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
         map.set(c.theme, c.themeIcon);
       }
     });
-    if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
-    if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
-    if (!map.has('North American')) map.set('North American', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
-    if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
-    if (!map.has('USA')) map.set('USA', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    const defaults = getThemeIconMap(true);
+    defaults.forEach((val, key) => {
+      if (!map.has(key)) map.set(key, val);
+    });
     return map;
   }, [safeCompanies]);
 
@@ -367,7 +305,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
     setExpandedEntity(null);
     setIsPaused(false);
     setCurrentPage(0);
-  }, [zoneFilter, tierFilter, resourceFilter, packFilter, themeFilter, districtFilter, kindFilter, searchText]);
+  }, [zoneFilter, tierFilter, resourceFilter, packFilter, themeFilter, districtFilter, kindFilter, searchText, showSignatureOnly]);
 
   // Merge incoming single-company happiness payloads into local map
   useEffect(() => {
@@ -391,15 +329,6 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
       console.error("Error parsing company happiness data", e);
     }
   }, [(window as any)._uiBindings?.taxProduction?.companyHappinessData]);
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir(field === 'name' ? 'asc' : 'desc');
-    }
-  };
 
   const summary = useMemo(() => parseSummary(frozenSummary || ''), [frozenSummary]);
 
@@ -450,7 +379,13 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
     }
   }, [visibleResourceFilters, resourceFilter, visibleKindFilters, kindFilter]);
 
-  const sorted = safeCompanies;
+  const sorted = useMemo(() => {
+    let list = safeCompanies;
+    if (showSignatureOnly) {
+      list = list.filter(c => c.isSignature);
+    }
+    return list;
+  }, [safeCompanies, showSignatureOnly]);
 
   const focusCompanyEntity = (c: CompanyVm) => {
     const key = parseEntityKey(c.entityKey);
@@ -470,8 +405,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
     }
   };
 
-  const sortIndicator = (field: SortField) =>
-    sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
 
   const PROFIT_MIN_BOUND = -100;
   const PROFIT_MAX_BOUND = 100;
@@ -616,6 +550,15 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
             </div>
           </div>
 
+          <button
+            type="button"
+            className={`cb-tier-tab${showSignatureOnly ? ' cb-tier-tab-active' : ''}`}
+            onClick={() => setShowSignatureOnly((v) => !v)}
+            title="Filter to Signature Buildings only"
+            style={{ marginLeft: '12rem', padding: '4rem 10rem', fontSize: '11rem', height: '24rem', display: 'flex', alignItems: 'center' }}
+          >
+            ★ Sig Only
+          </button>
           <div className="cb-search-box">
             <input
               className="cb-search-input"
@@ -646,26 +589,26 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
           <div className="cb-col-address">
             {isSignatureView ? 'Building' : 'Zone Density'}
           </div>
-          <div className="cb-col-zone cb-sortable" onClick={() => handleSort('zoneType')}>
+          <div className="cb-col-zone cb-sortable" onClick={() => handleSort('zoneType', true)}>
             Zone Type{sortIndicator('zoneType')}
           </div>
-          <div className="cb-col-resource cb-sortable" onClick={() => handleSort('resourceKey')}>
+          <div className="cb-col-resource cb-sortable" onClick={() => handleSort('resourceKey', true)}>
             Resource{sortIndicator('resourceKey')}
           </div>
           <div className="cb-col-pack" title="Asset Pack">
             Pk
           </div>
-          <div className="cb-col-profit cb-sortable" onClick={() => handleSort('profit')}>
+          <div className="cb-col-profit cb-sortable" onClick={() => handleSort('profit', true)}>
             {'Profit%' + sortIndicator('profit')}
           </div>
           <div className="cb-col-tax">
-            <div className="cb-sortable" onClick={() => handleSort('tax')}>Tax%{sortIndicator('tax')}</div>
+            <div className="cb-sortable" onClick={() => handleSort('tax', true)}>Tax%{sortIndicator('tax')}</div>
           </div>
-          <div className="cb-col-tier cb-sortable" onClick={() => handleSort('profitabilityTier')}>
+          <div className="cb-col-tier cb-sortable" onClick={() => handleSort('profitabilityTier', true)}>
             Status{sortIndicator('profitabilityTier')}
           </div>
           <div className="cb-col-level">
-            <div className="cb-sortable" onClick={() => handleSort('lv')}>Lv{sortIndicator('lv')}</div>
+            <div className="cb-sortable" onClick={() => handleSort('lv', true)}>Lv{sortIndicator('lv')}</div>
           </div>
           <div className="cb-col-locate">
             GO

@@ -1,4 +1,5 @@
 import React from 'react';
+import { ICONS } from '../data/iconLibrary';
 
 interface PackIconProps {
   pack?: string;
@@ -21,7 +22,7 @@ const PackIcon: React.FC<PackIconProps> = ({ pack, theme, iconUrl, size = 18, st
 
   // 3. Apply the Paradox Star fallback!
   if (!finalIconUrl && effectivePack === 'Base Game') {
-    finalIconUrl = 'coui://uil/Standard/Paradox.svg'; 
+    finalIconUrl = ICONS.PACK_PARADOX_STAR; 
   }
 
   if (!finalIconUrl) {

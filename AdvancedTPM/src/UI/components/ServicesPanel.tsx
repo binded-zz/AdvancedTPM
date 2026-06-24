@@ -8,6 +8,8 @@ import './ServicesPanel.css';
 import CustomSelect from './CustomSelect';
 import ServiceIcon from '../assets/ServiceIcon';
 import PackIcon from '../assets/PackIcon';
+import { useTableSort } from '../hooks/useTableSort';
+import { getThemeIconMap, getEfficiencyFactorIcon } from '../data/iconLibrary';
 
 interface ServiceBuildingInfo {
   entityKey: string;
@@ -78,7 +80,6 @@ const CATEGORIES = [
 ];
 
 type SortField = 'name' | 'address' | 'category' | 'assetPack' | 'level' | 'capacity' | 'usage' | 'efficiency';
-type SortDir = 'asc' | 'desc';
 
 const parseServiceBuildingsData = (raw: string): ServiceBuildingInfo[] => {
   if (!raw) return [];
@@ -175,30 +176,7 @@ const CycleFilterButton: React.FC<CycleFilterButtonProps> = ({ label, value, opt
   );
 };
 
-// Icon for Efficiency buffer factor types (from Game.Buildings.EfficiencyFactor enum names)
-const getEfficiencyFactorIcon = (factorName: string): string => {
-  if (!factorName) return 'Media/Game/Icons/Notifications.svg';
-  const n = factorName.toLowerCase();
-  if (n.includes('worker') || n.includes('employee') || n.includes('staff')) return 'Media/Game/Icons/Workers.svg';
-  if (n.includes('electric') || n.includes('power')) return 'Media/Game/Icons/Electricity.svg';
-  if (n.includes('water') || n.includes('sewage')) return 'Media/Game/Icons/Water.svg';
-  if (n.includes('garbage') || n.includes('waste')) return 'Media/Game/Icons/Garbage.svg';
-  if (n.includes('mail')) return 'Media/Game/Icons/PostService.svg';
-  if (n.includes('crime')) return 'Media/Game/Icons/Police.svg';
-  if (n.includes('transport') || n.includes('access')) return 'Media/Game/Icons/Traffic.svg';
-  if (n.includes('road') || n.includes('network')) return 'Media/Game/Icons/Roads.svg';
-  if (n.includes('healthcare') || n.includes('hospital') || n.includes('sick')) return 'Media/Game/Icons/Healthcare.svg';
-  if (n.includes('education') || n.includes('school') || n.includes('university') || n.includes('college')) return 'Media/Game/Icons/Education.svg';
-  if (n.includes('wealth')) return 'Media/Game/Icons/Wealth.svg';
-  if (n.includes('park') || n.includes('entertainment') || n.includes('attraction') || n.includes('leisure')) return 'Media/Game/Icons/ParksAndRecreation.svg';
-  if (n.includes('welfare') || n.includes('wellbeing')) return 'Media/Game/Icons/Wellbeing.svg';
-  if (n.includes('fire')) return 'Media/Game/Icons/FireAndRescue.svg';
-  if (n.includes('deathcare') || n.includes('cemetery') || n.includes('crematorium')) return 'Media/Game/Icons/Deathcare.svg';
-  if (n.includes('police')) return 'Media/Game/Icons/PoliceAndAdministration.svg';
-  if (n.includes('telecom') || n.includes('network')) return 'Media/Game/Icons/Communications.svg';
-  if (n.includes('pollution') || n.includes('noise')) return 'Media/Game/Icons/Pollution.svg';
-  return 'Media/Game/Icons/Notifications.svg';
-};
+
 
 const ServicesPanel: React.FC<{
   servicesBuildingsData?: string;
@@ -221,11 +199,11 @@ const ServicesPanel: React.FC<{
    const [districtFilter, setDistrictFilter] = useState('All');
    const [loadFilter, setLoadFilter] = useState<'All' | 'Empty' | 'Underused' | 'Busy' | 'Full'>('All');
    const [searchText, setSearchText] = useState('');
-   const [sortField, setSortField] = useState<SortField>('name');
-   const [sortDir, setSortDir] = useState<SortDir>('asc');
+   const { sortField, sortDir, handleSort, sortIndicator } = useTableSort<SortField>('name', 'asc');
    const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
    const [isPaused, setIsPaused] = useState(false);
    const [currentPage, setCurrentPage] = useState(0);
+   const [showSignatureOnly, setShowSignatureOnly] = useState(false);
    const SVC_PAGE_SIZE = 50;
 
    // Reset page and unpause when any filter/sort changes
@@ -233,7 +211,7 @@ const ServicesPanel: React.FC<{
      setCurrentPage(0);
      setExpandedEntity(null);
      setIsPaused(false);
-   }, [categoryFilter, packFilter, themeFilter, districtFilter, loadFilter, searchText, sortField, sortDir]);
+   }, [categoryFilter, packFilter, themeFilter, districtFilter, loadFilter, searchText, sortField, sortDir, showSignatureOnly]);
 
    const categories = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.category).filter(Boolean))).sort()], [safeBuildings]);
    const packs = useMemo(() => ['All', ...Array.from(new Set(safeBuildings.map((b) => b.assetPack).filter(Boolean))).sort()], [safeBuildings]);
@@ -247,17 +225,16 @@ const ServicesPanel: React.FC<{
          map.set(b.theme, b.themeIcon);
        }
      });
-     // Add defaults
-     if (!map.has('European')) map.set('European', 'Media/Game/Icons/ThemeEuropean.svg');
-     if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'Media/Game/Icons/ThemeNorthAmerican.svg');
-     if (!map.has('North American')) map.set('North American', 'Media/Game/Icons/ThemeNorthAmerican.svg');
-     if (!map.has('EU')) map.set('EU', 'Media/Game/Icons/ThemeEuropean.svg');
-     if (!map.has('USA')) map.set('USA', 'Media/Game/Icons/ThemeNorthAmerican.svg');
+     const defaults = getThemeIconMap();
+     defaults.forEach((val, key) => {
+       if (!map.has(key)) map.set(key, val);
+     });
      return map;
    }, [safeBuildings]);
 
    const filtered = useMemo(() => {
      let list = safeBuildings;
+     if (showSignatureOnly) list = list.filter((b) => b.isSignature);
      if (categoryFilter !== 'All') list = list.filter((b) => b.category === categoryFilter);
      if (packFilter !== 'All') list = list.filter((b) => b.assetPack === packFilter);
      if (themeFilter !== 'All') list = list.filter((b) => b.theme === themeFilter);
@@ -292,13 +269,7 @@ const ServicesPanel: React.FC<{
          default: return 0;
        }
      });
-   }, [safeBuildings, categoryFilter, packFilter, themeFilter, districtFilter, loadFilter, searchText, sortField, sortDir]);
-
-   const handleSort = (field: SortField) => {
-     if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
-     else { setSortField(field); setSortDir(field === 'name' || field === 'address' || field === 'category' || field === 'assetPack' ? 'asc' : 'desc'); }
-   };
-   const sortIndicator = (field: SortField) => sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+   }, [safeBuildings, categoryFilter, packFilter, themeFilter, districtFilter, loadFilter, searchText, sortField, sortDir, showSignatureOnly]);
 
    const serviceLabels = useMemo(() => {
      const k = (categoryFilter || '').toLowerCase();
@@ -364,6 +335,15 @@ const ServicesPanel: React.FC<{
                   displayValue={(v) => v === 'All' ? 'All Districts' : v}
                 />
                 <CycleFilterButton label="Load" value={loadFilter} options={['All', 'Empty', 'Underused', 'Busy', 'Full']} onChange={(v) => setLoadFilter(v as any)} displayValue={(v) => v === 'All' ? 'All Load' : v} />
+                <button
+                  type="button"
+                  className={`svc-category-tab${showSignatureOnly ? ' svc-category-active' : ''}`}
+                  onClick={() => setShowSignatureOnly((v) => !v)}
+                  title="Filter to Signature Buildings only"
+                  style={{ display: 'flex', alignItems: 'center' }}
+                >
+                  ★ Sig Only
+                </button>
              </div>
          </div>
        </div>
@@ -412,10 +392,10 @@ const ServicesPanel: React.FC<{
            <div className="svc-col-name svc-sortable" onClick={() => handleSort('name')}>Building{sortIndicator('name')}</div>
            {categoryFilter === 'All' && <div className="svc-col-category svc-sortable" onClick={() => handleSort('category')}>Category{sortIndicator('category')}</div>}
            <div className="svc-col-pack svc-sortable" onClick={() => handleSort('assetPack')}>Pack{sortIndicator('assetPack')}</div>
-           <div className="svc-col-level svc-sortable" onClick={() => handleSort('level')}>Lv{sortIndicator('level')}</div>
-           <div className="svc-col-cap svc-sortable" onClick={() => handleSort('capacity')}>{serviceLabels.cap}{sortIndicator('capacity')}</div>
-           <div className="svc-col-usage svc-sortable" onClick={() => handleSort('usage')}>{serviceLabels.use}{sortIndicator('usage')}</div>
-           <div className="svc-col-eff svc-sortable" onClick={() => handleSort('efficiency')}>{serviceLabels.eff}{sortIndicator('efficiency')}</div>
+           <div className="svc-col-level svc-sortable" onClick={() => handleSort('level', true)}>Lv{sortIndicator('level')}</div>
+           <div className="svc-col-cap svc-sortable" onClick={() => handleSort('capacity', true)}>{serviceLabels.cap}{sortIndicator('capacity')}</div>
+           <div className="svc-col-usage svc-sortable" onClick={() => handleSort('usage', true)}>{serviceLabels.use}{sortIndicator('usage')}</div>
+           <div className="svc-col-eff svc-sortable" onClick={() => handleSort('efficiency', true)}>{serviceLabels.eff}{sortIndicator('efficiency')}</div>
            <div className="svc-col-go">Go</div>
          </div>
          <div className="svc-table-scroll-wrap">

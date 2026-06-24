@@ -1,4 +1,5 @@
 import React from 'react';
+import { ICONS } from '../data/iconLibrary';
 
 const ServiceIcon: React.FC<{ category?: string; size?: number; style?: React.CSSProperties }> = ({ category = 'Other', size = 18, style }) => {
   const c = (category || 'Other').toLowerCase();
@@ -42,31 +43,31 @@ const ServiceIcon: React.FC<{ category?: string; size?: number; style?: React.CS
 
   const pickIcon = (): string => {
     // Zones
-    if (c === 'residential') return 'Media/Game/Icons/ZoneResidential.svg';
-    if (c === 'commercial') return 'Media/Game/Icons/ZoneCommercial.svg';
-    if (c === 'industrial') return 'Media/Game/Icons/ZoneIndustrial.svg';
-    if (c === 'office') return 'Media/Game/Icons/ZoneOffice.svg';
-    if (c === 'extraction' || c === 'rawindustrial') return 'Media/Game/Icons/ZoneExtractors.svg';
+    if (c === 'residential') return ICONS.ZONE_RESIDENTIAL;
+    if (c === 'commercial') return ICONS.ZONE_COMMERCIAL;
+    if (c === 'industrial') return ICONS.ZONE_INDUSTRIAL;
+    if (c === 'office') return ICONS.ZONE_OFFICE;
+    if (c === 'extraction' || c === 'rawindustrial') return ICONS.ZONE_EXTRACTORS;
 
     // Services
-    if (c.includes('police') || c.includes('prison')) return 'Media/Game/Icons/Police.svg';
-    if (c.includes('fire') || c.includes('rescue') || c.includes('emerg')) return 'Media/Game/Icons/FireSafety.svg';
-    if (c.includes('health') || c.includes('hospital') || c.includes('clinic') || c.includes('ambulance')) return 'Media/Game/Icons/Healthcare.svg';
-    if (c.includes('death') || c.includes('cemetery') || c.includes('crematorium')) return 'Media/Game/Icons/Deathcare.svg';
-    if (c.includes('education') || c.includes('school') || c.includes('college') || c.includes('university')) return 'Media/Game/Icons/Education.svg';
-    if (c.includes('electric') || c.includes('power')) return 'Media/Game/Icons/Electricity.svg';
-    if (c.includes('water') || c.includes('sewage') || c.includes('wastewater')) return 'Media/Game/Icons/Water.svg';
-    if (c.includes('garbage') || c.includes('waste') || c.includes('landfill') || c.includes('recycling')) return 'Media/Game/Icons/Garbage.svg';
-    if (c.includes('park') || c.includes('recreation') || c.includes('leisure')) return 'Media/Game/Icons/Services.svg';
-    if (c.includes('telecom') || c.includes('internet')) return 'Media/Game/Resources/Telecom.svg';
-    if (c.includes('post') || c.includes('mail')) return 'Media/Game/Icons/PostService.svg';
-    if (c.includes('bus') || c.includes('tram') || c.includes('metro') || c.includes('subway') || c.includes('transport')) return 'Media/Game/Icons/Transportation.svg';
-    if (c.includes('train') || c.includes('rail')) return 'Media/Game/Icons/Train.svg';
-    if (c.includes('airport') || c.includes('air')) return 'Media/Game/Icons/Airport.svg';
-    if (c.includes('harbor') || c.includes('port') || c.includes('ship')) return 'Media/Game/Icons/Harbor.svg';
-    if (c.includes('road') || c.includes('highway')) return 'Media/Game/Icons/Roads.svg';
+    if (c.includes('police') || c.includes('prison')) return ICONS.SERVICE_POLICE;
+    if (c.includes('fire') || c.includes('rescue') || c.includes('emerg')) return ICONS.SERVICE_FIRE;
+    if (c.includes('health') || c.includes('hospital') || c.includes('clinic') || c.includes('ambulance')) return ICONS.SERVICE_HEALTH;
+    if (c.includes('death') || c.includes('cemetery') || c.includes('crematorium')) return ICONS.SERVICE_DEATH;
+    if (c.includes('education') || c.includes('school') || c.includes('college') || c.includes('university')) return ICONS.SERVICE_EDUCATION;
+    if (c.includes('electric') || c.includes('power')) return ICONS.SERVICE_ELECTRICITY;
+    if (c.includes('water') || c.includes('sewage') || c.includes('wastewater')) return ICONS.SERVICE_WATER;
+    if (c.includes('garbage') || c.includes('waste') || c.includes('landfill') || c.includes('recycling')) return ICONS.SERVICE_GARBAGE;
+    if (c.includes('park') || c.includes('recreation') || c.includes('leisure')) return ICONS.SERVICE_SERVICES;
+    if (c.includes('telecom') || c.includes('internet')) return ICONS.SERVICE_TELECOM;
+    if (c.includes('post') || c.includes('mail')) return ICONS.SERVICE_POST;
+    if (c.includes('bus') || c.includes('tram') || c.includes('metro') || c.includes('subway') || c.includes('transport')) return ICONS.SERVICE_TRANSPORTATION;
+    if (c.includes('train') || c.includes('rail')) return ICONS.SERVICE_TRAIN;
+    if (c.includes('airport') || c.includes('air')) return ICONS.SERVICE_AIRPORT;
+    if (c.includes('harbor') || c.includes('port') || c.includes('ship')) return ICONS.SERVICE_HARBOR;
+    if (c.includes('road') || c.includes('highway')) return ICONS.SERVICE_ROADS;
     
-    return 'Media/Game/Icons/Services.svg';
+    return ICONS.SERVICE_SERVICES;
   };
 
   return (
@@ -84,7 +85,7 @@ const ServiceIcon: React.FC<{ category?: string; size?: number; style?: React.CS
         const el = e.currentTarget;
         if (!el.dataset.fallback) {
           el.dataset.fallback = '1';
-          el.src = 'Media/Game/Icons/Services.svg';
+          el.src = ICONS.SERVICE_SERVICES;
         }
       }}
     />

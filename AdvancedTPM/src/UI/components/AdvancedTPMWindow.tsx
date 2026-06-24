@@ -15,6 +15,7 @@ import ServiceIcon from '../assets/ServiceIcon';
 import PackIcon from '../assets/PackIcon';
 import { ModDebugPanel } from './ModDebugPanel';
 import { getSafeColor } from '../../mods/apiSafe';
+import { getThemeIconMap } from '../data/iconLibrary';
 import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import './AdvancedTPMWindow.css';
 import CustomSelect from './CustomSelect';
@@ -1302,11 +1303,10 @@ const SignatureUnifiedView: React.FC<{
         map.set(i.theme, i.themeIcon);
       }
     });
-    if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
-    if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
-    if (!map.has('North American')) map.set('North American', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
-    if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
-    if (!map.has('USA')) map.set('USA', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    const defaults = getThemeIconMap(true);
+    defaults.forEach((val, key) => {
+      if (!map.has(key)) map.set(key, val);
+    });
     return map;
   }, [allItems]);
 
