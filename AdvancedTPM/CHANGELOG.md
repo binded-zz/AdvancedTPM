@@ -2,16 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.5] - 2026-06-22
+## [1.1.5] - 2026-06-23
 
 ### Added
-- **Service Buildings**: Added detailed metrics to service buildings in the Services tab, including electricity/water consumption, garbage/mail, condition, and localized effects.
-- **District Dashboard**: Added extra data to the District dashboard card views, including crime, upkeep, resource cost, fees, area, and unemployment.
+- **AI Auto-Tax Failsafe (The Bailout System):** Added a robust intervention mechanism. If an industry gets trapped at extreme tax rates with poor outcomes, the AI will actively intervene, nudge the rate toward a safe baseline, and push a notification to the Advisor feed.
+- **Service Buildings Metrics:** The Services tab now displays deep, real-time metrics including electricity/water consumption, garbage/mail accumulation, and active vehicle/occupancy ratios.
+- **District Dashboard Expansion:** Added extensive data to the District dashboard card views, including crime risk, building condition/wear, and district-level unemployment.
+- **Tooltip Portaling:** Ported the tooltip renderer to a React Portal, allowing tooltips to render globally over the window boundary instead of being clipped by the main panel.
+- **PolicyPlus Compatibility:** Added support for expanded city policies and integrated compatibility with the `PolicyPlus` mod. Includes dynamic conflict detection matching PolicyPlus conflict arrays, visual disabled states, and warning tooltips without font rendering bugs.
 
 ### Changed
-- **Backend Refactor**: Refactored backend JSON code to utilize native built-in game systems (Newtonsoft.Json serialization).
-- **Game Compatibility**: Compatibility update for Cities: Skylines II game version 1.6.0.
-- **Performance & Refactor**: Refactored UI and Systems architectures for improved stability and performance.
+- **Burst-Compiled Backend:** Overhauled the AutoTax profitability and EMA math. Heavy calculations now execute in microseconds via Unity `[BurstCompile]` jobs, drastically reducing main-thread CPU overhead.
+- **Accurate Resource Storage:** The "Resource Storage" stat in the Company Browser has been completely rewritten. It now accurately filters out cash/immaterial goods, correctly converts raw game units to metric tonnes (t), and gracefully hides itself for non-physical companies.
+- **Native UI Scaling:** Replaced all hardcoded pixel sizes with Cohtml-native `rem` units, ensuring the UI scales perfectly on 4K monitors and respects the user's in-game UI scaling settings.
+- **Game Compatibility:** Compatibility update for Cities: Skylines II version 1.6.
+
+### Fixed
+- Fixed an issue where percentage signs (`%`) would word-wrap to new lines in narrow table columns.
+- Fixed an issue where deep subsidies (negative tax rates) caused mathematical errors in the rate drag calculations.
+- Silenced empty `catch` blocks across the C# backend to prevent native game log spam.
 
 ## [1.1.4] - 2026-06-24
 

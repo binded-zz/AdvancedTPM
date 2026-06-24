@@ -837,7 +837,7 @@ const ResidentialPanel: React.FC<{
                               return (
                                 <div key={`attr_${idx}`} style={{ display: 'flex', alignItems: 'center' }}>
                                   <span className="res-bldg-detail-label" style={{ marginRight: '8rem' }}>{label}</span>
-                                  <span className="res-bldg-detail-value" style={{ color: getSafeColor(color), fontWeight: 700 }}>{val > 0 ? `+${val}` : val}</span>
+                                  <span className="res-bldg-detail-value" style={{ color: getSafeColor(color), fontWeight: 700, marginLeft: '6rem' }}>{val > 0 ? `+${val}` : val}</span>
                                 </div>
                               );
                             })}
@@ -854,12 +854,12 @@ const ResidentialPanel: React.FC<{
                                 const val = Number(parts[1]);
                                 const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
                                 return (
-                                  <div key={`happ_${idx}`} style={{ display: 'flex', alignItems: 'center' }}>
+                                  <div key={`happ_${idx}`} style={{ display: 'flex', alignItems: 'center', width: 'auto', marginRight: '16rem' }}>
                                     <span className="res-bldg-detail-label" style={{ display: 'inline-flex', alignItems: 'center', marginRight: '8rem' }}>
                                       <img src={getEfficiencyFactorIcon(parts[0])} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', flexShrink: 0 }} alt="" />
                                       {displayLabel}
                                     </span>
-                                    <span className="res-bldg-detail-value" style={{ color: getSafeColor(color), fontWeight: 700 }}>{val > 0 ? `+${val}` : val}</span>
+                                    <span className="res-bldg-detail-value" style={{ color: getSafeColor(color), fontWeight: 700, marginLeft: '6rem' }}>{val > 0 ? `+${val}` : val}</span>
                                   </div>
                                 );
                               })}

@@ -402,6 +402,16 @@
   border-color: #8bdb46;
 }
 
+.dp-row-policy-icon.conflict {
+  border-color: #e05050;
+  box-shadow: 0 0 6rem rgba(224, 80, 80, 0.4);
+}
+
+.dp-row-policy-icon.conflict:not(.active) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .dp-policy-img-small {
   width: 24rem;
   height: 24rem;
@@ -748,6 +758,16 @@
   border: 1.5rem solid #8bdb46;
   opacity: 1;
   box-shadow: 0 0 10rem rgba(139, 219, 70, 0.3);
+}
+
+.dp-inline-policy-icon.conflict {
+  border-color: #e05050;
+  box-shadow: 0 0 8rem rgba(224, 80, 80, 0.5);
+}
+
+.dp-inline-policy-icon.conflict:not(.active) {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .dp-policy-img {

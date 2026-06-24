@@ -10,91 +10,28 @@ A comprehensive Cities: Skylines 2 mod for per-resource tax control, production 
 
 ## Features
 
-### Tax & Production Dashboard
-- **Per-resource tax sliders** — set tax rates individually for 50+ resources across raw materials, industrial goods, immaterial services, commercial retail, and entertainment.
-- **Production & consumption bars** — real-time metrics with surplus/deficit indicators.
-- **Category grouping** — resources organized by supply chain (Agriculture, Forestry, Mining, Oil, Office, Entertainment, Commercial).
-- **Tax income tracking** — per-resource and total income with in-game currency formatting.
-- **Demand & worker metrics** — workforce stats and demand signals per resource.
+### 🧠 Adaptive AI Auto-Tax
+- **Smart Optimization:** Enable the AI Auto-Taxer to dynamically adjust your city's tax rates based on real-time profitability and supply chain demand.
+- **The Bailout Failsafe:** Built-in economic protection that detects death-spiraling industries, automatically nudges taxes to a safe baseline, and unlearns bad behaviors.
 
-### Residential Browser
-- **Full content support — no updates needed** — automatically supports Base Game buildings, all DLC region packs, themed content, and any custom creator content. New packs added to the game in future updates will appear in the UI automatically.
-- **Native icon integration** — theme and pack filters pull their icons directly from the game's internal ImageSystem. If a DLC or creator pack has a native icon it is displayed exactly as it appears in the game's own menus.
-- **Pack placement counts** — the top summary table shows exactly how many residential buildings of each installed content pack are currently placed on your map, broken down by density tier (Low, Medium, High).
-- **Theme & region filter** — filter by theme or regional style. Each option shows the content pack's own icon in the dropdown.
-- **Advanced filtering & sorting** — sort and filter by address, density, level, households, occupancy, happiness range, signature status, theme, or asset pack.
-- **Dual Go buttons** — each row has two camera actions: jump to the building on the map, or select and focus it in the game's own info panel.
-- **Paginated rendering** — 50 buildings per page for fast load and smooth scrolling regardless of city size.
-- **Auto-pause on expand** — expanding a row pauses live data updates so the detail view stays stable while you read it. Updates resume when collapsed.
-- **Intelligent asset resolution** — uses a multi-tier extraction system checking asset pack data, zone types, native DLC requirements, and Paradox Mods metadata so no custom building slips through the cracks.
-- **Smart name normalization** — messy backend filenames are cleaned up automatically. PascalCase names like "BridgesAndPorts" become "Bridges And Ports" and internal tags like "Pack" or "Filter" are stripped so filter lists look clean.
-- **Multi-pack support** — if an asset belongs to multiple themes or packs the UI renders all associated native icons side-by-side.
-- **High-performance caching** — content pack lookups use a concurrent caching dictionary. Pack dependencies are calculated once and reused for every subsequent lookup, keeping UI navigation smooth.
+### 📊 Tax & Production Dashboard
+- **Per-resource tax sliders** — Set tax rates individually for 50+ resources across raw materials, industrial goods, immaterial services, and commercial retail.
+- **Production & consumption bars** — Real-time metrics with surplus/deficit indicators.
+- **Tax income tracking** — Per-resource and total income with in-game currency formatting.
 
-### Company Browser
-- **Sortable & filterable table** — browse all companies by zone, profitability tier, profit range, or text search.
-- **Company detail panels** — expand any row to see brand name, building address, building level, zone, output/input resources, staffing bars, and efficiency breakdown.
-- **Efficiency factor analysis** — real game data showing each factor (Electricity, Water, Garbage, Mail, Telecom, Staffing, etc.) with CS2 icons, percentage impact, and cumulative efficiency.
-- **Company Happiness** — compact colorized happiness score is visible in the company rows and expanded detail panels. The score is estimated from efficiency, profit, staffing, and tax (the server provides an authoritative value when available).
-- **Signature building detection** — special landmark/prefab detection is exposed in the Company Browser. All known DLC signature buildings are flagged in the detail panel and used by the Advisor when relevant.
-- **Go-to-building** — click to jump the camera directly to any company's building.
+### 🏢 Deep Company & Service Analytics
+- **Company Browser:** Sort and filter every business in your city by profitability, tax rate, efficiency, and worker counts.
+- **Accurate Storage Metrics:** View true metric tonnage (t) of physical freight sitting in company warehouses.
+- **Service Buildings Panel:** Deep-dive into your city's infrastructure. Track active vehicle ratios, employee capacities, and precise electricity/water/garbage consumption for every service building.
 
-### Signature Buildings Tab
-- **Dedicated unified view** — a standalone tab showing every signature building in the city across commercial, residential, and service categories all in one place.
-- **Full DLC whitelist** — all known DLC landmark and signature prefabs are identified and flagged. No guessing, no missed buildings.
-- **Detail panel integration** — signature buildings are highlighted in the expanded detail view and fed into the Adaptive Learning Advisor when making tax recommendations.
-- **Signature tab badge** — the tab shows a live count of how many signature buildings are currently in your city.
+### 🏘️ Residential & District Tracking
+- **Full Custom Content Support:** Automatically detects and tracks Base Game buildings, DLC region packs, themed content, and Paradox Mods custom creator packs. 
+- **District Dashboards:** View district-level demographics, household wealth, crime risk, and localized effects in a drag-and-drop widget layout.
+- **Happiness Factors:** See exactly what is impacting the happiness and efficiency of individual homes and businesses.
+- **PolicyPlus Compatibility:** Full support for expanded city policies from the `PolicyPlus` mod, featuring active conflict detection and toggle blocking.
 
-### Districts Dashboard
-- **Reorderable metric cards** — drag cards to rearrange the layout. Available cards: Education Levels, Properties, Demographics, Households, School Data, Health & Value, and Policies.
-- **Per-district demographics** — age group breakdown (Children, Teens, Adults, Seniors) with a visual bar and resident/student/tourist/homeless counts.
-- **Education level bars** — workforce education split (Uneducated, Poorly Educated, Educated, Well Educated, Highly Educated) for both residents and workers.
-- **Property breakdown** — count of Residential, Mixed, Commercial, Industrial, Office, and Storage properties per district.
-- **Household metrics** — current vs capacity with a fill bar, average wealth, average income, and average rent.
-- **School data** — Elementary, High School, College, and University enrollment vs capacity with availability percentage.
-- **Health & Value** — health/safety status, crime risk, average land value, and average building level.
-- **District-level policies** — toggle policies directly from the expanded district panel.
-- **Rename districts** — rename any district in-game directly from the panel.
-- **GO button** — jump the camera to any district with one click.
-- **Sortable columns** — sort all districts by name, residential count, residents, employees, unemployment rate, land value, income, rent, and more.
-- **Extended district metrics** — track total crime, upkeep costs, resource costs, fees paid, land area, and unemployment rate.
-- **Happiness aggregation** — per-district happiness score displayed in the row and detail view.
-- **Card visibility settings** — show or hide individual cards from the settings gear. Reset to default at any time.
-
-### Services Browser
-- **Filterable panel** — track all city service buildings with live metrics.
-- **Category breakdown** — buildings grouped by service type with live status data.
-- **Detailed service metrics** — view consumption (electricity/water), crime risk, mail/garbage stats, building condition, and localized city effects directly on each building.
-
-### Auto-Tax Engine
-- **6-factor scoring** — auto-balances profitability, happiness, production, demand, company count, and tax income when recommending rate adjustments.
-- **Per-resource min/max bounds** — fine-tune the allowed tax range for each individual resource.
-- **Excluded resources** — lock specific resources so the engine never touches them.
-- **Adjustable speed** — control how frequently the engine runs and makes changes, from slow cautious adjustments to aggressive rapid tuning.
-- **Profitability weight slider** — fine-tune how much company profit influences the 6-factor scoring formula.
-- **Live status bar** — shows current city happiness, how many resources were raised, lowered, or held this cycle, and the overall average company profitability across all tracked resources.
-
-### Adaptive Learning Advisor
-- **Machine-learned resource profiles** — tracks sensitivity, income response, company response, production impact, revenue efficiency, and volatility for each resource individually.
-- **Outcome evaluation** — records a before snapshot when a tax rate changes, waits for an observation period, then takes an after snapshot and scores whether the change helped or hurt.
-- **Confidence-weighted recommendations** — the more data collected for a resource, the higher its confidence score, and the stronger its influence on future scoring.
-- **Decision log** — browse a full log of recent advisor decisions showing what changed, the outcome score, and the reasoning.
-- **Persistent learning** — all resource profiles are saved to disk and automatically loaded between sessions so the advisor gets smarter over time without starting over.
-
-### Settings
-- **Game options integration** — full mod settings page inside the game's options menu with General, Auto-Tax, Advisor, Debug, and About groups.
-- **Movable and resizable window** — drag the ATPM panel anywhere on screen and resize it freely. Position and size are saved automatically and restored on next launch.
-- **Tips toggle** — in-UI tooltips with production details, factor breakdowns, and usage guidance can be turned on or off.
-- **Panel opacity** — adjust the transparency of the mod window from the settings panel.
-
-### Under the Hood
-- **High-performance prefab caching** — asset pack lookups use a `ConcurrentDictionary` cache. Pack dependencies are calculated exactly once per asset and reused instantly for every subsequent lookup, eliminating main-thread CPU spikes during UI generation.
-- **Deep ECS extraction** — the backend checks `AssetPackItem`, falls back to `SpawnableBuilding` zone data, checks native `DlcRequirements`, and queries Paradox Mods metadata (`asset.GetMeta()`) to find creator display names. No custom building is missed.
-- **Smart name normalization** — PascalCase internal names are automatically split into readable text and redundant tags like "Asset", "Pack", or "Filter" are stripped, so every filter list looks clean without any manual configuration.
-- **Multi-pack icon rendering** — pack icon URLs are parsed as comma-separated lists. If an asset belongs to multiple packs or themes, the UI lines up all associated native icons side-by-side.
-- **Direct-DOM rendering** — built specifically for the Cohtml engine. UI thread cost is approximately 1.3ms with no measurable impact on game FPS.
-- **Paginated lists** — all data tables render 50 rows per page.
-- **Auto-pause on expand** — live updates pause when a row is expanded and resume automatically on collapse.
+## Performance Optimized
+Built from the ground up for Megalopolis-sized cities. AdvancedTPM utilizes zero-allocation buffers, concurrent caching, and Burst-compiled math jobs to keep UI rendering cost under 1.5ms with zero impact on simulation tick speed.
 
 ---
 

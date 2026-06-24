@@ -1,4 +1,3 @@
-
 <Publish>
   <!--Id must be set in order to update existing mod. It is not required for publishing mod for the first time--> 
   <ModId Value="141486" />
@@ -132,16 +131,21 @@ Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is app
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
-## v1.1.5 - Game Update & Performance
+## v1.1.5 - Game Update to Version 1.6 and UI Polish
 
 ### Added
-- Expanded the Services tab with new detailed building metrics (Electricity/Water consumption, Garbage/Mail accumulation, Crime probability, Condition, Addons, and local/city modifier effects).
-- Integrated additional data card metrics in the Districts tab (e.g., unemployment rate, total crime, upkeep costs, and detailed policy stats).
+- PolicyPlus Compatibility: Full support for expanded city policies and active conflict blocking.
+- Custom Tooltip System: Replaced unicode check/cross and warning icons with custom inline SVGs to avoid game font rendering issues (tofu blocks).
+- Tooltip Portaling: Moved tooltip rendering to a React Portal to prevent boundary clipping.
+- AI Auto-Tax Failsafe: Built-in economic protection for death-spiraling industries.
+- Service Buildings Metrics: Real-time consumption and vehicle occupancy statistics.
+- District Dashboard Expansion: Card metrics for crime, unemployment, and building wear.
 
 ### Changed
-- Compatibility update for Cities: Skylines II game version 1.6.0.
-- Refactored backend JSON serialization systems to leverage the game's built-in Newtonsoft.Json serialization instead of custom manual string interpolation, improving data flow stability.
-- Performance optimization and code refactoring across UI systems for faster frame updates.
+- Game Version Compatibility: Verified compatible with Cities: Skylines II version 1.6.
+- Native UI Scaling: Rewrote styling using Cohtml-native rem units.
+- Accurate Resource Storage: Rewritten to calculate true metric tonnes for physical companies.
+- Burst-Compiled Backend: AutoTax calculations shifted to Unity Job System with Burst Compiler.
 	</ChangeLog>
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
   <ExternalLink Type="github" Url="https://github.com/binded-zz/AdvancedTPM" />

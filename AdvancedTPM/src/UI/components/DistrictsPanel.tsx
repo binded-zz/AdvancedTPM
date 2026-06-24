@@ -3,6 +3,7 @@ import { parseCompanies } from './CompanyBrowser';
 import apiSafe, { getSafeColor } from '../../mods/apiSafe';
 import { camera, selectedInfo, tool } from 'cs2/bindings';
 import { Scrollable } from 'cs2/ui';
+import { useLocalization } from 'cs2/l10n';
 import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import ErrorBoundary from './ErrorBoundary';
 import './DistrictsPanel.css';
@@ -28,17 +29,171 @@ interface PolicyPrefab {
 }
 interface ActivePolicy { k: string; adj: number; }
 
-const getPolicyTooltipLines = (pol: PolicyPrefab, on: boolean, adj?: number): React.ReactNode[] => {
-  const name = pol.name.replace(/([A-Z])/g, ' $1').replace(/^\s/, '');
+const POLICY_CONFLICT_GROUPS = [
+  ["PP_ToleranceDelinquency","PP_LightCrimePermit","PP_PoliceState","PP_ZeroGraffiti"],
+  ["PP_FastFines","PP_ToleranceDelinquency","PP_LightCrimePermit"],
+  ["PP_NightWithoutCops","PP_PoliceState","PP_BigBrother"],
+  ["PP_FriendlyCops","PP_PoliceState"],
+  ["PP_FakeCameras","PP_BigBrother"],
+  ["PP_StreetRacing","PP_ZeroGraffiti"],
+  ["PP_TaxParadise","PP_OffshoreCrackdown"],
+  ["PP_GhostSubsidies","PP_OffshoreCrackdown"],
+  ["PP_MadeInLocal","PP_WildImports","PP_ImportEverything","PP_LocalCoupons"],
+  ["PP_StartupOrNothing","PP_SlowLife"],
+  ["PP_StartupOrNothing","PP_MandatoryUniversity"],
+  ["PP_Hospitals247","PP_HealthOnBudget"],
+  ["PP_PublicPlacebo","PP_Hospitals247","PP_SoftVaccineMandate"],
+  ["PP_ForcedTelehealth","PP_Hospitals247"],
+  ["PP_InfluencerDoctors","PP_Hospitals247"],
+  ["PP_PaidER","PP_HealthOnBudget"],
+  ["PP_MandatoryUniversity","PP_FourDaySchool","PP_NoHomework","PP_SchoolIsOverrated"],
+  ["PP_Libraries247","PP_SchoolIsOverrated"],
+  ["PP_StrictGreenCity","PP_PollutionProsperity","PP_ToxicFreezone"],
+  ["PP_NightFactories","PP_SilentIndustry","PP_StrictGreenCity"],
+  ["PP_BackyardOil","PP_QuarryMoratorium","PP_StrictGreenCity"],
+  ["PP_TheaterZeroWaste","PP_PollutionProsperity"],
+  ["PP_RightToRepair","PP_PollutionProsperity"],
+  ["PP_ChaosFreeZone","PP_StrictGreenCity"],
+  ["PP_AggressiveTourism","PP_AntiTourists"],
+  ["PP_InfluencerVisa","PP_AntiTourists","PP_AntiAirbnb"],
+  ["PP_ShareEconomy","PP_AntiAirbnb"],
+  ["PP_MunicipalCasino","PP_AntiAirbnb","PP_SlowLife"],
+  ["PP_PermanentFestival","PP_SlowLife","PP_AntiTourists"],
+  ["PP_WhiteNight","PP_SlowLife"],
+  ["PP_SoftApocalypse","PP_PermanentFestival"],
+  ["PP_ProgressiveTax","PP_TaxParadise","PP_SymbolicTaxes"],
+  ["PP_BasicIncome","PP_TaxParadise","PP_SymbolicTaxes"],
+  ["PP_RentControl","PP_TaxParadise"],
+  ["PP_ServiceBudgetBoost","PP_HealthOnBudget","PP_CityServiceImport"],
+  ["PP_CityServiceImport","PP_Hospitals247"],
+  ["PP_ConstructionSubsidy","PP_RepairCulture"],
+  ["PP_EmissionZone","PP_PollutionProsperity","PP_HeavyIndustrySurge","PP_NightFactories"],
+  ["PP_CarbonTax","PP_PollutionProsperity","PP_HeavyIndustrySurge","PP_ToxicFreezone"],
+  ["PP_PlasticBan","PP_PollutionProsperity","PP_ToxicFreezone"],
+  ["PP_ForestProtection","PP_BackyardOil","PP_HeavyIndustrySurge"],
+  ["PP_HeavyIndustrySurge","PP_SilentIndustry","PP_StrictGreenCity"],
+  ["PP_WorkWeek4Days","PP_NightFactories"],
+  ["PP_FreeDayCare","PP_HealthOnBudget"],
+  ["PP_CommunityTolerance","PP_PoliceState","PP_BigBrother","PP_ZeroGraffiti"],
+  ["PP_LateNightBars","PP_ChaosFreeZone","PP_SlowLife"],
+  ["PP_TouristTax","PP_AggressiveTourism"],
+  ["PP_ElectronicsHub","PP_RightToRepair"],
+  ["PP_FishingOptimization","PP_StrictGreenCity"],
+  ["PP_FlatTax","PP_WealthTax","PP_LandValueTax","PP_ProgressiveTax"],
+  ["PP_WealthTax","PP_TaxParadise","PP_SymbolicTaxes"],
+  ["PP_FreeTradeZone","PP_Protectionism","PP_Reshoring","PP_MadeInLocal","PP_ImportEverything","PP_WildImports"],
+  ["PP_AutomationPush","PP_RobotTax"],
+  ["PP_GigWorkerRights","PP_ShareEconomy"],
+  ["PP_RightToDisconnect","PP_StartupOrNothing"],
+  ["PP_DrugDecriminalization","PP_WarOnDrugs"],
+  ["PP_RestorativeJustice","PP_WarOnDrugs","PP_PrisonComfort"],
+  ["PP_DronePolice","PP_NeighborhoodWatch","PP_BigBrother"],
+  ["PP_PrivateSecurity","PP_NeighborhoodWatch"],
+  ["PP_NightCurfew","PP_WhiteNight","PP_LateNightBars","PP_NightWithoutCops","PP_PermanentFestival"],
+  ["PP_UniversalHealthcare","PP_PaidER","PP_HealthOnBudget"],
+  ["PP_Austerity","PP_UniversalHealthcare","PP_FreeUniversity","PP_SocialHousing","PP_ServiceBudgetBoost"],
+  ["PP_FreeUniversity","PP_VocationalSchools"],
+  ["PP_VocationalSchools","PP_MandatoryUniversity"],
+  ["PP_FiberForAll","PP_MegaNetwork5G"],
+  ["PP_HeritageProtection","PP_ConstructionSubsidy"],
+  ["PP_StreetArt","PP_ZeroGraffiti"]
+];
+
+const getConflictingActivePolicies = (
+  policyName: string,
+  activePolicies: ActivePolicy[],
+  policyPrefabs: PolicyPrefab[]
+): string[] => {
+  if (!policyName.startsWith('PP_')) return [];
+
+  // Build a set of all active policy names in this district
+  const activeNames = new Set(
+    activePolicies
+      .map(ap => {
+        const pol = policyPrefabs.find(p => p.entityKey === ap.k);
+        return pol ? pol.name : '';
+      })
+      .filter(Boolean)
+  );
+
+  // Find all conflicting names
+  const conflicts: string[] = [];
+  for (const group of POLICY_CONFLICT_GROUPS) {
+    if (group.includes(policyName)) {
+      for (const other of group) {
+        if (other !== policyName && activeNames.has(other)) {
+          conflicts.push(other);
+        }
+      }
+    }
+  }
+
+  // Deduplicate and return
+  return Array.from(new Set(conflicts));
+};
+
+const WarningIcon = () => (
+  <svg width="12rem" height="12rem" viewBox="0 0 24 24" fill="none" stroke="#ff7b72" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', marginRight: '4rem', verticalAlign: 'middle', flexShrink: 0 }}>
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="12rem" height="12rem" viewBox="0 0 24 24" fill="none" stroke="#3fcf8f" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', marginRight: '4rem', verticalAlign: 'middle', flexShrink: 0 }}>
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+
+const CrossIcon = () => (
+  <svg width="12rem" height="12rem" viewBox="0 0 24 24" fill="none" stroke="#fa5252" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', marginRight: '4rem', verticalAlign: 'middle', flexShrink: 0 }}>
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const getPolicyTooltipLines = (
+  pol: PolicyPrefab,
+  on: boolean,
+  adj: number | undefined,
+  translate: (key: string, fallback?: string | null) => string | null,
+  conflicts: string[]
+): React.ReactNode[] => {
+  const titleKey = `Policy.TITLE[${pol.name}]`;
+  const descKey = `Policy.DESCRIPTION[${pol.name}]`;
+  const fallbackTitle = pol.name.replace(/([A-Z])/g, ' $1').replace(/^\s/, '');
+  const title = translate(titleKey, fallbackTitle) || fallbackTitle;
+  const desc = translate(descKey, '') || '';
+
   const lines: React.ReactNode[] = [
-    <span style={{ fontWeight: 800, color: '#50b8e9', fontSize: '12rem', display: 'block', marginBottom: '3rem' }}>{name}</span>
+    <span style={{ fontWeight: 800, color: '#50b8e9', fontSize: '12rem', display: 'block', marginBottom: '3rem' }}>{title}</span>
   ];
+
+  if (desc) {
+    lines.push(
+      <span style={{ display: 'block', fontSize: '11rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '5rem', maxWidth: '300rem', whiteSpace: 'normal', lineHeight: '14rem' }}>
+        {desc}
+      </span>
+    );
+  }
   
   lines.push(
-    <span style={{ fontWeight: 700, color: on ? '#3fcf8f' : '#fa5252', display: 'block', marginBottom: '3rem' }}>
-      {on ? '✓ Active' : '✗ Inactive'}
+    <span style={{ fontWeight: 700, color: on ? '#3fcf8f' : '#fa5252', display: 'flex', alignItems: 'center', marginBottom: '3rem' }}>
+      {on ? <CheckIcon /> : <CrossIcon />}
+      {on ? 'Active' : 'Inactive'}
     </span>
   );
+
+  if (conflicts.length > 0) {
+    const conflictTitles = conflicts.map(cName => translate(`Policy.TITLE[${cName}]`, cName.replace(/([A-Z])/g, ' $1').replace(/^\s/, '')) || cName.replace(/([A-Z])/g, ' $1').replace(/^\s/, ''));
+    lines.push(
+      <span style={{ display: 'flex', alignItems: 'center', color: '#ff7b72', fontWeight: 'bold', fontSize: '10rem', marginTop: '4rem', marginBottom: '4rem', maxWidth: '300rem', whiteSpace: 'normal' }}>
+        <WarningIcon />
+        <span>Conflicts with active: {conflictTitles.join(', ')}</span>
+      </span>
+    );
+  }
   
   if (pol.hasSlider) {
     if (on && adj !== undefined) {
@@ -256,11 +411,12 @@ export const DistrictsPanel: React.FC<Props> = ({
   onTooltipShow,
   onTooltipHide
 }) => {
+  const { translate } = useLocalization();
   const [editingName, setEditingName] = useState<string | null>(null);
 
-  const showTooltip = (pol: PolicyPrefab, on: boolean, adj?: number, clientX?: number, clientY?: number) => {
+  const showTooltip = (pol: PolicyPrefab, on: boolean, adj: number | undefined, conflicts: string[], clientX?: number, clientY?: number) => {
     if (onTooltipShow) {
-      onTooltipShow(getPolicyTooltipLines(pol, on, adj), undefined, false, clientX, clientY);
+      onTooltipShow(getPolicyTooltipLines(pol, on, adj, translate, conflicts), undefined, false, clientX, clientY);
     }
   };
 
@@ -658,11 +814,13 @@ export const DistrictsPanel: React.FC<Props> = ({
                         const ap = r.activePolicies.find(p => p.k === pol.entityKey);
                         const on = !!ap;
                         if (!on && !isExp) return null;
+                        const activeConflicting = getConflictingActivePolicies(pol.name, r.activePolicies, policyPrefabs);
+                        const hasConflict = activeConflicting.length > 0;
                         return (
-                          <div key={pol.entityKey} className={`dp-row-policy-icon ${on ? 'active' : ''} dp-policy-wrap`}
-                            onClick={e => { e.stopPropagation(); r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}
-                            onMouseOver={e => showTooltip(pol, on, ap?.adj, e.clientX, e.clientY)}
-                            onMouseMove={e => showTooltip(pol, on, ap?.adj, e.clientX, e.clientY)}
+                          <div key={pol.entityKey} className={`dp-row-policy-icon ${on ? 'active' : ''} ${hasConflict ? 'conflict' : ''} dp-policy-wrap`}
+                            onClick={e => { e.stopPropagation(); if (!on && hasConflict) return; r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}
+                            onMouseOver={e => showTooltip(pol, on, ap?.adj, activeConflicting, e.clientX, e.clientY)}
+                            onMouseMove={e => showTooltip(pol, on, ap?.adj, activeConflicting, e.clientX, e.clientY)}
                             onMouseOut={hideTooltip}
                           >
                             {pol.icon ? <img src={pol.icon} className="dp-policy-img-small" alt="" /> : <span className="dp-policy-text-small">{pol.name.substring(0, 2)}</span>}
@@ -871,11 +1029,13 @@ export const DistrictsPanel: React.FC<Props> = ({
                                     if (!r.isCity && !pol.isDistrict) return null;
                                     const ap = r.activePolicies.find(p => p.k === pol.entityKey);
                                     const on = !!ap;
+                                    const activeConflicting = getConflictingActivePolicies(pol.name, r.activePolicies, policyPrefabs);
+                                    const hasConflict = activeConflicting.length > 0;
                                     return (
-                                      <div key={pol.entityKey} className={`dp-inline-policy-icon ${on ? 'active' : ''} dp-policy-wrap`}
-                                        onClick={e => { e.stopPropagation(); r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}
-                                        onMouseOver={e => showTooltip(pol, on, ap?.adj, e.clientX, e.clientY)}
-                                        onMouseMove={e => showTooltip(pol, on, ap?.adj, e.clientX, e.clientY)}
+                                      <div key={pol.entityKey} className={`dp-inline-policy-icon ${on ? 'active' : ''} ${hasConflict ? 'conflict' : ''} dp-policy-wrap`}
+                                        onClick={e => { e.stopPropagation(); if (!on && hasConflict) return; r.entityKey && handleTogglePolicy(r.entityKey, pol.entityKey, on); }}
+                                        onMouseOver={e => showTooltip(pol, on, ap?.adj, activeConflicting, e.clientX, e.clientY)}
+                                        onMouseMove={e => showTooltip(pol, on, ap?.adj, activeConflicting, e.clientX, e.clientY)}
                                         onMouseOut={hideTooltip}
                                       >
                                         {pol.icon ? <img src={pol.icon} className="dp-policy-img" alt="" /> : <span className="dp-policy-text">{pol.name.substring(0, 2).toUpperCase()}</span>}

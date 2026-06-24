@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { trigger } from 'cs2/api';
 import { camera, selectedInfo } from 'cs2/bindings';
 import { Scrollable } from 'cs2/ui';
@@ -1086,34 +1087,37 @@ districtPoliciesData,
           onClose={() => setShowSettingsPanel(false)}
         />
       )}
-      {tooltip && (() => {
-      const { lines, rect, alignRight, x, y } = tooltip;
-      const style: React.CSSProperties = { position: 'fixed', zIndex: 10000 };
-      if (x != null && y != null) {
-        // position relative to mouse coordinates, with a small offset
-        const left = Math.min(Math.max(8, x + 12), Math.max(8, window.innerWidth - 320));
-        const top = Math.min(Math.max(8, y + 12), Math.max(8, window.innerHeight - 120));
-        style.left = left;
-        style.top = top;
-      } else if (rect) {
-        const above = rect.top > 140;
-        if (alignRight) {
-          style.right = window.innerWidth - rect.right;
-        } else {
-          style.left = rect.left;
-        }
-        if (above) {
-          style.bottom = window.innerHeight - rect.top + 4;
-        } else {
-          style.top = rect.bottom + 4;
-        }
-      }
-      return (
-        <div className="adv-row-tooltip" style={style}>
-          {lines.map((line, i) => <div key={i}>{line}</div>)}
-        </div>
-      );
-    })()}
+      {tooltip && createPortal(
+        (() => {
+          const { lines, rect, alignRight, x, y } = tooltip;
+          const style: React.CSSProperties = { position: 'fixed', zIndex: 10000, pointerEvents: 'none' };
+          if (x != null && y != null) {
+            // position relative to mouse coordinates, with a small offset
+            const left = Math.min(Math.max(8, x + 12), Math.max(8, window.innerWidth - 320));
+            const top = Math.min(Math.max(8, y + 12), Math.max(8, window.innerHeight - 120));
+            style.left = left;
+            style.top = top;
+          } else if (rect) {
+            const above = rect.top > 140;
+            if (alignRight) {
+              style.right = window.innerWidth - rect.right;
+            } else {
+              style.left = rect.left;
+            }
+            if (above) {
+              style.bottom = window.innerHeight - rect.top + 4;
+            } else {
+              style.top = rect.bottom + 4;
+            }
+          }
+          return (
+            <div className="adv-row-tooltip" style={style}>
+              {lines.map((line, i) => <div key={i}>{line}</div>)}
+            </div>
+          );
+        })(),
+        document.getElementById('tpm-root-container') || document.body
+      )}
       {showModDebug && <ModDebugPanel onClose={onToggleModDebug} />}
     </>
   );
