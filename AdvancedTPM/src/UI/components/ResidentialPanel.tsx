@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { camera, selectedInfo } from 'cs2/bindings';
 import { Scrollable } from 'cs2/ui';
 import { getSafeColor } from '../../mods/apiSafe';
 import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
+import { DetailRow } from './common';
 import './ResidentialPanel.css';
 import CustomSelect from './CustomSelect';
 import PackIcon from '../assets/PackIcon';
@@ -38,23 +39,23 @@ interface ResidentialData {
 interface ResidentialBuilding {
   entityKey: string;
   address: string;
-  district?: string;
+  district: string;
   density: string;
   level: number;
   occupied: number;
   capacity: number;
   theme: string;
-  themeIcon?: string;
-  assetPack: string;
-  assetPackIcon?: string;
-  isSignature: boolean;
-  cityEffects?: string;
-  localEffects?: string;
-  attractiveness?: number;
-  attractivenessFactors?: string;
-  happinessFactors?: string;
-  happiness?: number;
+  themeIcon: string;
+  pack: string;
+  packIcon: string;
+  isSignature: number;
+  cityEffects: string;
+  localEffects: string;
+  attractiveness: number;
+  attractivenessFactors: string;
+  happinessFactors: string;
 }
+
 
 const parseResidentialData = (payload: string): ResidentialData | null => {
   if (!payload) return null;
@@ -96,40 +97,26 @@ const parseResidentialData = (payload: string): ResidentialData | null => {
 const parseResidentialBuildings = (payload: string): ResidentialBuilding[] => {
   if (!payload) return [];
   try {
-    const arr = JSON.parse(payload);
-    if (!Array.isArray(arr)) return [];
-    return arr.map((item: any) => {
-      const hFactors = item.happinessFactors || '';
-      const idx = hFactors.indexOf('^');
-      const happiness = Number(idx === -1 ? hFactors : hFactors.substring(0, idx)) || 50;
-      const happinessFactorsStr = idx === -1 ? '' : hFactors.substring(idx + 1);
-
-      return {
-        entityKey: item.entityKey || '',
-        address: item.address || '',
-        district: item.district || 'City',
-        density: item.density || 'Residential',
-        level: Number(item.level) || 1,
-        occupied: Number(item.occupied) || 0,
-        capacity: Number(item.capacity) || 0,
-        theme: item.theme || 'Unknown',
-        assetPack: item.pack || 'Base Game',
-        isSignature: item.isSignature === 1,
-        assetPackIcon: item.packIcon || '',
-        themeIcon: item.themeIcon || '',
-        cityEffects: item.cityEffects || '',
-        localEffects: item.localEffects || '',
-        attractiveness: Number(item.attractiveness) || 0,
-        attractivenessFactors: item.attractivenessFactors || '',
-        happiness,
-        happinessFactors: happinessFactorsStr,
-      } as ResidentialBuilding;
-    });
+    const parsed = JSON.parse(payload);
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     console.error("Error parsing residential buildings payload", e);
     return [];
   }
 };
+
+const getBuildingHappiness = (b: ResidentialBuilding): number => {
+  const hFactors = b.happinessFactors || '';
+  const idx = hFactors.indexOf('^');
+  return Number(idx === -1 ? hFactors : hFactors.substring(0, idx)) || 50;
+};
+
+const getBuildingHappinessFactors = (b: ResidentialBuilding): string => {
+  const hFactors = b.happinessFactors || '';
+  const idx = hFactors.indexOf('^');
+  return idx === -1 ? '' : hFactors.substring(idx + 1);
+};
+
 
 const EFF_FACTOR_LABELS: Record<string, string> = {
   EmployeeHappiness: 'Employee Happiness',
@@ -222,16 +209,17 @@ const formatThresholdLabel = (prefix: string, value: string) => {
 const getResidentialRowTooltip = (b: ResidentialBuilding, data: ResidentialData) => {
   const occPct = b.capacity > 0 ? pct(b.occupied, b.capacity) : (b.occupied > 0 ? 100 : 0);
   const cityAvgHappiness = data.avgHappiness || 50;
+  const happyVal = getBuildingHappiness(b);
   const lines = [
     <span style={{ fontWeight: 800, color: '#50b8e9', display: 'block', marginBottom: '2rem' }}>{b.address}</span>,
     <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Density: {b.density} • Level: Lv {b.level}</span>,
     <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>District: {b.district || 'City'}</span>,
-    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Theme: {normalizeTheme(b)} • Pack: {b.assetPack || 'Base Game'}</span>,
+    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Theme: {normalizeTheme(b)} • Pack: {b.pack || 'Base Game'}</span>,
     <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Occupancy: {b.occupied} / {b.capacity || 0} ({occPct}%)</span>,
-    <span style={{ display: 'block', fontWeight: 700, color: '#ffb74d', marginTop: '4rem' }}>True Happiness: {b.happiness}%</span>,
+    <span style={{ display: 'block', fontWeight: 700, color: '#ffb74d', marginTop: '4rem' }}>True Happiness: {happyVal}%</span>,
     <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.6)' }}>City Avg: {cityAvgHappiness}%</span>
   ];
-  if (b.isSignature) {
+  if (b.isSignature === 1) {
     lines.push(<span style={{ display: 'block', fontSize: '10rem', color: '#f0c040', fontWeight: 'bold', marginTop: '2rem' }}>★ Signature Building</span>);
   }
   lines.push(<span style={{ display: 'block', fontSize: '9rem', color: '#50b8e9', fontStyle: 'italic', marginTop: '4rem' }}>Click row to expand details</span>);
@@ -370,8 +358,8 @@ const ResidentialPanel: React.FC<{
   const packIconMap = useMemo(() => {
     const map = new Map<string, string>();
     safeBuildings.forEach(b => {
-      if (b.assetPack && b.assetPackIcon && !map.has(b.assetPack)) {
-        map.set(b.assetPack, b.assetPackIcon);
+      if (b.pack && b.packIcon && !map.has(b.pack)) {
+        map.set(b.pack, b.packIcon);
       }
     });
     return map;
@@ -434,9 +422,9 @@ const ResidentialPanel: React.FC<{
     if (densityFilter !== 'All') list = list.filter((b) => String(b.density || '').trim() === densityFilter.trim());
     if (themeFilter !== 'All') list = list.filter((b) => String(normalizeTheme(b) || '').trim() === themeFilter.trim());
     if (districtFilter !== 'All') list = list.filter((b) => String(b.district || 'City').trim() === districtFilter.trim());
-    if (assetPackFilter !== 'All') list = list.filter((b) => String(b.assetPack || 'Base Game').trim() === assetPackFilter.trim());
+    if (assetPackFilter !== 'All') list = list.filter((b) => String(b.pack || 'Base Game').trim() === assetPackFilter.trim());
     if (levelFilter !== 'All') list = list.filter((b) => String(b.level || 0).trim() === levelFilter.trim());
-    if (showSignatureOnly) list = list.filter((b) => b.isSignature === true);
+    if (showSignatureOnly) list = list.filter((b) => b.isSignature === 1);
 
     if (occupancyStateFilter !== 'All') {
       list = list.filter((b) => {
@@ -453,7 +441,8 @@ const ResidentialPanel: React.FC<{
 
     if (maxHappiness < 100 || minHappiness > 0) {
       list = list.filter((b) => {
-        if (b.happiness === undefined || b.happiness < minHappiness || b.happiness > maxHappiness) return false;
+        const happy = getBuildingHappiness(b);
+        if (happy < minHappiness || happy > maxHappiness) return false;
         return true;
       });
     }
@@ -463,7 +452,7 @@ const ResidentialPanel: React.FC<{
       list = list.filter((b) =>
         (b.address || '').toLowerCase().includes(lower) ||
         (b.theme || '').toLowerCase().includes(lower) ||
-        (b.assetPack || '').toLowerCase().includes(lower) ||
+        (b.pack || '').toLowerCase().includes(lower) ||
         (b.density || '').toLowerCase().includes(lower)
       );
     }
@@ -476,7 +465,7 @@ const ResidentialPanel: React.FC<{
         case 'occupied': return dir * ((a.occupied || 0) - (b.occupied || 0));
         case 'capacity': return dir * ((a.capacity || 0) - (b.capacity || 0));
         case 'theme': return dir * (a.theme || 'Unknown').localeCompare(b.theme || 'Unknown');
-        case 'assetPack': return dir * (a.assetPack || 'Base Game').localeCompare(b.assetPack || 'Base Game');
+        case 'assetPack': return dir * (a.pack || 'Base Game').localeCompare(b.pack || 'Base Game');
         case 'occupancy': {
           const oA = (a.capacity || 0) > 0 ? a.occupied / a.capacity : 0;
           const oB = (b.capacity || 0) > 0 ? b.occupied / b.capacity : 0;
@@ -548,12 +537,12 @@ const ResidentialPanel: React.FC<{
         b.density || 'Unknown',
         b.level || 1,
         (b.theme || 'Unknown').replace(/\"/g, '\"\"'),
-        (b.assetPack || 'Base Game').replace(/\"/g, '\"\"'),
+        (b.pack || 'Base Game').replace(/\"/g, '\"\"'),
         b.occupied || 0,
         b.capacity || 0,
         occPct,
-        b.happiness ?? 50,
-        b.isSignature ? 'Yes' : 'No',
+        getBuildingHappiness(b),
+        b.isSignature === 1 ? 'Yes' : 'No',
       ].join(',');
     });
 
@@ -733,7 +722,7 @@ const ResidentialPanel: React.FC<{
           </div>
           {/* Sticky table header — outside scroll body */}
           <div className="res-bldg-table">
-            <div className="res-bldg-header">
+            <div className="panel-table-header">
               <div className="res-bcol-address res-sortable" onClick={() => handleSort('address')}>Name/Address{sortIndicator('address')}</div>
               <div className="res-bcol-density res-sortable" onClick={() => handleSort('density')}>Zone Density{sortIndicator('density')}</div>
               <div className="res-bcol-level res-sortable" onClick={() => handleSort('level')}>Lv{sortIndicator('level')}</div>
@@ -762,7 +751,7 @@ const ResidentialPanel: React.FC<{
                   const isExpanded = expandedBuildingKey === b.entityKey;
                   return (
                     <React.Fragment key={b.entityKey}>
-                      <div className={`res-bldg-row${b.entityKey.charCodeAt(0) % 2 === 0 ? '' : ' res-bldg-row-alt'}${selectedBuildingKey === b.entityKey || isExpanded ? ' res-bldg-row-selected' : ''}`}
+                      <div className={`panel-list-row${b.entityKey.charCodeAt(0) % 2 === 0 ? '' : ' panel-list-row-alt'}${isExpanded ? ' panel-list-row-expanded' : ''}${selectedBuildingKey === b.entityKey ? ' res-bldg-row-selected' : ''}`}
                         onClick={() => {
                           setSelectedBuildingKey(b.entityKey);
                           if (isExpanded) {
@@ -774,107 +763,119 @@ const ResidentialPanel: React.FC<{
                           }
                         }}>
                         <div className="res-bcol-address">
-                           <span className="res-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-                           {b.isSignature && <span className="res-signature-badge">★</span>}
-                           <img className="res-row-icon" src={RESIDENTIAL_ICON} alt="" />
-                           {b.address}
-                        </div>
-                        <div className="res-bcol-density" style={{ color: getSafeColor(DENSITY_COLORS[b.density] || 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>{b.density}</div>
-                        <div className="res-bcol-level">
-                           <span className="res-level-badge">Lv {b.level}</span>
-                        </div>
-                        <div className="res-bcol-theme" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <PackIcon pack={normalizeTheme(b)} iconUrl={themeIconMap.get(normalizeTheme(b))} size={16} />
-                          <span style={{ marginLeft: '4rem' }}>{normalizeTheme(b)}</span>
-                        </div>
-                          <div className="res-bcol-assetpack" style={{ display: 'flex', alignItems: 'center' }}>
-                            <PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={24} style={{ marginRight: '6rem' }} />
-                            {b.assetPack || 'Base Game'}
-                          </div>
-                        <div className="res-bcol-occupied">{b.occupied}</div>
-                        <div className="res-bcol-capacity">{b.capacity > 0 ? b.capacity : '\u2014'}</div>
-                        <div className="res-bcol-occupancy" style={{ color: getSafeColor(occColor) }}>{occPct}%</div>
-                        <div className="res-bcol-happy">
-                          {(() => {
-                            const val = b.happiness ?? 50;
-                            const color = val >= 75 ? '#8bdb46' : val >= 50 ? '#50b8e9' : val >= 30 ? '#e88c3a' : '#e05050';
-                            return <span style={{ color: getSafeColor(color), fontWeight: 700 }} title={`True Happiness: ${val}%`}>{`${val}%`}</span>;
-                          })()}
-                        </div>
-                        <div className="res-bcol-action">
-                          <button
-                            className="res-locate-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedBuildingKey(b.entityKey);
-                              try {
-                                const parts = b.entityKey.split(',');
-                                const idx = Number(parts[0]) || 0;
-                                const ver = Number(parts[1]) || 0;
-                                const entity = { index: idx, version: ver };
-                                camera.focusEntity(entity);
-                                selectedInfo.selectEntity(entity);
-                              } catch {}
-                            }}
-                            title="Focus camera on this building"
-                          >
-                            GO
-                          </button>
-                        </div>
-                      </div>
-                      {isExpanded && (
-                        <div className="res-bldg-detail-row">
-                          <div className="res-entity-id-header">
-                            <span className="res-entity-id-label">Entity ID:</span>
-                            <span className="res-entity-id-badge">{b.entityKey}</span>
-                          </div>
-                          <div className="res-bldg-detail-grid">
-                            <div><span className="res-bldg-detail-label">Address</span><span className="res-bldg-detail-value">{b.address}</span></div>
-                            <div><span className="res-bldg-detail-label">Density</span><span className="res-bldg-detail-value">{b.density}</span></div>
-                            <div><span className="res-bldg-detail-label">Theme</span><span className="res-bldg-detail-value">{normalizeTheme(b)}</span></div>
-                             <div><span className="res-bldg-detail-label">Pack</span><span className="res-bldg-detail-value" style={{ display: 'flex', alignItems: 'center' }}><PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={20} style={{ marginRight: '6rem' }} />{b.assetPack || 'Base Game'}</span></div>
-                            <div><span className="res-bldg-detail-label">Level</span><span className="res-bldg-detail-value">{`Lv ${b.level}`}</span></div>
-                            <div><span className="res-bldg-detail-label">Occupancy</span><span className="res-bldg-detail-value">{`${b.occupied} / ${b.capacity || 0} (${occPct}%)`}</span></div>
-                            <div><span className="res-bldg-detail-label">Signature</span><span className="res-bldg-detail-value">{b.isSignature ? 'Yes' : 'No'}</span></div>
-                            {b.attractiveness ? <div><span className="res-bldg-detail-label">Attractiveness</span><span className="res-bldg-detail-value" style={{ color: getSafeColor('#3fc9d8') }}>{b.attractiveness}</span></div> : null}
-                            {b.attractivenessFactors && b.attractivenessFactors.split('|').map((factor, idx) => {
-                              const parts = factor.split(':');
-                              if (parts.length !== 2) return null;
-                              const capitalizedLabel = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-                              const label = capitalizedLabel.replace(/([a-z])([A-Z])/g, '$1 $2');
-                              const val = Number(parts[1]);
-                              const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
-                              return (
-                                <div key={`attr_${idx}`} style={{ display: 'flex', alignItems: 'center' }}>
-                                  <span className="res-bldg-detail-label" style={{ marginRight: '8rem' }}>{label}</span>
-                                  <span className="res-bldg-detail-value" style={{ color: getSafeColor(color), fontWeight: 700, marginLeft: '6rem' }}>{val > 0 ? `+${val}` : val}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {b.happinessFactors && (
-                            <div className="res-bldg-detail-grid" style={{ marginTop: '10rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10rem' }}>
-                              <div style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em', fontSize: '10rem', textTransform: 'uppercase', marginBottom: '4rem', gridColumn: '1 / -1' }}>Happiness Factors</div>
-                              {b.happinessFactors && b.happinessFactors.split('^').map((factor, idx) => {
+                            <span className="panel-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
+                            {b.isSignature === 1 && <span className="res-signature-badge">★</span>}
+                            <img className="res-row-icon" src={RESIDENTIAL_ICON} alt="" />
+                            {b.address}
+                         </div>
+                         <div className="res-bcol-density" style={{ color: getSafeColor(DENSITY_COLORS[b.density] || 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)') }}>{b.density}</div>
+                         <div className="res-bcol-level">
+                            <span className="res-level-badge">Lv {b.level}</span>
+                         </div>
+                         <div className="res-bcol-theme" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                           <PackIcon pack={normalizeTheme(b)} iconUrl={themeIconMap.get(normalizeTheme(b))} size={16} />
+                           <span style={{ marginLeft: '4rem' }}>{normalizeTheme(b)}</span>
+                         </div>
+                           <div className="res-bcol-assetpack" style={{ display: 'flex', alignItems: 'center' }}>
+                             <PackIcon pack={b.pack} iconUrl={b.packIcon} size={24} style={{ marginRight: '6rem' }} />
+                             {b.pack || 'Base Game'}
+                           </div>
+                         <div className="res-bcol-occupied">{b.occupied}</div>
+                         <div className="res-bcol-capacity">{b.capacity > 0 ? b.capacity : '\u2014'}</div>
+                         <div className="res-bcol-occupancy" style={{ color: getSafeColor(occColor) }}>{occPct}%</div>
+                         <div className="res-bcol-happy">
+                           {(() => {
+                             const val = getBuildingHappiness(b);
+                             const color = val >= 75 ? '#8bdb46' : val >= 50 ? '#50b8e9' : val >= 30 ? '#e88c3a' : '#e05050';
+                             return <span style={{ color: getSafeColor(color), fontWeight: 700 }} title={`True Happiness: ${val}%`}>{`${val}%`}</span>;
+                           })()}
+                         </div>
+                         <div className="res-bcol-action">
+                           <button
+                             className="panel-go-btn"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               setSelectedBuildingKey(b.entityKey);
+                               try {
+                                 const parts = b.entityKey.split(',');
+                                 const idx = Number(parts[0]) || 0;
+                                 const ver = Number(parts[1]) || 0;
+                                 const entity = { index: idx, version: ver };
+                                 camera.focusEntity(entity);
+                                 selectedInfo.selectEntity(entity);
+                               } catch {}
+                             }}
+                             title="Focus camera on this building"
+                           >
+                             GO
+                           </button>
+                         </div>
+                       </div>
+                        {isExpanded && (
+                          <div className="res-bldg-detail-row">
+                           <div className="res-entity-id-header">
+                             <span className="res-entity-id-label">Entity ID:</span>
+                             <span className="res-entity-id-badge">{b.entityKey}</span>
+                           </div>
+                           <div className="res-bldg-detail-grid">
+                              <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Address" value={b.address} />
+                              <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Density" value={b.density} />
+                              <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Theme" value={normalizeTheme(b)} />
+                              <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Pack" value={<span style={{ display: 'flex', alignItems: 'center' }}><PackIcon pack={b.pack} iconUrl={b.packIcon} size={20} style={{ marginRight: '6rem' }} />{b.pack || 'Base Game'}</span>} />
+                              <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Level" value={`Lv ${b.level}`} />
+                              <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Occupancy" value={`${b.occupied} / ${b.capacity || 0} (${occPct}%)`} />
+                              <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Signature" value={b.isSignature === 1 ? 'Yes' : 'No'} />
+                              {b.attractiveness ? <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Attractiveness" value={b.attractiveness} color="#3fc9d8" /> : null}
+                              {b.attractivenessFactors && b.attractivenessFactors.split('|').map((factor, idx) => {
                                 const parts = factor.split(':');
                                 if (parts.length !== 2) return null;
                                 const capitalizedLabel = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
                                 const label = capitalizedLabel.replace(/([a-z])([A-Z])/g, '$1 $2');
-                                const displayLabel = EFF_FACTOR_LABELS[capitalizedLabel] || label;
                                 const val = Number(parts[1]);
                                 const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
                                 return (
-                                  <div key={`happ_${idx}`} style={{ display: 'flex', alignItems: 'center', width: 'auto', marginRight: '16rem' }}>
-                                    <span className="res-bldg-detail-label" style={{ display: 'inline-flex', alignItems: 'center', marginRight: '8rem' }}>
-                                      <img src={getEfficiencyFactorIcon(parts[0])} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', flexShrink: 0 }} alt="" />
-                                      {displayLabel}
-                                    </span>
-                                    <span className="res-bldg-detail-value" style={{ color: getSafeColor(color), fontWeight: 700, marginLeft: '6rem' }}>{val > 0 ? `+${val}` : val}</span>
-                                  </div>
+                                  <DetailRow
+                                    key={`attr_${idx}`}
+                                    style={{ display: 'flex', alignItems: 'center' }}
+                                    className="panel-detail-row" labelClassName="panel-detail-row-label"
+                                    valueClassName="panel-detail-row-value"
+                                    labelStyle={{ marginRight: '8rem' }}
+                                    valueStyle={{ fontWeight: 700, marginLeft: '6rem' }}
+                                    label={label}
+                                    value={val > 0 ? `+${val}` : val}
+                                    color={color}
+                                  />
                                 );
                               })}
                             </div>
-                          )}
+                            {getBuildingHappinessFactors(b) && (
+                              <div className="res-bldg-detail-grid" style={{ marginTop: '10rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10rem' }}>
+                                <div style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em', fontSize: '10rem', textTransform: 'uppercase', marginBottom: '4rem', gridColumn: '1 / -1' }}>Happiness Factors</div>
+                                {getBuildingHappinessFactors(b).split('^').map((factor, idx) => {
+                                 const parts = factor.split(':');
+                                 if (parts.length !== 2) return null;
+                                 const capitalizedLabel = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+                                 const label = capitalizedLabel.replace(/([a-z])([A-Z])/g, '$1 $2');
+                                 const displayLabel = EFF_FACTOR_LABELS[capitalizedLabel] || label;
+                                 const val = Number(parts[1]);
+                                 const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
+                                 return (
+                                   <DetailRow
+                                     key={`happ_${idx}`}
+                                     style={{ display: 'flex', alignItems: 'center', width: 'auto', marginRight: '16rem' }}
+                                     className="panel-detail-row" labelClassName="panel-detail-row-label"
+                                     valueClassName="panel-detail-row-value"
+                                     labelStyle={{ display: 'inline-flex', alignItems: 'center', marginRight: '8rem' }}
+                                     valueStyle={{ fontWeight: 700, marginLeft: '6rem' }}
+                                     icon={<img src={getEfficiencyFactorIcon(parts[0])} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', flexShrink: 0 }} alt="" />}
+                                     label={displayLabel}
+                                     value={val > 0 ? `+${val}` : val}
+                                     color={color}
+                                   />
+                                 );
+                               })}
+                              </div>
+                            )}
                           { (b.cityEffects || b.localEffects) && (
                             <div className="res-bldg-detail-grid" style={{ marginTop: '10rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10rem', display: 'flex', flexDirection: 'column', gap: '4rem' }}>
                               {b.cityEffects && (

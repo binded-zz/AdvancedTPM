@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 // React hooks are provided by the environment. Do not import to avoid duplicate type declarations.
 import { trigger } from 'cs2/api';
 import { camera, selectedInfo } from 'cs2/bindings';
@@ -6,67 +6,64 @@ import { Entity } from 'cs2/utils';
 import { Scrollable } from 'cs2/ui';
 import { getSafeValue, getSafeColor } from '../../mods/apiSafe';
 import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
-import { resourceCategories } from '../data/resourceTaxonomy';
 import ServiceIcon from '../assets/ServiceIcon';
 import PackIcon from '../assets/PackIcon';
+import { DetailRow, ProgressBar } from './common';
 import './CompanyBrowser.css';
 import CustomSelect from './CustomSelect';
 
 export interface CompanyVm {
-  entityIndex: number;
-  entityVersion: number;
+  entityKey: string;
   name: string;
   zoneType: string;
   resourceKey: string;
   profit: number;
-  profitabilityTier: string;
+  tier: string;
   workers: number;
   maxWorkers: number;
-  posX: number;
-  posY: number;
-  posZ: number;
-  efficiency: number;
-  inputResource1: string;
-  inputResource2: string;
-  taxRate: number;
-  buildingLevel: number;
-  efficiencyDetails: string;
+  px: number;
+  py: number;
+  pz: number;
+  eff: number;
+  in1: string;
+  in2: string;
+  taxR: number;
+  bLevel: number;
+  effDetails: string;
   brandName: string;
-  buildingAddress: string;
-  producesGarbage: boolean;
-  producesCrime: boolean;
-  producesMail?: boolean;
-  needsElectricity?: boolean;
-  needsWater?: boolean;
-  isSignature?: boolean;
-  serviceCategory?: string;
-  capacity?: number;
-  coverage?: number;
-  budgetPercent?: number;
-  feePercent?: number;
-  district?: string;
-  theme?: string;
-  themeIcon?: string;
-  assetPack?: string;
-  assetPackIcon?: string;
-  nativePackIcon?: string;
-  companyKind?: string;
-  electricityConsumption?: number;
-  waterConsumption?: number;
-  garbageAccumulation?: number;
-  mailAccumulation?: number;
-  crimeProbability?: number;
-  buildingIndex?: number;
-  buildingVersion?: number;
-  iconUrl?: string;
-  storageAmount?: number;
-  storageCapacity?: number;
-  allowedResources?: string;
-  cityEffects?: string;
-  localEffects?: string;
-  attractiveness?: number;
-  attractivenessFactors?: string;
+  bldgAddr: string;
+  g: number;
+  c: number;
+  m: number;
+  e: number;
+  w: number;
+  eCons: number;
+  wCons: number;
+  gAccum: number;
+  mAccum: number;
+  cProb: number;
+  district: string;
+  theme: string;
+  pack: string;
+  packIcon: string;
+  kind: string;
+  isSignature: number;
+  bldgKey: string;
+  iconUrl: string;
+  nativePackIcon: string;
+  themeIcon: string;
+  storageAmount: number;
+  storageCapacity: number;
+  allowedResources: string;
+  cityEffects: string;
+  localEffects: string;
+  attractiveness: number;
 }
+
+export const parseEntityKey = (key: string) => {
+  const parts = (key || '').split(',');
+  return { index: Number(parts[0]) || 0, version: Number(parts[1]) || 0 };
+};
 
 const isRawResource = (resourceKey: string): boolean => {
   if (!resourceKey) return false;
@@ -80,6 +77,7 @@ const isRawResource = (resourceKey: string): boolean => {
  */
 const formatPackName = (name: string): string => {
   if (!name || name === 'Base Game' || name === 'Custom' || name === 'DLC') return name;
+  if (name.includes(' ')) return name;
   // If it already has spaces it came from GetDlcName() — return as-is
   if (name.includes(' ')) return name;
   // PascalCase → spaced: insert space before each uppercase letter that follows a lowercase
@@ -91,61 +89,8 @@ const formatPackName = (name: string): string => {
 export const parseCompanies = (payload: string): CompanyVm[] => {
   if (!payload) return [];
   try {
-    const arr = JSON.parse(payload);
-    if (!Array.isArray(arr)) return [];
-    return arr.map((item: any) => {
-      const [idx, ver] = (item.entityKey || '').split(',');
-      const [bIdx, bVer] = (item.bldgKey || '').split(',');
-      return {
-        entityIndex: Number(idx) || 0,
-        entityVersion: Number(ver) || 0,
-        name: item.name || 'Unknown',
-        zoneType: item.zoneType || 'Unknown',
-        resourceKey: item.resourceKey || '',
-        profit: Number(item.profit) || 0,
-        profitabilityTier: item.tier || 'Unknown',
-        workers: Number(item.workers) || 0,
-        maxWorkers: Number(item.maxWorkers) || 0,
-        posX: Number(item.px) || 0,
-        posY: Number(item.py) || 0,
-        posZ: Number(item.pz) || 0,
-        efficiency: Number(item.eff) || 100,
-        inputResource1: item.in1 || '',
-        inputResource2: item.in2 || '',
-        taxRate: Number(item.taxR) || 0,
-        buildingLevel: Number(item.bLevel) || 1,
-        efficiencyDetails: item.effDetails || '',
-        brandName: item.brandName || '',
-        buildingAddress: item.bldgAddr || '',
-        producesGarbage: item.g === 1,
-        producesCrime: item.c === 1,
-        producesMail: item.m === 1,
-        needsElectricity: item.e === 1,
-        needsWater: item.w === 1,
-        electricityConsumption: Number(item.eCons) || 0,
-        waterConsumption: Number(item.wCons) || 0,
-        garbageAccumulation: Number(item.gAccum) || 0,
-        mailAccumulation: Number(item.mAccum) || 0,
-        crimeProbability: Number(item.cProb) || 0,
-        district: item.district || 'City',
-        theme: item.theme || 'USA',
-        themeIcon: item.themeIcon || '',
-        assetPack: formatPackName(item.pack || 'Base Game'),
-        assetPackIcon: item.packIcon || '',
-        nativePackIcon: item.nativePackIcon || '',
-        companyKind: item.kind || item.zoneType || 'Unknown',
-        isSignature: item.isSignature === 1,
-        buildingIndex: Number(bIdx) || 0,
-        buildingVersion: Number(bVer) || 0,
-        iconUrl: item.iconUrl || '',
-        storageAmount: Number(item.storageAmount) || 0,
-        storageCapacity: Number(item.storageCapacity) || 0,
-        allowedResources: item.allowedResources || '',
-        cityEffects: item.cityEffects || '',
-        localEffects: item.localEffects || '',
-        attractiveness: Number(item.attractiveness) || 0,
-      } as CompanyVm;
-    });
+    const parsed = JSON.parse(payload);
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     console.error("Error parsing companies payload", e);
     return [];
@@ -507,16 +452,20 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
   const sorted = safeCompanies;
 
   const focusCompanyEntity = (c: CompanyVm) => {
-    const entity: Entity = { index: c.entityIndex, version: c.entityVersion };
+    const key = parseEntityKey(c.entityKey);
+    const entity: Entity = { index: key.index, version: key.version };
     camera.focusEntity(entity);
     selectedInfo.selectEntity(entity);
   };
 
   const focusBuildingEntity = (c: CompanyVm) => {
-    if (c.buildingIndex) {
-      const entity: Entity = { index: c.buildingIndex, version: c.buildingVersion || 0 };
-      camera.focusEntity(entity);
-      selectedInfo.selectEntity(entity);
+    if (c.bldgKey) {
+      const key = parseEntityKey(c.bldgKey);
+      if (key.index > 0) {
+        const entity: Entity = { index: key.index, version: key.version };
+        camera.focusEntity(entity);
+        selectedInfo.selectEntity(entity);
+      }
     }
   };
 
@@ -689,7 +638,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
       </div>
 
       <div className="cb-table-scroll">
-        <div className="cb-table-header">
+        <div className="panel-table-header">
           <div className="cb-col-name cb-sortable" onClick={() => handleSort('name')}>
             Company{sortIndicator('name')}
           </div>
@@ -731,9 +680,9 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
               const safePage = Math.min(currentPage, totalPages - 1);
               const pageSlice = sorted.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
               return pageSlice;
-            })().map((c) => {
+            })().map((c, idx) => {
               if (!c) return null;
-              const compKey = `${c.entityIndex || 0},${c.entityVersion || 0}`;
+              const compKey = c.entityKey;
               const isExpanded = expandedEntity === compKey;
               const rowClickHandler = (e: React.MouseEvent) => {
                 if (isExpanded) {
@@ -747,34 +696,36 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                 }
               };
               const profitColor = (c.profit || 0) < 0 ? '#e05050' : (c.profit || 0) > 0 ? '#8bdb46' : 'rgba(255,255,255,0.5)';
-              const tierColor = TIER_COLORS[c.profitabilityTier || ''] || 'transparent';
+              const tierColor = TIER_COLORS[c.tier || ''] || 'transparent';
               const workerPct = (c.maxWorkers || 0) > 0 ? Math.round(((c.workers || 0) / c.maxWorkers) * 100) : 0;
               const profitDescription = (c.profit || 0) > 20 ? 'Very profitable — high tax tolerance'
                 : (c.profit || 0) > 5 ? 'Healthy — moderate tax tolerance'
                   : (c.profit || 0) > -5 ? 'Marginal — sensitive to tax changes'
                     : (c.profit || 0) > -20 ? 'Struggling — consider lowering taxes'
                       : 'Critical — near bankruptcy, needs tax relief';
+              const parsedCompKey = parseEntityKey(c.entityKey);
+              const parsedBldgKey = parseEntityKey(c.bldgKey);
               return (
-                <div key={`${c.entityIndex}-${c.entityVersion}`}>
+                <div key={c.entityKey}>
                   <div
-                    className={`cb-row${c.entityIndex % 2 === 0 ? '' : ' cb-row-alt'}${isExpanded ? ' cb-row-expanded' : ''}`}
+                    className={`panel-list-row${idx % 2 === 0 ? '' : ' panel-list-row-alt'}${isExpanded ? ' panel-list-row-expanded' : ''}`}
                     onMouseDown={(e: React.MouseEvent) => {
                       const tgt = e.target as HTMLElement;
-                      if (tgt && tgt.closest && tgt.closest('.cb-locate-btn')) return;
+                      if (tgt && tgt.closest && tgt.closest('.panel-go-btn')) return;
                       rowClickHandler(e);
                     }}
                     title={isExpanded ? 'Click to collapse' : 'Click to expand details'}
                   >
                     <div className="cb-col-name">
-                      <span className="cb-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-                      {c.isSignature && <span className="cb-signature-badge" title="Signature Building">★</span>}
+                      <span className="panel-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
+                      {c.isSignature === 1 && <span className="cb-signature-badge" title="Signature Building">★</span>}
                       <span className="cb-company-name">{c.brandName || c.name}</span>
                     </div>
                     <div className="cb-col-address">
                       <span className="cb-address-text">
                         {isSignatureView
-                          ? (c.buildingAddress && /\d|\s/.test(c.buildingAddress)) ? c.buildingAddress : (c.brandName || c.name || '-')
-                          : (c.buildingAddress || '-')}
+                          ? (c.bldgAddr && /\d|\s/.test(c.bldgAddr)) ? c.bldgAddr : (c.brandName || c.name || '-')
+                          : (c.bldgAddr || '-')}
                       </span>
                     </div>
                     <div className="cb-col-zone">
@@ -786,8 +737,8 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                       )}
                       <span className={isRawResource(c.resourceKey) ? 'cb-resource-raw' : ''}>{resourceLabel(c.resourceKey)}</span>
                     </div>
-                     <div className="cb-col-pack" title={formatPackName(c.assetPack || 'Base Game')}>
-                       <PackIcon pack={c.assetPack} theme={c.theme} iconUrl={c.nativePackIcon || c.assetPackIcon} size={24} />
+                     <div className="cb-col-pack" title={formatPackName(c.pack || 'Base Game')}>
+                       <PackIcon pack={c.pack} theme={c.theme} iconUrl={c.nativePackIcon || c.packIcon} size={24} />
                      </div>
                      <div className="cb-col-profit">
                        <span style={{ color: getSafeColor(profitColor), whiteSpace: 'nowrap' }}>
@@ -795,30 +746,30 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                        </span>
                      </div>
                      <div className="cb-col-tax">
-                       <span style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)'), whiteSpace: 'nowrap' }}>
-                         {`${c.taxRate}%`}
+                       <span style={{ color: getSafeColor(c.taxR >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.7)'), whiteSpace: 'nowrap' }}>
+                         {`${c.taxR}%`}
                        </span>
                      </div>
                     <div className="cb-col-tier">
                       <span style={{ color: getSafeColor(tierColor) }}>
-                        {TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}
+                        {TIER_LABELS[c.tier] || c.tier}
                       </span>
                     </div>
                     <div className="cb-col-level">
-                      <span className="cb-level-badge">Lv {c.buildingLevel}</span>
+                      <span className="cb-level-badge">Lv {c.bLevel}</span>
                     </div>
                     <div className="cb-col-locate">
                       <div className="cb-locate-btn-group">
                         <button
-                          className="cb-locate-btn cb-locate-co"
+                          className="panel-go-btn cb-locate-co"
                           onClick={(e) => { e.stopPropagation(); focusCompanyEntity(c); }}
                           title="Focus camera and inspect Company"
                         >
                           GO
                         </button>
-                        {c.buildingIndex && c.buildingIndex > 0 ? (
+                        {parsedBldgKey.index > 0 ? (
                           <button
-                            className="cb-locate-btn cb-locate-bldg"
+                            className="panel-go-btn cb-locate-bldg"
                             onClick={(e) => { e.stopPropagation(); focusBuildingEntity(c); }}
                             title="Focus camera and inspect Building"
                           >
@@ -834,151 +785,206 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                     <div className="cb-expanded-panel">
                       <div className="cb-detail-grid">
                         <div className="cb-detail-main">
-                          <div className="cb-detail-row cb-detail-entity-id-row">
-                            <span className="cb-detail-label">Entity ID</span>
-                            <span className="cb-detail-value cb-entity-id-badge" title="Company Entity ID">CO {c.entityIndex}:{c.entityVersion}</span>
-                            {c.buildingIndex && c.buildingIndex > 0 ? (
-                              <span className="cb-detail-value cb-entity-id-badge cb-entity-id-bldg-badge" title="Building Entity ID" style={{ marginLeft: '6rem' }}>
-                                BLDG {c.buildingIndex}:{c.buildingVersion}
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">Profitability</span>
-                            <span className="cb-detail-value" style={{ color: getSafeColor(profitColor) }}>{`${c.profit > 0 ? '+' : ''}${c.profit}%`}</span>
-                          </div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">Status</span>
-                            <span className="cb-detail-value" style={{ color: getSafeColor(tierColor) }}>{TIER_LABELS[c.profitabilityTier] || c.profitabilityTier}</span>
-                          </div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">Assessment</span>
-                            <span className="cb-detail-value cb-detail-assessment" style={{ color: getSafeColor(profitColor) }}>{profitDescription}</span>
-                          </div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">Zone</span>
-                            <span className="cb-detail-value">{c.zoneType}</span>
-                          </div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">District</span>
-                            <span className="cb-detail-value">{c.district || 'City'}</span>
-                          </div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">Output</span>
-                            <span className="cb-detail-value">
-                              {c.resourceKey && <img className="cb-resource-icon" src={`${RESOURCE_ICON_BASE}${resourceIconName(c.resourceKey)}.svg`} />}
-                              {resourceLabel(c.resourceKey)}
-                            </span>
-                          </div>
+                          <DetailRow
+                            className="panel-detail-row cb-detail-entity-id-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            label="Entity ID"
+                            value={
+                              <>
+                                <span className="cb-entity-id-badge" title="Company Entity ID">CO {parsedCompKey.index}:{parsedCompKey.version}</span>
+                                {parsedBldgKey.index > 0 ? (
+                                  <span className="cb-entity-id-badge cb-entity-id-bldg-badge" title="Building Entity ID" style={{ marginLeft: '6rem' }}>
+                                    BLDG {parsedBldgKey.index}:{parsedBldgKey.version}
+                                  </span>
+                                ) : null}
+                              </>
+                            }
+                          />
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            label="Profitability"
+                            value={`${c.profit > 0 ? '+' : ''}${c.profit}%`}
+                            color={profitColor}
+                          />
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            label="Status"
+                            value={TIER_LABELS[c.tier] || c.tier}
+                            color={tierColor}
+                          />
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value cb-detail-assessment"
+                            label="Assessment"
+                            value={profitDescription}
+                            color={profitColor}
+                          />
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            label="Zone"
+                            value={c.zoneType}
+                          />
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            label="District"
+                            value={c.district || 'City'}
+                          />
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            label="Output"
+                            value={
+                              <>
+                                {c.resourceKey && <img className="cb-resource-icon" src={`${RESOURCE_ICON_BASE}${resourceIconName(c.resourceKey)}.svg`} />}
+                                {resourceLabel(c.resourceKey)}
+                              </>
+                            }
+                          />
                           {((c.storageAmount || 0) > 0 || (c.storageCapacity || 0) > 0) && (
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label" title="Physical goods stored (t = metric tonnes). Cash balance excluded.">Resource Storage</span>
-                            <span className="cb-detail-value">
-                              {(c.storageCapacity || 0) > 0
-                                ? `${c.storageAmount || 0} / ${c.storageCapacity} t`
-                                : `${c.storageAmount || 0} t`}
-                            </span>
-                          </div>
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              title="Physical goods stored (t = metric tonnes). Cash balance excluded."
+                              label="Resource Storage"
+                              value={
+                                (c.storageCapacity || 0) > 0
+                                  ? `${c.storageAmount || 0} / ${c.storageCapacity} t`
+                                  : `${c.storageAmount || 0} t`
+                              }
+                            />
                           )}
                           {c.allowedResources && c.allowedResources !== 'NoResource' && (
-                            <div className="cb-detail-row">
-                              <span className="cb-detail-label">Allowed Resources</span>
-                              <span className="cb-detail-value">{c.allowedResources}</span>
-                            </div>
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              label="Allowed Resources"
+                              value={c.allowedResources}
+                            />
                           )}
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">Tax Rate</span>
-                            <span className="cb-detail-value" style={{ color: getSafeColor(c.taxRate >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.8)') }}>
-                              {`${c.taxRate}%`}
-                            </span>
-                          </div>
-                          {c.buildingLevel > 0 && (
-                            <div className="cb-detail-row">
-                              <span className="cb-detail-label">Building Level</span>
-                              <span className="cb-detail-value">
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            label="Tax Rate"
+                            value={`${c.taxR}%`}
+                            color={c.taxR >= 10 ? '#e88c3a' : 'rgba(255,255,255,0.8)'}
+                          />
+                          {c.bLevel > 0 && (
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              label="Building Level"
+                              value={
                                 <span className="cb-building-level">
                                   {[1, 2, 3, 4, 5].map((lv) => (
-                                    <span key={lv} className={`cb-level-pip${lv <= c.buildingLevel ? ' cb-level-pip-filled' : ''}`} />
+                                    <span key={lv} className={`cb-level-pip${lv <= c.bLevel ? ' cb-level-pip-filled' : ''}`} />
                                   ))}
                                 </span>
-                              </span>
-                            </div>
+                              }
+                            />
                           )}
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">Workers</span>
-                            <span className="cb-detail-value">
-                              {c.maxWorkers > 0 ? `${c.workers} / ${c.maxWorkers} (${workerPct}%)` : '\u2014'}
-                            </span>
-                          </div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">Efficiency</span>
-                            <span className="cb-detail-value" style={{ color: getSafeColor(c.efficiency >= 80 ? '#8bdb46' : c.efficiency >= 50 ? '#e88c3a' : '#e05050') }}>
-                              {`${c.efficiency}%`}
-                            </span>
-                          </div>
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            label="Workers"
+                            value={c.maxWorkers > 0 ? `${c.workers} / ${c.maxWorkers} (${workerPct}%)` : '\u2014'}
+                          />
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            label="Efficiency"
+                            value={`${c.eff}%`}
+                            color={c.eff >= 80 ? '#8bdb46' : c.eff >= 50 ? '#e88c3a' : '#e05050'}
+                          />
                         </div>
                         <div className="cb-detail-middle">
                           <div className="cb-detail-section-title">Consumption (In)</div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">
-                              <img src="Media/Game/Icons/Electricity.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Electricity Consumption" />
-                              Electricity
-                            </span>
-                            <span className="cb-detail-value">{(c as any).electricityConsumption || '—'} kW</span>
-                          </div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">
-                              <img src="Media/Game/Icons/Water.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Water Consumption" />
-                              Water
-                            </span>
-                            <span className="cb-detail-value">{(c as any).waterConsumption || '—'} m³</span>
-                          </div>
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            icon={<img src="Media/Game/Icons/Electricity.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Electricity Consumption" />}
+                            label="Electricity"
+                            value={`${c.eCons || '—'} kW`}
+                          />
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            icon={<img src="Media/Game/Icons/Water.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Water Consumption" />}
+                            label="Water"
+                            value={`${c.wCons || '—'} m³`}
+                          />
                           {companyHappinessData && companyHappinessData.mailReceiving > 0 && (
-                            <div className="cb-detail-row">
-                              <span className="cb-detail-label">
-                                <img src="Media/Game/Icons/PostService.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Mail Receiving" />
-                                Mail Receiving
-                              </span>
-                              <span className="cb-detail-value">{companyHappinessData.mailReceiving}</span>
-                            </div>
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              icon={<img src="Media/Game/Icons/PostService.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Mail Receiving" />}
+                              label="Mail Receiving"
+                              value={companyHappinessData.mailReceiving}
+                            />
                           )}
                           
                           <div className="cb-detail-divider" />
                           <div className="cb-detail-section-title">Production (Out)</div>
-                          <div className="cb-detail-row">
-                            <span className="cb-detail-label">
-                              <img src="Media/Game/Icons/Garbage.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Garbage Accumulation" />
-                              Garbage
-                            </span>
-                            <span className="cb-detail-value">{(c as any).garbageAccumulation || 0} t</span>
-                          </div>
-                          {Number((c as any).mailAccumulation) > 0 && (
-                            <div className="cb-detail-row">
-                              <span className="cb-detail-label">
-                                <img src="Media/Game/Icons/PostService.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Mail Sending" />
-                                Mail Sending
-                              </span>
-                              <span className="cb-detail-value">{(c as any).mailAccumulation} u</span>
-                            </div>
+                          <DetailRow
+                            className="panel-detail-row"
+                            labelClassName="panel-detail-row-label"
+                            valueClassName="panel-detail-row-value"
+                            icon={<img src="Media/Game/Icons/Garbage.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Garbage Accumulation" />}
+                            label="Garbage"
+                            value={`${c.gAccum || 0} t`}
+                          />
+                          {Number(c.mAccum) > 0 && (
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              icon={<img src="Media/Game/Icons/PostService.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Mail Sending" />}
+                              label="Mail Sending"
+                              value={`${c.mAccum} u`}
+                            />
                           )}
-                          {Number((c as any).crimeProbability) > 0 && (
-                            <div className="cb-detail-row">
-                              <span className="cb-detail-label">
-                                <img src="Media/Game/Icons/Police.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Crime Risk" />
-                                Crime Risk
-                              </span>
-                              <span className="cb-detail-value">{(c as any).crimeProbability}%</span>
-                            </div>
+                          {Number(c.cProb) > 0 && (
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              icon={<img src="Media/Game/Icons/Police.svg" style={{ width: '20rem', height: '20rem', opacity: 0.8, marginRight: '6rem', verticalAlign: 'middle' }} alt="" title="Crime Risk" />}
+                              label="Crime Risk"
+                              value={`${c.cProb}%`}
+                            />
                           )}
 
                           {c.attractiveness ? (
                             <>
                               <div className="cb-detail-divider" />
                               <div className="cb-detail-section-title">Attractiveness</div>
-                              <div className="cb-detail-row">
-                                <span className="cb-detail-label">Total Attractiveness</span>
-                                <span className="cb-detail-value" style={{ color: getSafeColor('#3fc9d8') }}>{c.attractiveness}</span>
-                              </div>
+                              <DetailRow
+                                className="panel-detail-row"
+                                labelClassName="panel-detail-row-label"
+                                valueClassName="panel-detail-row-value"
+                                label="Total Attractiveness"
+                                value={c.attractiveness}
+                                color="#3fc9d8"
+                              />
                             </>
                           ) : null}
 
@@ -986,7 +992,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                           <div className="cb-detail-section-title">Efficiency Factors</div>
                           {(() => {
                             const factors: { label: string; status: string; color: string; level: string; icon?: string; factorName?: string }[] = [];
-                            const effFactors = parseEfficiencyDetails(c.efficiencyDetails);
+                            const effFactors = parseEfficiencyDetails(c.effDetails);
                             effFactors.forEach((ef) => {
                               const col = effFactorColor(ef.change);
                               const lvl = ef.change > 0 ? 'good' : ef.change >= -10 ? 'good' : ef.change >= -30 ? 'warn' : 'bad';
@@ -994,13 +1000,16 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                               factors.push({ label: ef.label, status: `${sign}${ef.change}%`, color: col, level: lvl, factorName: ef.name });
                             });
                             return factors.map((f, fi) => (
-                              <div key={fi} className="cb-detail-row">
-                                <span className="cb-detail-label">
-                                  <img src={getEfficiencyFactorIcon(f.factorName || '')} style={{ width: '20rem', height: '20rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
-                                  {f.label}
-                                </span>
-                                <span className="cb-detail-value" style={{ color: getSafeColor(f.color, '#EAEAEA') }}>{f.status}</span>
-                              </div>
+                              <DetailRow
+                                key={fi}
+                                className="panel-detail-row"
+                                labelClassName="panel-detail-row-label"
+                                valueClassName="panel-detail-row-value"
+                                icon={<img src={getEfficiencyFactorIcon(f.factorName || '')} style={{ width: '20rem', height: '20rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />}
+                                label={f.label}
+                                value={f.status}
+                                color={f.color}
+                              />
                             ));
                           })()}
                         </div>
@@ -1019,31 +1028,35 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
 
                             return (
                               <>
-                                <div className="cb-detail-row">
-                                  <span className="cb-detail-label">Condition / Wear</span>
-                                  <span className="cb-detail-value">{wearVal}</span>
-                                </div>
-                                <div className="cb-detail-row">
-                                  <span className="cb-detail-label">Crime</span>
-                                  <span className="cb-detail-value">
-                                    {(() => {
-                                      const val = companyHappinessData.crimeProbability || 0;
-                                      if (val <= 0) return 'Safe (0)';
-                                      if (val < 100) return `Low (${val.toFixed(0)})`;
-                                      if (val < 500) return `Moderate (${val.toFixed(0)})`;
-                                      if (val < 1500) return `High (${val.toFixed(0)})`;
-                                      return `Dangerous (${val.toFixed(0)})`;
-                                    })()}
-                                  </span>
-                                </div>
-                                <div className="cb-detail-row">
-                                  <span className="cb-detail-label">Telecom</span>
-                                  <span className="cb-detail-value">
-                                    {companyHappinessData.telecom !== undefined ? `${companyHappinessData.telecom.toFixed(0)}%` : '—'}
-                                  </span>
-                                </div>
+                                <DetailRow
+                                  className="panel-detail-row"
+                                  labelClassName="panel-detail-row-label"
+                                  valueClassName="panel-detail-row-value"
+                                  label="Condition / Wear"
+                                  value={wearVal}
+                                />
+                                <DetailRow
+                                  className="panel-detail-row"
+                                  labelClassName="panel-detail-row-label"
+                                  valueClassName="panel-detail-row-value"
+                                  label="Crime"
+                                  value={(() => {
+                                    const val = companyHappinessData.crimeProbability || 0;
+                                    if (val <= 0) return 'Safe (0)';
+                                    if (val < 100) return `Low (${val.toFixed(0)})`;
+                                    if (val < 500) return `Moderate (${val.toFixed(0)})`;
+                                    if (val < 1500) return `High (${val.toFixed(0)})`;
+                                    return `Dangerous (${val.toFixed(0)})`;
+                                  })()}
+                                />
+                                <DetailRow
+                                  className="panel-detail-row"
+                                  labelClassName="panel-detail-row-label"
+                                  valueClassName="panel-detail-row-value"
+                                  label="Telecom"
+                                  value={companyHappinessData.telecom !== undefined ? `${companyHappinessData.telecom.toFixed(0)}%` : '—'}
+                                />
 
-                                
                                 {Object.keys(companyHappinessData).map(k => {
                                   if (excludeKeys.includes(k)) return null;
                                   const val = companyHappinessData[k];
@@ -1053,13 +1066,16 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                                   const displayLabel = EFF_FACTOR_LABELS[capitalizedLabel] || label;
                                   const color = val > 0 ? '#8bdb46' : val < 0 ? '#e05050' : 'rgba(255,255,255,0.7)';
                                   return (
-                                    <div className="cb-detail-row" key={k}>
-                                      <span className="cb-detail-label">
-                                        <img src={getEfficiencyFactorIcon(k)} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />
-                                        {displayLabel}
-                                      </span>
-                                      <span className="cb-detail-value" style={{ color: getSafeColor(color) }}>{val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1)}</span>
-                                    </div>
+                                    <DetailRow
+                                      key={k}
+                                      className="panel-detail-row"
+                                      labelClassName="panel-detail-row-label"
+                                      valueClassName="panel-detail-row-value"
+                                      icon={<img src={getEfficiencyFactorIcon(k)} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle' }} alt="" />}
+                                      label={displayLabel}
+                                      value={val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1)}
+                                      color={color}
+                                    />
                                   );
                                 })}
                               </>
@@ -1072,8 +1088,8 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                               <>
                                 <div className="cb-detail-section-title">City Effects</div>
                                 {c.cityEffects.split('^').map((ef, i) => (
-                                  <div key={`ce-${i}`} className="cb-detail-row">
-                                    <span className="cb-detail-label" style={{ flex: '1 1 100%' }}>{ef}</span>
+                                  <div key={`ce-${i}`} className="panel-detail-row">
+                                    <span className="panel-detail-row-label" style={{ flex: '1 1 100%' }}>{ef}</span>
                                   </div>
                                 ))}
                               </>
@@ -1082,8 +1098,8 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                               <>
                                 <div className="cb-detail-section-title" style={{ marginTop: c.cityEffects ? '10rem' : '0' }}>Local Effects</div>
                                 {c.localEffects.split('^').map((ef, i) => (
-                                  <div key={`le-${i}`} className="cb-detail-row">
-                                    <span className="cb-detail-label" style={{ flex: '1 1 100%' }}>{ef}</span>
+                                  <div key={`le-${i}`} className="panel-detail-row">
+                                    <span className="panel-detail-row-label" style={{ flex: '1 1 100%' }}>{ef}</span>
                                   </div>
                                 ))}
                               </>

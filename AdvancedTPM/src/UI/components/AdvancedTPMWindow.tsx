@@ -6,7 +6,7 @@ import { Scrollable } from 'cs2/ui';
 // Removed invalid imports from 'cs2/bindings'.
 import { resourceCategories, ResourceCategory } from '../data/resourceTaxonomy';
 import AutoTaxSettingsPanel from './AutoTaxSettingsPanel';
-import CompanyBrowser, { parseCompanies, resourceIconName, resourceLabel } from './CompanyBrowser';
+import CompanyBrowser, { parseCompanies, resourceIconName, resourceLabel, parseEntityKey } from './CompanyBrowser';
 import AdvisorPanel from './AdvisorPanel';
 import ResidentialPanel from './ResidentialPanel';
 import ServicesPanel from './ServicesPanel';
@@ -657,7 +657,7 @@ districtPoliciesData,
     if (signaturePrefabs) {
       try { const parsed = JSON.parse(signaturePrefabs); if (Array.isArray(parsed)) names = parsed.map((s: any) => String(s)); } catch { names = []; }
     }
-    return all.filter((c) => c.isSignature || keySet.has(`${c.entityIndex},${c.entityVersion}`) || (names.length > 0 && names.includes(c.name)));
+    return all.filter((c) => c.isSignature === 1 || keySet.has(c.entityKey) || (names.length > 0 && names.includes(c.name)));
   }, [businessCompanies, signatureCompaniesJson, signaturePrefabs]);
   signatureCompanies = _signatureCompanies;
 
@@ -666,20 +666,7 @@ districtPoliciesData,
     if (!residentialSignatureBuildingsData) return [];
     try {
       const arr = JSON.parse(residentialSignatureBuildingsData);
-      if (!Array.isArray(arr)) return [];
-      return arr.map((item: any) => ({
-        entityKey: item.entityKey || '',
-        address: item.address || '',
-        level: Number(item.level) || 1,
-        occupied: Number(item.occupied) || 0,
-        capacity: Number(item.capacity) || 0,
-        theme: item.theme || 'Unknown',
-        assetPack: item.pack || 'Base Game',
-        assetPackIcon: item.packIcon || '',
-        themeIcon: item.themeIcon || '',
-        cityEffects: item.cityEffects || '',
-        localEffects: item.localEffects || '',
-      }));
+      return Array.isArray(arr) ? arr : [];
     } catch (e) {
       console.error("Error parsing residential signature buildings payload", e);
       return [];
@@ -1198,40 +1185,39 @@ const SignatureUnifiedView: React.FC<{
       const workers = c.workers || 0;
       const maxWorkers = c.maxWorkers || 0;
       const profit = c.profit || 0;
-      const happiness = c.happiness || 0;
       
-      let extra = c.resourceName ? `Resource: ${c.resourceName}` : '';
+      let extra = c.resourceKey ? `Resource: ${resourceLabel(c.resourceKey)}` : '';
       if (maxWorkers > 0) extra += ` \u2022 Jobs: ${workers}/${maxWorkers}`;
-      if (profit !== 0) extra += ` \u2022 Profit: ${profit > 0 ? '+' : ''}${profit.toFixed(1)}`;
-      if (happiness > 0) extra += ` \u2022 Happy: ${Math.round(happiness)}%`;
+      if (profit !== 0) extra += ` \u2022 Profit: ${profit > 0 ? '+' : ''}${profit.toFixed(1)}%`;
 
-      const rawType = c.zoneType || c.companyKind || 'Commercial';
+      const rawType = c.zoneType || c.kind || 'Commercial';
       const mappedType = ['Residential', 'Commercial', 'Industrial', 'Office'].includes(rawType) ? rawType : 'Services';
 
+      const bKey = parseEntityKey(c.bldgKey || '');
       return {
-        entityKey: `${c.entityIndex},${c.entityVersion}`,
-        name: c.name || c.companyName || '',
-        address: c.address || '',
+        entityKey: c.entityKey,
+        name: c.name || '',
+        address: c.bldgAddr || '',
         type: mappedType,
         theme: c.theme || 'USA',
         themeIcon: c.themeIcon || '',
-        assetPack: c.assetPack || 'Base Game',
-        assetPackIcon: c.assetPackIcon || '',
-        level: c.level || 0,
+        assetPack: c.pack || 'Base Game',
+        assetPackIcon: c.packIcon || '',
+        level: c.bLevel || 0,
         extraInfo: extra,
         district: c.district || 'City',
         resourceKey: c.resourceKey || '',
-        buildingIndex: c.buildingIndex,
-        buildingVersion: c.buildingVersion,
+        buildingIndex: bKey.index,
+        buildingVersion: bKey.version,
         cityEffects: c.cityEffects || '',
         localEffects: c.localEffects || '',
         // Carry over metrics for tooltip
-        workers, maxWorkers, profit, happiness
+        workers, maxWorkers, profit, happiness: 0
       };
     });
-    const residential = residentialSignatureBuildings.map((b) => {
+    const residential = residentialSignatureBuildings.map((b: any) => {
       const occPct = b.capacity > 0 ? Math.round((b.occupied / b.capacity) * 100) : 0;
-      const [bIdx, bVer] = (b.entityKey || '').split(',').map(Number);
+      const bKey = parseEntityKey(b.entityKey || '');
       return {
         entityKey: b.entityKey,
         name: b.address,
@@ -1239,16 +1225,16 @@ const SignatureUnifiedView: React.FC<{
         type: 'Residential',
         theme: b.theme || 'Unknown',
         themeIcon: b.themeIcon || '',
-        assetPack: b.assetPack || 'Base Game',
-        assetPackIcon: b.assetPackIcon || '',
+        assetPack: b.pack || 'Base Game',
+        assetPackIcon: b.packIcon || '',
         level: b.level || 0,
         extraInfo: b.capacity > 0 
           ? `${b.occupied}/${b.capacity} Households (${occPct}%)` 
           : (b.occupied > 0 ? `${b.occupied} Residents` : 'Empty'),
-        district: (b as any).district || 'City',
+        district: b.district || 'City',
         resourceKey: '',
-        buildingIndex: bIdx || 0,
-        buildingVersion: bVer || 0,
+        buildingIndex: bKey.index || 0,
+        buildingVersion: bKey.version || 0,
         cityEffects: b.cityEffects || '',
         localEffects: b.localEffects || '',
       };

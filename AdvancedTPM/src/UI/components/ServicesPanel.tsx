@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { camera, selectedInfo } from 'cs2/bindings';
 import { Scrollable } from 'cs2/ui';
 import { useLocalization } from 'cs2/l10n';
 import { getSafeColor } from '../../mods/apiSafe';
+import { DetailRow, ProgressBar } from './common';
 import './ServicesPanel.css';
 import CustomSelect from './CustomSelect';
 import ServiceIcon from '../assets/ServiceIcon';
@@ -136,25 +137,6 @@ const parseServiceSummaries = (raw: string): ServiceSummary[] => {
   }
 };
 
-const getServiceRowTooltip = (b: ServiceBuildingInfo, labels?: any) => {
-  const capLabel = labels?.cap || 'Capacity';
-  const useLabel = labels?.use || 'Usage';
-  const effLabel = labels?.eff || 'Efficiency';
-  const lines = [
-    <span style={{ fontWeight: 800, color: '#50b8e9', display: 'block', marginBottom: '2rem' }}>{b.address || b.name}</span>,
-    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Level: {b.level > 0 ? `Lv ${b.level}` : 'N/A'}</span>,
-    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>{capLabel}: {b.capacity.toFixed(0)}</span>,
-    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>{useLabel}: {b.usage.toFixed(0)}</span>,
-    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>{effLabel}: {b.efficiency.toFixed(0)}%</span>,
-    <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.7)' }}>Theme/Pack: {b.theme || 'Base'} / {b.assetPack || 'Base'}</span>
-  ];
-  if (b.isSignature) {
-    lines.push(<span style={{ display: 'block', fontSize: '10rem', color: '#f0c040', fontWeight: 'bold', marginTop: '2rem' }}>★ Signature Building</span>);
-  }
-  lines.push(<span style={{ display: 'block', fontSize: '9rem', color: '#50b8e9', fontStyle: 'italic', marginTop: '4rem' }}>Click row to expand details</span>);
-  return lines;
-};
-
 const focusEntityKey = (entityKey: string) => {
   try {
     const parts = entityKey.split(',');
@@ -191,21 +173,6 @@ const CycleFilterButton: React.FC<CycleFilterButtonProps> = ({ label, value, opt
       {displayValue ? displayValue(value) : `${label}: ${value}`}
     </button>
   );
-};
-
-const getStatusIcon = (l: string) => {
-  if (l.includes('patient') || l.includes('health')) return 'Media/Game/Icons/TraumaCenter.svg';
-  if (l.includes('ambulance')) return 'Media/Game/Icons/Healthcare.svg'; // Or MedicalHelicopters
-  if (l.includes('inmate') || l.includes('jail')) return 'Media/Game/Icons/Police.svg'; // Or Police
-  if (l.includes('patrol')) return 'Media/Game/Icons/Police.svg';
-  if (l.includes('fire')) return 'Media/Game/Icons/Flame.svg';
-  if (l.includes('garbage') || l.includes('truck')) return 'Media/Game/Icons/Garbage.svg';
-  if (l.includes('hearse') || l.includes('stored')) return 'Media/Game/Icons/Deathcare.svg';
-  if (l.includes('student') || l.includes('school')) return 'Media/Game/Icons/Education.svg';
-  if (l.includes('worker')) return 'Media/Game/Icons/Workers.svg';
-  if (l.includes('attractiveness') || l.includes('tourism')) return 'Media/Game/Icons/Attractions.svg';
-  if (l.includes('maintenance')) return 'Media/Game/Icons/ParkMaintenance.svg';
-  return null;
 };
 
 // Icon for Efficiency buffer factor types (from Game.Buildings.EfficiencyFactor enum names)
@@ -425,9 +392,12 @@ const ServicesPanel: React.FC<{
                         <span className="label">Usage</span>
                         <span className="value">{loadPct}%</span>
                       </div>
-                      <div className="svc-summary-bar-bg">
-                        <div className="svc-summary-bar-fill" style={{ width: `${loadPct}%`, backgroundColor: getSafeColor(loadPct > 90 ? '#e05050' : loadPct > 70 ? '#f0ad4e' : '#50b8e9') }} />
-                      </div>
+                      <ProgressBar
+                        value={loadPct}
+                        className="svc-summary-bar-bg"
+                        fillClassName="svc-summary-bar-fill"
+                        color={loadPct > 90 ? '#e05050' : loadPct > 70 ? '#f0ad4e' : '#50b8e9'}
+                      />
                     </div>
                   </div>
                 );
@@ -437,7 +407,7 @@ const ServicesPanel: React.FC<{
         )}
 
        <div className="svc-table">
-         <div className="svc-table-header">
+         <div className="panel-table-header">
            <div className="svc-col-name svc-sortable" onClick={() => handleSort('name')}>Building{sortIndicator('name')}</div>
            {categoryFilter === 'All' && <div className="svc-col-category svc-sortable" onClick={() => handleSort('category')}>Category{sortIndicator('category')}</div>}
            <div className="svc-col-pack svc-sortable" onClick={() => handleSort('assetPack')}>Pack{sortIndicator('assetPack')}</div>
@@ -455,7 +425,7 @@ const ServicesPanel: React.FC<{
                 return filtered.slice(safePage * SVC_PAGE_SIZE, safePage * SVC_PAGE_SIZE + SVC_PAGE_SIZE);
               })().map((b) => (
                 <React.Fragment key={b.entityKey}>
-                  <div className={`svc-table-row${expandedEntity === b.entityKey ? ' svc-row-expanded' : ''}`}
+                  <div className={`panel-list-row${expandedEntity === b.entityKey ? ' panel-list-row-expanded' : ''}`}
                     onClick={() => {
                       if (expandedEntity === b.entityKey) {
                         setExpandedEntity(null);
@@ -467,7 +437,7 @@ const ServicesPanel: React.FC<{
                     }}
                   >
                     <div className="svc-col-name">
-                      <span className="svc-expand-arrow">{expandedEntity === b.entityKey ? '\u25BC' : '\u25B6'}</span>
+                      <span className="panel-expand-arrow">{expandedEntity === b.entityKey ? '\u25BC' : '\u25B6'}</span>
                       {b.isSignature && <span className="svc-signature-badge">★</span>}
                       <ServiceIcon category={b.category} size={24} />
                       <span>{b.address || b.name}</span>
@@ -479,7 +449,7 @@ const ServicesPanel: React.FC<{
                    <div className="svc-col-usage">{b.usage.toFixed(0)}</div>
                    <div className="svc-col-eff" style={{ color: getSafeColor(b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#50b8e9' : '#e05050'), whiteSpace: 'nowrap' }}>{b.efficiency.toFixed(0)}%</div>
                    <div className="svc-col-go">
-                     <button className="svc-go-btn" onClick={(e) => { e.stopPropagation(); focusEntityKey(b.entityKey); }}>GO</button>
+                     <button className="panel-go-btn" onClick={(e) => { e.stopPropagation(); focusEntityKey(b.entityKey); }}>GO</button>
                    </div>
                  </div>
                  {expandedEntity === b.entityKey && (() => {
@@ -488,36 +458,43 @@ const ServicesPanel: React.FC<{
                         <div className="svc-detail-grid">
                           {/* Main Details */}
                           <div className="svc-detail-main">
-                            <div className="svc-detail-row svc-detail-entity-id-row">
-                              <span className="svc-detail-label">Entity ID</span>
-                              <span className="svc-entity-id-badge">{b.entityKey}</span>
-                            </div>
-                            <div className="svc-detail-row"><span className="svc-detail-label">Category</span><span className="svc-detail-value">{b.category}</span></div>
-                            <div className="svc-detail-row"><span className="svc-detail-label">Building</span><span className="svc-detail-value">{b.name}</span></div>
-                            <div className="svc-detail-row"><span className="svc-detail-label">District</span><span className="svc-detail-value">{b.district}</span></div>
-                            <div className="svc-detail-row"><span className="svc-detail-label">Theme / Pack</span><span className="svc-detail-value">{b.theme} / <PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={20} style={{ marginLeft: '6rem', marginRight: '4rem' }} />{b.assetPack}</span></div>
-                            {b.level > 0 && <div className="svc-detail-row"><span className="svc-detail-label">Level</span><span className="svc-detail-value">Lv {b.level}</span></div>}
-                            {b.capacity > 0 && <div className="svc-detail-row"><span className="svc-detail-label">{serviceLabels.cap}</span><span className="svc-detail-value">{b.capacity.toFixed(0)}</span></div>}
-                            {b.usage > 0 && <div className="svc-detail-row"><span className="svc-detail-label">{serviceLabels.use}</span><span className="svc-detail-value">{b.usage.toFixed(0)}{b.capacity > 0 ? ` (${Math.round(b.usage / b.capacity * 100)}%)` : ''}</span></div>}
+                            <DetailRow
+                              className="panel-detail-row svc-detail-entity-id-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              label="Entity ID"
+                              value={<span className="svc-entity-id-badge">{b.entityKey}</span>}
+                            />
+                            <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Category" value={b.category} />
+                            <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Building" value={b.name} />
+                            <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="District" value={b.district} />
+                            <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Theme / Pack" value={<>{b.theme} / <PackIcon pack={b.assetPack} iconUrl={b.assetPackIcon} size={20} style={{ marginLeft: '6rem', marginRight: '4rem' }} />{b.assetPack}</>} />
+                            {b.level > 0 && <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Level" value={`Lv ${b.level}`} />}
+                            {b.capacity > 0 && <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label={serviceLabels.cap} value={b.capacity.toFixed(0)} />}
+                            {b.usage > 0 && <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label={serviceLabels.use} value={<>{b.usage.toFixed(0)}{b.capacity > 0 ? ` (${Math.round(b.usage / b.capacity * 100)}%)` : ''}</>} />}
                             {b.maxOccupants > 0 && (
-                              <div className="svc-detail-row">
-                                <span className="svc-detail-label">
+                              <DetailRow
+                                className="panel-detail-row"
+                                labelClassName="panel-detail-row-label"
+                                valueClassName="panel-detail-row-value"
+                                icon={
                                   <img src={
                                     b.category.includes('Education') ? 'Media/Game/Icons/Education.svg' :
                                     b.category.includes('Healthcare') ? 'Media/Game/Icons/TraumaCenter.svg' :
                                     b.category.includes('Police') ? 'Media/Game/Icons/Police.svg' :
                                     'Media/Game/Icons/Citizens.svg'
                                   } style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)' }} alt="" title="Occupancy" />
-                                  Occupancy
-                                </span>
-                                <span className="svc-detail-value">
-                                  {`${b.currentOccupants.toFixed(0)} / ${b.maxOccupants.toFixed(0)}`} {b.maxOccupants > 0 ? `(${Math.round((b.currentOccupants / b.maxOccupants) * 100)}%)` : ''}
-                                </span>
-                              </div>
+                                }
+                                label="Occupancy"
+                                value={<>{`${b.currentOccupants.toFixed(0)} / ${b.maxOccupants.toFixed(0)}`} {b.maxOccupants > 0 ? `(${Math.round((b.currentOccupants / b.maxOccupants) * 100)}%)` : ''}</>}
+                              />
                             )}
                             {b.vehiclesMax > 0 && (
-                              <div className="svc-detail-row">
-                                <span className="svc-detail-label">
+                              <DetailRow
+                                className="panel-detail-row"
+                                labelClassName="panel-detail-row-label"
+                                valueClassName="panel-detail-row-value"
+                                icon={
                                   <img src={
                                     b.category.includes('Healthcare') ? 'Media/Game/Icons/Healthcare.svg' :
                                     b.category.includes('Police') ? 'Media/Game/Icons/Police.svg' :
@@ -526,51 +503,50 @@ const ServicesPanel: React.FC<{
                                     b.category.includes('Deathcare') ? 'Media/Game/Icons/Deathcare.svg' :
                                     'Media/Game/Icons/TransportBus.svg'
                                   } style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)' }} alt="" title="Active Vehicles" />
-                                  Active Vehicles
-                                </span>
-                                <span className="svc-detail-value">
-                                  {`${b.vehicles.toFixed(0)} / ${b.vehiclesMax.toFixed(0)}`} {b.vehiclesMax > 0 ? `(${Math.round((b.vehicles / b.vehiclesMax) * 100)}%)` : ''}
-                                </span>
-                              </div>
+                                }
+                                label="Active Vehicles"
+                                value={<>{`${b.vehicles.toFixed(0)} / ${b.vehiclesMax.toFixed(0)}`} {b.vehiclesMax > 0 ? `(${Math.round((b.vehicles / b.vehiclesMax) * 100)}%)` : ''}</>}
+                              />
                             )}
-                            <div className="svc-detail-row">
-                              <span className="svc-detail-label">
-                                <img src="Media/Game/Icons/Workers.svg" style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)' }} alt="" title="Employees" />
-                                Employees
-                              </span>
-                              <span className="svc-detail-value">
-                                {`${b.currentEmployees.toFixed(0)} / ${b.workersMax.toFixed(0)}`} {b.workersMax > 0 ? `(${Math.round((b.currentEmployees / b.workersMax) * 100)}%)` : ''}
-                              </span>
-                            </div>
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              icon={<img src="Media/Game/Icons/Workers.svg" style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)' }} alt="" title="Employees" />}
+                              label="Employees"
+                              value={<>{`${b.currentEmployees.toFixed(0)} / ${b.workersMax.toFixed(0)}`} {b.workersMax > 0 ? `(${Math.round((b.currentEmployees / b.workersMax) * 100)}%)` : ''}</>}
+                            />
                           </div>
-
                           {/* Utilities (In / Out) */}
                           <div className="svc-detail-middle">
-                            <div className="svc-detail-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '8px' }}>
-                              <span className="svc-detail-label" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>Utilities</span>
+                            <div className="panel-detail-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '8px' }}>
+                              <span className="panel-detail-row-label" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>Utilities</span>
                             </div>
-                            <div className="svc-detail-row">
-                              <span className="svc-detail-label">
-                                <img src="Media/Game/Icons/Electricity.svg" style={{ width: '18rem', height: '18rem' }} alt="" title="Electricity Consumption" /> {translate('Properties.ELECTRICITY', 'Electricity')}
-                              </span>
-                              <span className="svc-detail-value">
-                                {b.electricityConsumption > 0 ? `${b.electricityConsumption.toFixed(0)} kW` : b.electricityConsumption < 0 ? `+${Math.abs(b.electricityConsumption).toFixed(0)} kW` : '0'}
-                              </span>
-                            </div>
-                            <div className="svc-detail-row">
-                              <span className="svc-detail-label">
-                                <img src="Media/Game/Icons/Water.svg" style={{ width: '18rem', height: '18rem' }} alt="" title="Water Consumption" /> {translate('Properties.WATER', 'Water')}
-                              </span>
-                              <span className="svc-detail-value">{b.waterConsumption > 0 ? `${b.waterConsumption.toFixed(0)} m³` : '0'}</span>
-                            </div>
-                            <div className="svc-detail-row">
-                              <span className="svc-detail-label">
-                                <img src="Media/Game/Icons/Garbage.svg" style={{ width: '18rem', height: '18rem' }} alt="" title="Garbage Accumulation" /> {translate('Properties.GARBAGE', 'Garbage')}
-                              </span>
-                              <span className="svc-detail-value">{b.garbageAccumulation > 0 ? `${b.garbageAccumulation.toFixed(0)} t` : '0'}</span>
-                            </div>
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              icon={<img src="Media/Game/Icons/Electricity.svg" style={{ width: '18rem', height: '18rem' }} alt="" title="Electricity Consumption" />}
+                              label={translate('Properties.ELECTRICITY', 'Electricity')}
+                              value={b.electricityConsumption > 0 ? `${b.electricityConsumption.toFixed(0)} kW` : b.electricityConsumption < 0 ? `+${Math.abs(b.electricityConsumption).toFixed(0)} kW` : '0'}
+                            />
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              icon={<img src="Media/Game/Icons/Water.svg" style={{ width: '18rem', height: '18rem' }} alt="" title="Water Consumption" />}
+                              label={translate('Properties.WATER', 'Water')}
+                              value={b.waterConsumption > 0 ? `${b.waterConsumption.toFixed(0)} m³` : '0'}
+                            />
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              icon={<img src="Media/Game/Icons/Garbage.svg" style={{ width: '18rem', height: '18rem' }} alt="" title="Garbage Accumulation" />}
+                              label={translate('Properties.GARBAGE', 'Garbage')}
+                              value={b.garbageAccumulation > 0 ? `${b.garbageAccumulation.toFixed(0)} t` : '0'}
+                            />
 
-                            
                             {b.details.length > 0 && (
                                <div style={{ marginTop: '8rem', paddingTop: '8rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                                  <div style={{ fontSize: '10rem', color: 'rgba(255,255,255,0.4)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '6rem', letterSpacing: '0.06em' }}>Efficiency Factors</div>
@@ -584,13 +560,17 @@ const ServicesPanel: React.FC<{
                                    const iconUrl = getEfficiencyFactorIcon(rawLabel);
                                    const effColor = !isNaN(pct) ? getSafeColor(pct >= 100 ? '#8bdb46' : pct >= 75 ? '#50b8e9' : pct >= 50 ? '#f0ad4e' : '#e05050') : 'rgba(255,255,255,0.75)';
                                    return (
-                                     <div key={`det-${i}`} className="svc-detail-row" style={{ marginBottom: '3rem' }}>
-                                       <span className="svc-detail-label">
-                                         <img src={iconUrl} style={{ width: '18rem', height: '18rem', opacity: 0.7, flexShrink: 0 }} alt="" />
-                                         {label}
-                                       </span>
-                                       <span className="svc-detail-value" style={{ color: effColor }}>{value}</span>
-                                     </div>
+                                     <DetailRow
+                                       key={`det-${i}`}
+                                       className="panel-detail-row"
+                                       labelClassName="panel-detail-row-label"
+                                       valueClassName="panel-detail-row-value"
+                                       style={{ marginBottom: '3rem' }}
+                                       icon={<img src={iconUrl} style={{ width: '18rem', height: '18rem', opacity: 0.7, flexShrink: 0 }} alt="" />}
+                                       label={label}
+                                       value={value}
+                                       color={effColor}
+                                     />
                                    );
                                  })}
                                </div>
@@ -599,45 +579,55 @@ const ServicesPanel: React.FC<{
 
                           {/* Building Factors / Addons */}
                           <div className="svc-detail-factors">
-                            <div className="svc-detail-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '8px' }}>
-                              <span className="svc-detail-label" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>Building Factors</span>
+                            <div className="panel-detail-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '8px' }}>
+                              <span className="panel-detail-row-label" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>Building Factors</span>
                             </div>
-                            <div className="svc-detail-row">
-                              <span className="svc-detail-label">Efficiency</span>
-                              <span className="svc-detail-value" style={{ color: getSafeColor(b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#e88c3a' : '#e05050') }}>{b.efficiency.toFixed(0)}%</span>
-                            </div>
-                            <div className="svc-detail-row">
-                              <span className="svc-detail-label">Condition</span>
-                              <span className="svc-detail-value">{b.condition > 0 ? `${b.condition.toFixed(0)}%` : 'Perfect'}</span>
-                            </div>
-                            <div className="svc-detail-row">
-                              <span className="svc-detail-label">Crime</span>
-                              <span className="svc-detail-value">
-                                {(() => {
-                                  const val = b.crimeProbability || 0;
-                                  if (val <= 0) return 'Safe (0)';
-                                  if (val < 100) return `Low (${val.toFixed(0)})`;
-                                  if (val < 500) return `Moderate (${val.toFixed(0)})`;
-                                  if (val < 1500) return `High (${val.toFixed(0)})`;
-                                  return `Dangerous (${val.toFixed(0)})`;
-                                })()}
-                              </span>
-                            </div>
-                            <div className="svc-detail-row"><span className="svc-detail-label">Mail Sending</span><span className="svc-detail-value">{b.mailSending || 0}</span></div>
-                            <div className="svc-detail-row"><span className="svc-detail-label">Mail Receiving</span><span className="svc-detail-value">{b.mailReceiving || 0}</span></div>
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              label="Efficiency"
+                              value={`${b.efficiency.toFixed(0)}%`}
+                              color={b.efficiency >= 90 ? '#8bdb46' : b.efficiency >= 50 ? '#e88c3a' : '#e05050'}
+                            />
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              label="Condition"
+                              value={b.condition > 0 ? `${b.condition.toFixed(0)}%` : 'Perfect'}
+                            />
+                            <DetailRow
+                              className="panel-detail-row"
+                              labelClassName="panel-detail-row-label"
+                              valueClassName="panel-detail-row-value"
+                              label="Crime"
+                              value={(() => {
+                                const val = b.crimeProbability || 0;
+                                if (val <= 0) return 'Safe (0)';
+                                if (val < 100) return `Low (${val.toFixed(0)})`;
+                                if (val < 500) return `Moderate (${val.toFixed(0)})`;
+                                if (val < 1500) return `High (${val.toFixed(0)})`;
+                                return `Dangerous (${val.toFixed(0)})`;
+                              })()}
+                            />
+                            <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Mail Sending" value={b.mailSending || 0} />
+                            <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Mail Receiving" value={b.mailReceiving || 0} />
                             {b.attractiveness > 0 && (
-                              <div className="svc-detail-row">
-                                <span className="svc-detail-label">
-                                  <img src="Media/Game/Icons/Attractions.svg" style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)', flexShrink: 0 }} alt="" title="Attractiveness" />
-                                  Attractiveness
-                                </span>
-                                <span className="svc-detail-value" style={{ color: getSafeColor('#3fc9d8') }}>{b.attractiveness}</span>
-                              </div>
+                              <DetailRow
+                                className="panel-detail-row"
+                                labelClassName="panel-detail-row-label"
+                                valueClassName="panel-detail-row-value"
+                                icon={<img src="Media/Game/Icons/Attractions.svg" style={{ width: '18rem', height: '18rem', filter: 'brightness(0.9)', flexShrink: 0 }} alt="" title="Attractiveness" />}
+                                label="Attractiveness"
+                                value={b.attractiveness}
+                                color="#3fc9d8"
+                              />
                             )}
 
                             {b.addons && b.addons.length > 0 && (
                               <div style={{ marginTop: '8rem', paddingTop: '8rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                <span className="svc-detail-label">Installed Add-ons:</span>
+                                <span className="panel-detail-row-label">Installed Add-ons:</span>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6rem', marginTop: '6rem' }}>
                                   {b.addons.map((addon, idx) => (
                                     <span key={`addon-${idx}`} style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', color: 'rgba(255,255,255,0.8)' }}>
@@ -652,31 +642,39 @@ const ServicesPanel: React.FC<{
                             <div className="svc-detail-factors">
                               {b.cityEffects && b.cityEffects.length > 0 && (
                                 <>
-                                  <div className="svc-detail-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '8px' }}>
-                                    <span className="svc-detail-label" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>City Effects</span>
+                                  <div className="panel-detail-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '8px' }}>
+                                    <span className="panel-detail-row-label" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>City Effects</span>
                                   </div>
                                   {b.cityEffects.map((ef, i) => (
-                                    <div key={`ce-${i}`} className="svc-detail-row">
-                                      <span className="svc-detail-label" style={{ flex: '1 1 100%' }}>
-                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle', flexShrink: 0 }} alt="" />
-                                        {ef}
-                                      </span>
-                                    </div>
+                                    <DetailRow
+                                      key={`ce-${i}`}
+                                      className="panel-detail-row"
+                                      labelClassName="panel-detail-row-label"
+                                      valueClassName="panel-detail-row-value"
+                                      labelStyle={{ flex: '1 1 100%' }}
+                                      icon={<img src={getEfficiencyFactorIcon(ef)} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle', flexShrink: 0 }} alt="" />}
+                                      label={ef}
+                                      value=""
+                                    />
                                   ))}
                                 </>
                               )}
                               {b.localEffects && b.localEffects.length > 0 && (
                                 <>
-                                  <div className="svc-detail-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '8px', marginTop: b.cityEffects?.length ? '10rem' : '0' }}>
-                                    <span className="svc-detail-label" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>Local Effects</span>
+                                  <div className="panel-detail-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '8px', marginTop: b.cityEffects?.length ? '10rem' : '0' }}>
+                                    <span className="panel-detail-row-label" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>Local Effects</span>
                                   </div>
                                   {b.localEffects.map((ef, i) => (
-                                    <div key={`le-${i}`} className="svc-detail-row">
-                                      <span className="svc-detail-label" style={{ flex: '1 1 100%' }}>
-                                        <img src={getEfficiencyFactorIcon(ef)} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle', flexShrink: 0 }} alt="" />
-                                        {ef}
-                                      </span>
-                                    </div>
+                                    <DetailRow
+                                      key={`le-${i}`}
+                                      className="panel-detail-row"
+                                      labelClassName="panel-detail-row-label"
+                                      valueClassName="panel-detail-row-value"
+                                      labelStyle={{ flex: '1 1 100%' }}
+                                      icon={<img src={getEfficiencyFactorIcon(ef)} style={{ width: '18rem', height: '18rem', opacity: 0.7, marginRight: '6rem', verticalAlign: 'middle', flexShrink: 0 }} alt="" />}
+                                      label={ef}
+                                      value=""
+                                    />
                                   ))}
                                 </>
                               )}

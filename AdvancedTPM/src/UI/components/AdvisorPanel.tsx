@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { Scrollable } from 'cs2/ui';
+import { DetailRow, ProgressBar, StatCard } from './common';
 import './AdvisorPanel.css';
 import { getSafeColor } from '../../mods/apiSafe';
 
@@ -220,44 +221,48 @@ const ProfileRow: React.FC<{ p: LearningProfile }> = React.memo(({ p }) => {
         <div className="advisor-profile-bars-row">
           <div className="advisor-profile-bar-group">
             <span className="advisor-profile-bar-label">Sensitivity</span>
-            <div className="advisor-profile-bar-track">
-              <div
-                className={`advisor-profile-bar-fill${p.sensitivity >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
-                style={{ width: `${Math.min(100, Math.abs(p.sensitivity) * 100)}%`, marginLeft: p.sensitivity < 0 ? 'auto' : undefined }}
-              />
-            </div>
+            <ProgressBar
+              value={p.sensitivity}
+              scale={100}
+              className="advisor-profile-bar-track"
+              fillClassName="advisor-profile-bar-fill"
+              isBidirectional={true}
+            />
             <span className="advisor-profile-bar-value">{p.sensitivity.toFixed(2)}</span>
           </div>
           <div className="advisor-profile-bar-group">
             <span className="advisor-profile-bar-label">Income</span>
-            <div className="advisor-profile-bar-track">
-              <div
-                className={`advisor-profile-bar-fill${p.incomeResponse >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
-                style={{ width: `${Math.min(100, Math.abs(p.incomeResponse) * 200)}%`, marginLeft: p.incomeResponse < 0 ? 'auto' : undefined }}
-              />
-            </div>
+            <ProgressBar
+              value={p.incomeResponse}
+              scale={200}
+              className="advisor-profile-bar-track"
+              fillClassName="advisor-profile-bar-fill"
+              isBidirectional={true}
+            />
             <span className="advisor-profile-bar-value">{p.incomeResponse.toFixed(2)}</span>
           </div>
         </div>
         <div className="advisor-profile-bars-row">
           <div className="advisor-profile-bar-group">
             <span className="advisor-profile-bar-label">Production</span>
-            <div className="advisor-profile-bar-track">
-              <div
-                className={`advisor-profile-bar-fill${p.productionResponse >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
-                style={{ width: `${Math.min(100, Math.abs(p.productionResponse) * 200)}%`, marginLeft: p.productionResponse < 0 ? 'auto' : undefined }}
-              />
-            </div>
+            <ProgressBar
+              value={p.productionResponse}
+              scale={200}
+              className="advisor-profile-bar-track"
+              fillClassName="advisor-profile-bar-fill"
+              isBidirectional={true}
+            />
             <span className="advisor-profile-bar-value">{p.productionResponse.toFixed(2)}</span>
           </div>
           <div className="advisor-profile-bar-group">
             <span className="advisor-profile-bar-label">Rev/Co</span>
-            <div className="advisor-profile-bar-track">
-              <div
-                className={`advisor-profile-bar-fill${p.revenueEfficiency >= 0 ? ' advisor-bar-positive' : ' advisor-bar-negative'}`}
-                style={{ width: `${Math.min(100, Math.abs(p.revenueEfficiency) * 200)}%`, marginLeft: p.revenueEfficiency < 0 ? 'auto' : undefined }}
-              />
-            </div>
+            <ProgressBar
+              value={p.revenueEfficiency}
+              scale={200}
+              className="advisor-profile-bar-track"
+              fillClassName="advisor-profile-bar-fill"
+              isBidirectional={true}
+            />
             <span className="advisor-profile-bar-value">{p.revenueEfficiency.toFixed(2)}</span>
           </div>
         </div>
@@ -390,24 +395,16 @@ const AdvisorPanel: React.FC<AdvisorPanelProps> = ({
         <div className="advisor-tab-pane" style={{ display: activeTab === 'overview' ? 'flex' : 'none', flexDirection: 'column' }}>
           {/* Stats boxes */}
           <div className="advisor-stats-grid advisor-stats-grid-wide">
-            <div className="advisor-stat">
-              <div className="advisor-stat-value">{stats.totalSamples}</div>
-              <div className="advisor-stat-label">Observations</div>
-            </div>
-            <div className="advisor-stat">
-              <div className="advisor-stat-value">{profiles.length}</div>
-              <div className="advisor-stat-label">Active Profiles</div>
-            </div>
-            <div className="advisor-stat">
-              <div className="advisor-stat-value" style={{ color: getSafeColor(getConfidenceColor(stats.avgConfidence)) }}>
-                {`${(stats.avgConfidence * 100).toFixed(0)}\u00a0%`}
-              </div>
-              <div className="advisor-stat-label">Avg Confidence</div>
-            </div>
-            <div className="advisor-stat">
-              <div className="advisor-stat-value">{stats.pendingEvents}</div>
-              <div className="advisor-stat-label">Pending</div>
-            </div>
+            <StatCard layout="stat" className="advisor-stat" title="Observations" value={stats.totalSamples} />
+            <StatCard layout="stat" className="advisor-stat" title="Active Profiles" value={profiles.length} />
+            <StatCard
+              layout="stat"
+              className="advisor-stat"
+              title="Avg Confidence"
+              value={`${(stats.avgConfidence * 100).toFixed(0)}\u00a0%`}
+              valueStyle={{ color: getSafeColor(getConfidenceColor(stats.avgConfidence)) }}
+            />
+            <StatCard layout="stat" className="advisor-stat" title="Pending" value={stats.pendingEvents} />
           </div>
 
           {/* Two-column layout */}

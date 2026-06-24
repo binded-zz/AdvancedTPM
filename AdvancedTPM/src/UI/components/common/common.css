@@ -1,0 +1,241 @@
+/* Shared UI Styling System & CSS variables */
+
+:root {
+  --common-border-color: rgba(255, 255, 255, 0.08);
+  --common-border-color-active: rgba(80, 184, 233, 0.5);
+  --card-border-color: rgba(80, 184, 233, 0.15);
+  --card-background: linear-gradient(145deg, rgba(25, 35, 50, 0.8), rgba(15, 20, 30, 0.9));
+  --stat-border-color: rgba(255, 255, 255, 0.1);
+  --stat-background: rgba(255, 255, 255, 0.05);
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-muted: rgba(255, 255, 255, 0.5);
+}
+
+/* Universal Detail Row */
+.universal-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13rem;
+  padding: 1rem 0;
+  color: var(--text-primary);
+}
+
+.universal-detail-row-label {
+  opacity: 0.7;
+  margin-right: 12rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.universal-detail-row-value {
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Progress / Fill Bar Defaults */
+.universal-progress-bar-track {
+  flex: 1;
+  height: 10rem;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.universal-progress-bar-fill {
+  height: 100%;
+  border-radius: 5rem;
+  transition: width 0.3s ease;
+}
+
+/* Stat & Dashboard Cards */
+.universal-card-layout {
+  display: flex;
+  flex-direction: column;
+  background: var(--card-background);
+  border: 1rem solid var(--card-border-color);
+  border-radius: 10rem;
+  padding: 16rem;
+  transition: all 0.25s ease;
+  position: relative;
+  box-shadow: 0 4rem 15rem rgba(0, 0, 0, 0.3);
+}
+
+.universal-card-layout:hover {
+  border-color: var(--common-border-color-active);
+  transform: translateY(-2rem);
+  box-shadow: 0 6rem 20rem rgba(0, 0, 0, 0.6);
+}
+
+.universal-stat-layout {
+  text-align: center;
+  padding: 10rem 8rem;
+  background: var(--stat-background);
+  border: 1rem solid var(--stat-border-color);
+  border-radius: 4rem;
+  flex: 1;
+  min-width: 100rem;
+}
+
+.universal-stat-value {
+  font-size: 20rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.universal-stat-label {
+  font-size: 11rem;
+  color: var(--text-muted);
+  margin-top: 3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Unified Panel list rows */
+.panel-list-row {
+  display: flex;
+  align-items: center;
+  padding: 5rem 10rem;
+  font-size: 12rem;
+  color: var(--text-primary);
+  border-bottom: 1rem solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.panel-list-row:hover {
+  background: rgba(80, 184, 233, 0.12);
+}
+
+.panel-list-row-alt {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.panel-list-row-expanded {
+  background: rgba(80, 184, 233, 0.08) !important;
+  border-left: 2rem solid #50b8e9;
+}
+
+/* Unified Table Headers */
+.panel-table-header {
+  display: flex;
+  align-items: center;
+  padding: 5rem 24rem 5rem 10rem;
+  background: rgba(18, 28, 42, 0.95);
+  border-bottom: 2rem solid rgba(93, 128, 170, 0.3);
+  font-size: 11rem;
+  font-weight: 700;
+  color: rgba(200, 220, 240, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* Unified Detail Rows (Fixed label grids) */
+.panel-detail-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4rem;
+  font-size: 11rem;
+}
+
+.panel-detail-row-label {
+  width: 150rem;
+  color: var(--text-secondary);
+  font-weight: 700;
+  flex-shrink: 0;
+  font-size: 11rem;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.panel-detail-row-value {
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  font-size: 12rem;
+}
+
+/* Unified Expand Arrows */
+.panel-expand-arrow {
+  display: inline-block;
+  font-size: 11rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-right: 6rem;
+  flex-shrink: 0;
+  transition: color 0.15s ease, transform 0.2s ease;
+}
+
+.panel-list-row:hover .panel-expand-arrow {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.panel-list-row-expanded .panel-expand-arrow {
+  color: #50b8e9;
+}
+
+/* Unified Inspect/Inspect Building Buttons */
+.panel-go-btn {
+  background: rgba(80, 184, 233, 0.12);
+  border: 1rem solid rgba(80, 184, 233, 0.35);
+  border-radius: 3rem;
+  padding: 2rem 8rem;
+  cursor: pointer;
+  font-size: 10rem;
+  font-weight: 700;
+  color: #50b8e9;
+  letter-spacing: 0.5rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.panel-go-btn:hover {
+  background: rgba(80, 184, 233, 0.3);
+  border-color: rgba(80, 184, 233, 0.7);
+}
+
+/* Unified Pagination Bar */
+.panel-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem 0;
+  flex-shrink: 0;
+  border-top: 1rem solid rgba(255, 255, 255, 0.07);
+}
+
+.panel-pagination-btn {
+  padding: 4rem 14rem;
+  font-size: 11rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1rem solid rgba(255, 255, 255, 0.18);
+  border-radius: 3rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.panel-pagination-btn:hover {
+  background: rgba(255, 255, 255, 0.13);
+  color: #fff;
+}
+
+.panel-pagination-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.panel-pagination-label {
+  font-size: 11rem;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  margin: 0 8rem;
+  text-align: center;
+}

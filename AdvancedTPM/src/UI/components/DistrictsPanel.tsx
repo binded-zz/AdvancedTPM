@@ -1,11 +1,11 @@
-import React, { useMemo, useState, useRef, useCallback, useLayoutEffect } from 'react';
-import { parseCompanies } from './CompanyBrowser';
+import React, { useMemo, useState, useRef } from 'react';
 import apiSafe, { getSafeColor } from '../../mods/apiSafe';
 import { camera, selectedInfo, tool } from 'cs2/bindings';
 import { Scrollable } from 'cs2/ui';
 import { useLocalization } from 'cs2/l10n';
-import { startGlobalDrag, stopGlobalDrag } from './dragHelper';
 import ErrorBoundary from './ErrorBoundary';
+import { DetailRow, StatCard } from './common';
+import { PolicyPrefab, ActivePolicy, getConflictingActivePolicies } from '../data/policyConfig';
 import './DistrictsPanel.css';
 
 interface Props {
@@ -22,115 +22,6 @@ interface Props {
 }
 
 type DistrictSortField = 'name' | 'residential' | 'services' | 'businesses' | 'mixed' | 'resTotal' | 'total' | 'policies' | 'residents' | 'workers' | 'unemploymentRate' | 'avgLandValue' | 'avgIncome' | 'avgRent';
-
-interface PolicyPrefab {
-  entityKey: string; name: string; icon?: string; isCity?: boolean; isDistrict?: boolean;
-  hasSlider?: boolean; sliderDefault?: number; sliderMin?: number; sliderMax?: number;
-}
-interface ActivePolicy { k: string; adj: number; }
-
-const POLICY_CONFLICT_GROUPS = [
-  ["PP_ToleranceDelinquency","PP_LightCrimePermit","PP_PoliceState","PP_ZeroGraffiti"],
-  ["PP_FastFines","PP_ToleranceDelinquency","PP_LightCrimePermit"],
-  ["PP_NightWithoutCops","PP_PoliceState","PP_BigBrother"],
-  ["PP_FriendlyCops","PP_PoliceState"],
-  ["PP_FakeCameras","PP_BigBrother"],
-  ["PP_StreetRacing","PP_ZeroGraffiti"],
-  ["PP_TaxParadise","PP_OffshoreCrackdown"],
-  ["PP_GhostSubsidies","PP_OffshoreCrackdown"],
-  ["PP_MadeInLocal","PP_WildImports","PP_ImportEverything","PP_LocalCoupons"],
-  ["PP_StartupOrNothing","PP_SlowLife"],
-  ["PP_StartupOrNothing","PP_MandatoryUniversity"],
-  ["PP_Hospitals247","PP_HealthOnBudget"],
-  ["PP_PublicPlacebo","PP_Hospitals247","PP_SoftVaccineMandate"],
-  ["PP_ForcedTelehealth","PP_Hospitals247"],
-  ["PP_InfluencerDoctors","PP_Hospitals247"],
-  ["PP_PaidER","PP_HealthOnBudget"],
-  ["PP_MandatoryUniversity","PP_FourDaySchool","PP_NoHomework","PP_SchoolIsOverrated"],
-  ["PP_Libraries247","PP_SchoolIsOverrated"],
-  ["PP_StrictGreenCity","PP_PollutionProsperity","PP_ToxicFreezone"],
-  ["PP_NightFactories","PP_SilentIndustry","PP_StrictGreenCity"],
-  ["PP_BackyardOil","PP_QuarryMoratorium","PP_StrictGreenCity"],
-  ["PP_TheaterZeroWaste","PP_PollutionProsperity"],
-  ["PP_RightToRepair","PP_PollutionProsperity"],
-  ["PP_ChaosFreeZone","PP_StrictGreenCity"],
-  ["PP_AggressiveTourism","PP_AntiTourists"],
-  ["PP_InfluencerVisa","PP_AntiTourists","PP_AntiAirbnb"],
-  ["PP_ShareEconomy","PP_AntiAirbnb"],
-  ["PP_MunicipalCasino","PP_AntiAirbnb","PP_SlowLife"],
-  ["PP_PermanentFestival","PP_SlowLife","PP_AntiTourists"],
-  ["PP_WhiteNight","PP_SlowLife"],
-  ["PP_SoftApocalypse","PP_PermanentFestival"],
-  ["PP_ProgressiveTax","PP_TaxParadise","PP_SymbolicTaxes"],
-  ["PP_BasicIncome","PP_TaxParadise","PP_SymbolicTaxes"],
-  ["PP_RentControl","PP_TaxParadise"],
-  ["PP_ServiceBudgetBoost","PP_HealthOnBudget","PP_CityServiceImport"],
-  ["PP_CityServiceImport","PP_Hospitals247"],
-  ["PP_ConstructionSubsidy","PP_RepairCulture"],
-  ["PP_EmissionZone","PP_PollutionProsperity","PP_HeavyIndustrySurge","PP_NightFactories"],
-  ["PP_CarbonTax","PP_PollutionProsperity","PP_HeavyIndustrySurge","PP_ToxicFreezone"],
-  ["PP_PlasticBan","PP_PollutionProsperity","PP_ToxicFreezone"],
-  ["PP_ForestProtection","PP_BackyardOil","PP_HeavyIndustrySurge"],
-  ["PP_HeavyIndustrySurge","PP_SilentIndustry","PP_StrictGreenCity"],
-  ["PP_WorkWeek4Days","PP_NightFactories"],
-  ["PP_FreeDayCare","PP_HealthOnBudget"],
-  ["PP_CommunityTolerance","PP_PoliceState","PP_BigBrother","PP_ZeroGraffiti"],
-  ["PP_LateNightBars","PP_ChaosFreeZone","PP_SlowLife"],
-  ["PP_TouristTax","PP_AggressiveTourism"],
-  ["PP_ElectronicsHub","PP_RightToRepair"],
-  ["PP_FishingOptimization","PP_StrictGreenCity"],
-  ["PP_FlatTax","PP_WealthTax","PP_LandValueTax","PP_ProgressiveTax"],
-  ["PP_WealthTax","PP_TaxParadise","PP_SymbolicTaxes"],
-  ["PP_FreeTradeZone","PP_Protectionism","PP_Reshoring","PP_MadeInLocal","PP_ImportEverything","PP_WildImports"],
-  ["PP_AutomationPush","PP_RobotTax"],
-  ["PP_GigWorkerRights","PP_ShareEconomy"],
-  ["PP_RightToDisconnect","PP_StartupOrNothing"],
-  ["PP_DrugDecriminalization","PP_WarOnDrugs"],
-  ["PP_RestorativeJustice","PP_WarOnDrugs","PP_PrisonComfort"],
-  ["PP_DronePolice","PP_NeighborhoodWatch","PP_BigBrother"],
-  ["PP_PrivateSecurity","PP_NeighborhoodWatch"],
-  ["PP_NightCurfew","PP_WhiteNight","PP_LateNightBars","PP_NightWithoutCops","PP_PermanentFestival"],
-  ["PP_UniversalHealthcare","PP_PaidER","PP_HealthOnBudget"],
-  ["PP_Austerity","PP_UniversalHealthcare","PP_FreeUniversity","PP_SocialHousing","PP_ServiceBudgetBoost"],
-  ["PP_FreeUniversity","PP_VocationalSchools"],
-  ["PP_VocationalSchools","PP_MandatoryUniversity"],
-  ["PP_FiberForAll","PP_MegaNetwork5G"],
-  ["PP_HeritageProtection","PP_ConstructionSubsidy"],
-  ["PP_StreetArt","PP_ZeroGraffiti"]
-];
-
-const getConflictingActivePolicies = (
-  policyName: string,
-  activePolicies: ActivePolicy[],
-  policyPrefabs: PolicyPrefab[]
-): string[] => {
-  if (!policyName.startsWith('PP_')) return [];
-
-  // Build a set of all active policy names in this district
-  const activeNames = new Set(
-    activePolicies
-      .map(ap => {
-        const pol = policyPrefabs.find(p => p.entityKey === ap.k);
-        return pol ? pol.name : '';
-      })
-      .filter(Boolean)
-  );
-
-  // Find all conflicting names
-  const conflicts: string[] = [];
-  for (const group of POLICY_CONFLICT_GROUPS) {
-    if (group.includes(policyName)) {
-      for (const other of group) {
-        if (other !== policyName && activeNames.has(other)) {
-          conflicts.push(other);
-        }
-      }
-    }
-  }
-
-  // Deduplicate and return
-  return Array.from(new Set(conflicts));
-};
 
 const WarningIcon = () => (
   <svg width="12rem" height="12rem" viewBox="0 0 24 24" fill="none" stroke="#ff7b72" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', marginRight: '4rem', verticalAlign: 'middle', flexShrink: 0 }}>
@@ -222,59 +113,92 @@ const getPolicyTooltipLines = (
 };
 
 interface DistrictRow {
-  entityKey: string | null; name: string; residential: number; services: number; businesses: number; mixed: number; resTotal: number; total: number;
-  activePolicies: ActivePolicy[]; isCity: boolean; cityName: string;
-  households: number; householdCap: number; workers: number; maxWorkers: number;
-  avgWealth: number; avgIncome: number; avgRent: number; avgHappiness: number;
-  unemploymentRate?: number; avgLandValue?: number;
-  residents: number; children: number; teens: number; adults: number; seniors: number;
-  eduUneducated: number; eduPoorlyEducated: number; eduEducated: number; eduWellEducated: number; eduHighlyEducated: number;
-  workerUneducated?: number; workerPoorlyEducated?: number; workerEducated?: number; workerWellEducated?: number; workerHighlyEducated?: number;
-  workerUneducatedMax?: number; workerPoorlyEducatedMax?: number; workerEducatedMax?: number; workerWellEducatedMax?: number; workerHighlyEducatedMax?: number;
+  entityKey: string | null;
+  name: string;
+  res: number;
+  svc: number;
+  biz: number;
+  mixedProp: number;
+  resProp: number;
+  resTotal: number;
+  total: number;
+  policies: ActivePolicy[];
+  isCity: boolean;
+  cityName: string;
+  households: number;
+  householdCap: number;
+  workers: number;
+  maxWorkers: number;
+  avgWealth: number;
+  avgIncome: number;
+  avgRent: number;
+  avgHappiness: number;
+  unemploymentRate: number;
+  avgLandValue: number;
+  residents: number;
+  children: number;
+  teens: number;
+  adults: number;
+  seniors: number;
+  eduUneducated: number;
+  eduPoorlyEducated: number;
+  eduEducated: number;
+  eduWellEducated: number;
+  eduHighlyEducated: number;
+  workerUneducated: number;
+  workerPoorlyEducated: number;
+  workerEducated: number;
+  workerWellEducated: number;
+  workerHighlyEducated: number;
+  workerUneducatedMax: number;
+  workerPoorlyEducatedMax: number;
+  workerEducatedMax: number;
+  workerWellEducatedMax: number;
+  workerHighlyEducatedMax: number;
   localServices: number;
   assignedServices: number;
   profitability: number;
-  pets: number; upkeep: number; resourceCost: number; feesPaid: number;
-  sick: number; students: number; totalCrime: number; homeless: number; tourists: number;
-  unemployed?: number;
-
-
-  // InfoLoom
-  propertyCount?: number;
-  resProp?: number;
-  comProp?: number;
-  indProp?: number;
-  offProp?: number;
-  storProp?: number;
-  mixedProp?: number;
+  pets: number;
+  upkeep: number;
+  resourceCost: number;
+  feesPaid: number;
+  sick: number;
+  students: number;
+  totalCrime: number;
+  homeless: number;
+  tourists: number;
+  unemployed: number;
+  propertyCount: number;
+  comProp: number;
+  indProp: number;
+  offProp: number;
+  storProp: number;
   buildingLevelSum?: number;
   buildingLevelSamples?: number;
-  totalLandValue?: number;
-  landValueSamples?: number;
-  elemCapacity?: number;
-  hsCapacity?: number;
-  collegeCapacity?: number;
-  uniCapacity?: number;
-  elemEnrolled?: number;
-  hsEnrolled?: number;
-  collegeEnrolled?: number;
-  uniEnrolled?: number;
-  elemEligible?: number;
-  hsEligible?: number;
-  collegeEligible?: number;
-  uniEligible?: number;
-  serviceMask?: number;
-  area?: number;
-  deceased?: number;
-  movingAway?: number;
-  // Authoritative city-wide stats from CountHouseholdDataSystem
+  totalLandValue: number;
+  landValueSamples: number;
+  elemCapacity: number;
+  hsCapacity: number;
+  collegeCapacity: number;
+  uniCapacity: number;
+  elemEnrolled: number;
+  hsEnrolled: number;
+  collegeEnrolled: number;
+  uniEnrolled: number;
+  elemEligible: number;
+  hsEligible: number;
+  collegeEligible: number;
+  uniEligible: number;
+  serviceMask: number;
+  area: number;
+  deceased: number;
+  movingAway: number;
   gameAllCitizens?: number;
   gameTourists?: number;
   gameCommuters?: number;
   gameMovingAway?: number;
   gameEmployees?: number;
 }
-
 
 const cardIcons: Record<string, React.ReactNode> = {
   worker: (
@@ -344,7 +268,6 @@ const DEFAULT_LAYOUT: DashboardCardConfig[] = [
 ];
 
 const ICON = 'Media/Game/Icons/';
-const CUR = `${ICON}Economy.svg`;
 
 const fmt = (n: number) => {
   const s = Math.round(n).toString();
@@ -359,8 +282,6 @@ const happinessInfo = (h: number) => {
   return { label: 'Miserable', color: '#e05050' };
 };
 
-
-
 const wealthLabel = (w: number) => {
   if (w === undefined || w === null || isNaN(w)) return { label: 'Unknown', color: '#EAEAEA' };
   if (w >= 15000) return { label: 'Wealthy', color: '#8bdb46' };
@@ -370,33 +291,11 @@ const wealthLabel = (w: number) => {
   return { label: 'Wretched', color: '#e57373' };
 };
 
-const getServicesFromMask = (mask: number) => {
-  const s = [];
-  if (mask & (1 << 0)) s.push('Hospital / Clinic');
-  if (mask & (1 << 1)) s.push('School');
-  if (mask & (1 << 2)) s.push('Police Station');
-  if (mask & (1 << 3)) s.push('Fire Station');
-  if (mask & (1 << 4)) s.push('Parks & Recreation');
-  if (mask & (1 << 5)) s.push('Deathcare');
-  if (mask & (1 << 6)) s.push('Garbage Facility');
-  return s;
-};
-
 const calcAvail = (cap: number, enrolled: number) => {
   if (cap === undefined || cap === null || isNaN(cap) || cap <= 0) return { text: '0%', color: 'rgba(255,255,255,0.4)' };
   const val = ((cap - enrolled) / cap) * 100;
   return { text: `${val > 0 ? '+' : ''}${val.toFixed(0)}%`, color: val >= 10 ? '#8bdb46' : (val > 0 ? '#b8d946' : '#e57373') };
 };
-
-const StatRow = ({ label, val, style, rawKey, showRaw }: { label: string; val: string | number; style?: React.CSSProperties; rawKey?: string; showRaw?: boolean }) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13rem', padding: '1rem 0', color: getSafeColor('rgba(255,255,255,0.85)'), ...style }}>
-    <span style={{ opacity: 0.7, marginRight: '12rem' }}>
-      {label}
-      {showRaw && rawKey && <span className="dp-raw-key">({rawKey})</span>}
-    </span>
-    <span style={{ fontWeight: 600 }}>{val}</span>
-  </div>
-);
 
 
 export const DistrictsPanel: React.FC<Props> = ({
@@ -545,114 +444,128 @@ export const DistrictsPanel: React.FC<Props> = ({
   const policyPrefabs: PolicyPrefab[] = useMemo(() => { try { return JSON.parse(districtPoliciesData); } catch { return []; } }, [districtPoliciesData]);
 
   const rows = useMemo(() => {
-    const map = new Map<string, DistrictRow>();
-    const ensure = (name: string): DistrictRow => {
-      const k = name || 'City';
-      if (!map.has(k)) map.set(k, {
-        entityKey: null, name: k, residential: 0, services: 0, businesses: 0, mixed: 0, resTotal: 0, total: 0,
-        activePolicies: [] as ActivePolicy[], isCity: k === 'City', cityName: k, households: 0, householdCap: 0, workers: 0, maxWorkers: 0,
-        avgWealth: 0, avgIncome: 0, avgRent: 0, avgHappiness: 0, residents: 0, children: 0, teens: 0, adults: 0, seniors: 0,
-        unemploymentRate: 0, avgLandValue: 0,
-        eduUneducated: 0, eduPoorlyEducated: 0, eduEducated: 0, eduWellEducated: 0, eduHighlyEducated: 0,
-        localServices: 0, assignedServices: 0, profitability: 0, pets: 0, upkeep: 0, resourceCost: 0, feesPaid: 0,
-        sick: 0, students: 0, totalCrime: 0, homeless: 0, tourists: 0,
-        elemCapacity: 0, elemEnrolled: 0, hsCapacity: 0, hsEnrolled: 0, collegeCapacity: 0, collegeEnrolled: 0, uniCapacity: 0, uniEnrolled: 0,
-        elemEligible: 0, hsEligible: 0, collegeEligible: 0, uniEligible: 0
-      });
-      return map.get(k)!;
-    };
-
     let apiDistricts: any[] = [];
-    try { apiDistricts = JSON.parse(districtBrowserData); } catch { }
+    try {
+      apiDistricts = JSON.parse(districtBrowserData);
+    } catch { }
 
-    apiDistricts.forEach((a: any) => {
-      const d = ensure(a.name);
-      d.entityKey = a.entityKey;
-      // policies are now {k, adj} objects — parse defensively (could be string in old saves)
-      d.activePolicies = (a.policies || []).map((p: any) =>
-        typeof p === 'string' ? { k: p, adj: 0 } : { k: p.k, adj: p.adj ?? 0 }
-      ) as ActivePolicy[];
-      if (a.isCity) { d.isCity = true; d.cityName = a.cityName || 'City'; }
-      d.avgWealth = a.avgWealth || 0; d.avgIncome = a.avgIncome || 0; d.avgRent = a.avgRent || 0; d.avgHappiness = a.avgHappiness || 0;
-      // Per-district unemployment: use real unemployed citizen count from C# if available,
-      // otherwise fall back to global rate (for city row which uses CountHouseholdDataSystem)
+    const out: DistrictRow[] = (apiDistricts || []).map((a: any) => {
+      const workingAge = (a.teens || 0) + (a.adults || 0);
+      let unemployed = 0;
+      let unemploymentRate = globalUnemploymentRate;
       const rawUnemployed = a.unemployed != null ? Number(a.unemployed) : null;
       if (rawUnemployed != null && rawUnemployed >= 0) {
-        const workingAge = (a.teens || 0) + (a.adults || 0);
-        d.unemployed = rawUnemployed;
-        d.unemploymentRate = workingAge > 0 ? Math.min(100, (rawUnemployed / workingAge) * 100) : 0;
-      } else {
-        d.unemployed = 0;
-        d.unemploymentRate = a.unemploymentRate !== undefined ? a.unemploymentRate : globalUnemploymentRate;
+        unemployed = rawUnemployed;
+        unemploymentRate = workingAge > 0 ? Math.min(100, (rawUnemployed / workingAge) * 100) : 0;
+      } else if (a.unemploymentRate !== undefined) {
+        unemploymentRate = a.unemploymentRate;
       }
-      d.avgLandValue = a.landValueSamples > 0 ? (a.totalLandValue / a.landValueSamples) : 0;
-      d.workers = a.workers || 0; d.maxWorkers = a.maxWorkers || 0; d.households = a.households || 0; d.householdCap = a.householdCap || 0;
-      d.mixed = a.mixedProp || 0;
-      d.residential = a.resProp || 0;
-      d.resTotal = (a.resProp || 0) + (a.mixedProp || 0);
-      d.services = a.svc || 0; d.businesses = a.biz || 0;
-      d.residents = a.residents || 0;
-      d.tourists = a.tourists || 0;
-      d.children = a.children || 0; d.teens = a.teens || 0; d.adults = a.adults || 0; d.seniors = a.seniors || 0;
-      d.eduUneducated = a.eduUneducated || 0; d.eduPoorlyEducated = a.eduPoorlyEducated || 0;
-      d.eduEducated = a.eduEducated || 0; d.eduWellEducated = a.eduWellEducated || 0; d.eduHighlyEducated = a.eduHighlyEducated || 0;
-      d.localServices = a.localServices || 0;
-      d.assignedServices = a.assignedServices || 0;
-      d.profitability = a.profitability || 0;
-      d.pets = a.pets || 0; d.upkeep = a.upkeep || 0; d.resourceCost = a.resourceCost || 0; d.feesPaid = a.feesPaid || 0;
-      d.sick = a.sick || 0; d.students = a.students || 0; d.totalCrime = a.totalCrime || 0; d.homeless = a.homeless || 0;
-      d.deceased = a.deceased || 0; d.movingAway = a.movingAway || 0;
-      d.gameAllCitizens = a.gameAllCitizens || 0;
-      d.gameTourists = a.gameTourists || 0;
-      d.gameCommuters = a.gameCommuters || 0;
-      d.gameMovingAway = a.gameMovingAway || 0;
-      d.gameEmployees = a.gameEmployees || 0;
 
+      const avgLandValue = (a.landValueSamples && a.landValueSamples > 0)
+        ? (a.totalLandValue || 0) / a.landValueSamples
+        : 0;
 
-      d.propertyCount = a.propertyCount || 0;
-      d.resProp = a.resProp || 0;
-      d.comProp = a.comProp || 0;
-      d.indProp = a.indProp || 0;
-      d.offProp = a.offProp || 0;
-      d.storProp = a.storProp || 0;
-      d.mixedProp = a.mixedProp || 0;
-      d.buildingLevelSum = a.buildingLevelSum || 0;
-      d.buildingLevelSamples = a.buildingLevelSamples || 0;
-      d.totalLandValue = a.totalLandValue || 0;
-      d.landValueSamples = a.landValueSamples || 0;
+      const resTotal = (a.resProp || 0) + (a.mixedProp || 0);
+      const total = (a.res || 0) + (a.svc || 0) + (a.biz || 0) + (a.mixedProp || 0);
 
-      d.workerUneducated = a.workerUneducated || 0;
-      d.workerPoorlyEducated = a.workerPoorlyEducated || 0;
-      d.workerEducated = a.workerEducated || 0;
-      d.workerWellEducated = a.workerWellEducated || 0;
-      d.workerHighlyEducated = a.workerHighlyEducated || 0;
-      d.workerUneducatedMax = a.workerUneducatedMax || 0;
-      d.workerPoorlyEducatedMax = a.workerPoorlyEducatedMax || 0;
-      d.workerEducatedMax = a.workerEducatedMax || 0;
-      d.workerWellEducatedMax = a.workerWellEducatedMax || 0;
-      d.workerHighlyEducatedMax = a.workerHighlyEducatedMax || 0;
-      d.elemCapacity = a.elemCapacity || 0;
-      d.hsCapacity = a.hsCapacity || 0;
-      d.collegeCapacity = a.collegeCapacity || 0;
-      d.uniCapacity = a.uniCapacity || 0;
-      d.elemEnrolled = a.elemEnrolled || 0;
-      d.hsEnrolled = a.hsEnrolled || 0;
-      d.collegeEnrolled = a.collegeEnrolled || 0;
-      d.uniEnrolled = a.uniEnrolled || 0;
-      d.elemEligible = a.elemEligible || 0;
-      d.hsEligible = a.hsEligible || 0;
-      d.collegeEligible = a.collegeEligible || 0;
-      d.uniEligible = a.uniEligible || 0;
-      d.serviceMask = a.serviceMask || 0;
-      d.area = a.area || 0;
+      // Map policies
+      const policies = (a.policies || []).map((p: any) =>
+        typeof p === 'string' ? { k: p, adj: 0 } : { k: p.k, adj: p.adj ?? 0 }
+      ) as ActivePolicy[];
+
+      return {
+        entityKey: a.entityKey || null,
+        name: a.name || 'City',
+        res: a.res || 0,
+        svc: a.svc || 0,
+        biz: a.biz || 0,
+        mixedProp: a.mixedProp || 0,
+        resProp: a.resProp || 0,
+        resTotal,
+        total,
+        policies,
+        isCity: !!a.isCity,
+        cityName: a.cityName || (a.isCity ? 'City' : ''),
+        households: a.households || 0,
+        householdCap: a.householdCap || 0,
+        workers: a.workers || 0,
+        maxWorkers: a.maxWorkers || 0,
+        avgWealth: a.avgWealth || 0,
+        avgIncome: a.avgIncome || 0,
+        avgRent: a.avgRent || 0,
+        avgHappiness: a.avgHappiness || 0,
+        unemploymentRate,
+        avgLandValue,
+        residents: a.residents || 0,
+        children: a.children || 0,
+        teens: a.teens || 0,
+        adults: a.adults || 0,
+        seniors: a.seniors || 0,
+        eduUneducated: a.eduUneducated || 0,
+        eduPoorlyEducated: a.eduPoorlyEducated || 0,
+        eduEducated: a.eduEducated || 0,
+        eduWellEducated: a.eduWellEducated || 0,
+        eduHighlyEducated: a.eduHighlyEducated || 0,
+        workerUneducated: a.workerUneducated || 0,
+        workerPoorlyEducated: a.workerPoorlyEducated || 0,
+        workerEducated: a.workerEducated || 0,
+        workerWellEducated: a.workerWellEducated || 0,
+        workerHighlyEducated: a.workerHighlyEducated || 0,
+        workerUneducatedMax: a.workerUneducatedMax || 0,
+        workerPoorlyEducatedMax: a.workerPoorlyEducatedMax || 0,
+        workerEducatedMax: a.workerEducatedMax || 0,
+        workerWellEducatedMax: a.workerWellEducatedMax || 0,
+        workerHighlyEducatedMax: a.workerHighlyEducatedMax || 0,
+        localServices: a.localServices || 0,
+        assignedServices: a.assignedServices || 0,
+        profitability: a.profitability || 0,
+        pets: a.pets || 0,
+        upkeep: a.upkeep || 0,
+        resourceCost: a.resourceCost || 0,
+        feesPaid: a.feesPaid || 0,
+        sick: a.sick || 0,
+        students: a.students || 0,
+        totalCrime: a.totalCrime || 0,
+        homeless: a.homeless || 0,
+        tourists: a.tourists || 0,
+        unemployed,
+        propertyCount: a.propertyCount || 0,
+        comProp: a.comProp || 0,
+        indProp: a.indProp || 0,
+        offProp: a.offProp || 0,
+        storProp: a.storProp || 0,
+        buildingLevelSum: a.buildingLevelSum || 0,
+        buildingLevelSamples: a.buildingLevelSamples || 0,
+        totalLandValue: a.totalLandValue || 0,
+        landValueSamples: a.landValueSamples || 0,
+        elemCapacity: a.elemCapacity || 0,
+        hsCapacity: a.hsCapacity || 0,
+        collegeCapacity: a.collegeCapacity || 0,
+        uniCapacity: a.uniCapacity || 0,
+        elemEnrolled: a.elemEnrolled || 0,
+        hsEnrolled: a.hsEnrolled || 0,
+        collegeEnrolled: a.collegeEnrolled || 0,
+        uniEnrolled: a.uniEnrolled || 0,
+        elemEligible: a.elemEligible || 0,
+        hsEligible: a.hsEligible || 0,
+        collegeEligible: a.collegeEligible || 0,
+        uniEligible: a.uniEligible || 0,
+        serviceMask: a.serviceMask || 0,
+        area: a.area || 0,
+        deceased: a.deceased || 0,
+        movingAway: a.movingAway || 0,
+        gameAllCitizens: a.gameAllCitizens || 0,
+        gameTourists: a.gameTourists || 0,
+        gameCommuters: a.gameCommuters || 0,
+        gameMovingAway: a.gameMovingAway || 0,
+        gameEmployees: a.gameEmployees || 0,
+      } as DistrictRow;
     });
 
-    const out = Array.from(map.values());
-    out.forEach(r => { r.total = r.residential + r.services + r.businesses + r.mixed; });
     out.sort((a, b) => {
       if (a.isCity !== b.isCity) return a.isCity ? -1 : 1;
-      const vA = sortField === 'policies' ? a.activePolicies.length : (a as any)[sortField] as number;
-      const vB = sortField === 'policies' ? b.activePolicies.length : (b as any)[sortField] as number;
+      const vA = sortField === 'policies' ? a.policies.length : (a as any)[sortField] as number;
+      const vB = sortField === 'policies' ? b.policies.length : (b as any)[sortField] as number;
       if (vA < vB) return sortDir === 'asc' ? -1 : 1;
       if (vA > vB) return sortDir === 'asc' ? 1 : -1;
       return 0;
@@ -755,7 +668,7 @@ export const DistrictsPanel: React.FC<Props> = ({
           </div>
         )}
       </div>
-      <div className="dp-header">
+      <div className="panel-table-header">
         <div className="dp-col-exp"></div>
         <div className="dp-col-name" onClick={() => handleSort('name')}>District Name {sortField === 'name' && (sortDir === 'asc' ? 'A' : 'V')}</div>
         <div className="dp-col-count" onClick={() => handleSort('residential')}>Res (Pure)</div>
@@ -787,19 +700,19 @@ export const DistrictsPanel: React.FC<Props> = ({
             const isExp = expandedRow === r.name;
             return (
               <React.Fragment key={r.name}>
-                <div className={`dp-row${r.isCity ? ' dp-row-city' : ''}${isExp ? ' dp-row-expanded' : ''}`}
+                <div className={`panel-list-row${r.isCity ? ' dp-row-city' : ''}${isExp ? ' panel-list-row-expanded' : ''}`}
                   onClick={() => setExpandedRow(isExp ? null : r.name)}>
-                  <div className="dp-col-exp"><span className="dp-arrow">{isExp ? 'v' : '>'}</span></div>
+                  <div className="dp-col-exp"><span className="panel-expand-arrow">{isExp ? 'v' : '>'}</span></div>
                   <div className="dp-col-name">
                     <span style={{ fontWeight: r.entityKey ? '800' : '400', color: getSafeColor(r.isCity ? '#50b8e9' : 'inherit') }}>
                       {r.isCity ? `City (${r.cityName})` : r.name}
                     </span>
                   </div>
-                  <div className="dp-col-count">{fmt(r.residential)}</div>
-                  <div className="dp-col-count" style={{ color: getSafeColor('#ffb74d') }}>{fmt(r.mixed)}</div>
+                  <div className="dp-col-count">{fmt(r.res)}</div>
+                  <div className="dp-col-count" style={{ color: getSafeColor('#ffb74d') }}>{fmt(r.mixedProp)}</div>
                   <div className="dp-col-count" style={{ color: getSafeColor('#50b8e9'), fontWeight: 800 }}>{fmt(r.resTotal)}</div>
-                  <div className="dp-col-count">{fmt(r.services)}</div>
-                  <div className="dp-col-count">{fmt(r.businesses)}</div>
+                  <div className="dp-col-count">{fmt(r.svc)}</div>
+                  <div className="dp-col-count">{fmt(r.biz)}</div>
                   <div className="dp-col-count" style={{ color: getSafeColor('#64b5f6') }}>{fmt(r.residents)}</div>
                   <div className="dp-col-count" style={{ color: getSafeColor('#81c784') }}>{fmt(r.workers)}</div>
                   <div className="dp-col-unemp" style={{ color: getSafeColor((r.unemploymentRate || 0) > 10 ? '#e05050' : '#8bdb46') }}>{r.unemploymentRate !== undefined ? `${r.unemploymentRate.toFixed(1)}%` : '0.0%'}</div>
@@ -811,10 +724,10 @@ export const DistrictsPanel: React.FC<Props> = ({
                       {policyPrefabs.map(pol => {
                         if (r.isCity && !pol.isCity) return null;
                         if (!r.isCity && !pol.isDistrict) return null;
-                        const ap = r.activePolicies.find(p => p.k === pol.entityKey);
+                        const ap = r.policies.find((p: ActivePolicy) => p.k === pol.entityKey);
                         const on = !!ap;
                         if (!on && !isExp) return null;
-                        const activeConflicting = getConflictingActivePolicies(pol.name, r.activePolicies, policyPrefabs);
+                        const activeConflicting = getConflictingActivePolicies(pol.name, r.policies, policyPrefabs);
                         const hasConflict = activeConflicting.length > 0;
                         return (
                           <div key={pol.entityKey} className={`dp-row-policy-icon ${on ? 'active' : ''} ${hasConflict ? 'conflict' : ''} dp-policy-wrap`}
@@ -830,7 +743,7 @@ export const DistrictsPanel: React.FC<Props> = ({
                     </div>
                   </div>
                   <div className="dp-col-go">
-                    {r.entityKey && !r.isCity && <button className="dp-go-btn" onClick={e => { e.stopPropagation(); handleJump(r.entityKey!); }}>GO</button>}
+                    {r.entityKey && !r.isCity && <button className="panel-go-btn" onClick={e => { e.stopPropagation(); handleJump(r.entityKey!); }}>GO</button>}
                   </div>
                 </div>
 
@@ -867,14 +780,14 @@ export const DistrictsPanel: React.FC<Props> = ({
                       <div style={{ margin: '0 0 15rem', padding: '10rem 15rem', backgroundColor: getSafeColor('rgba(80,184,233,0.08)'), borderWidth: 1, borderStyle: 'solid', borderColor: getSafeColor('rgba(80,184,233,0.2)'), borderRadius: '6rem' }}>
                         <div style={{ fontSize: '11rem', color: getSafeColor('#50b8e9'), marginBottom: '8rem', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' }}>City-Wide Snapshot <span style={{ opacity: 0.5, fontWeight: 400 }}>(Game Authoritative)</span></div>
                         <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                          <StatRow label="All Citizens" val={fmt(r.gameAllCitizens || 0)} showRaw={showRawData} rawKey="gameAllCitizens" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
-                          <StatRow label="Residents" val={fmt(r.residents)} showRaw={showRawData} rawKey="residents" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', color: getSafeColor('#8bdb46'), width: '180rem' }} />
-                          <StatRow label="Employees" val={fmt(r.gameEmployees || 0)} showRaw={showRawData} rawKey="gameEmployees" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
-                          <StatRow label="Students" val={fmt(r.students || 0)} showRaw={showRawData} rawKey="students" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
-                          <StatRow label="Moving Away" val={fmt(r.gameMovingAway || 0)} showRaw={showRawData} rawKey="gameMovingAway" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
-                          <StatRow label="Homeless" val={fmt(r.homeless || 0)} showRaw={showRawData} rawKey="homeless" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
-                          <StatRow label="Tourists" val={fmt(r.gameTourists || 0)} showRaw={showRawData} rawKey="gameTourists" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
-                          <StatRow label="Commuters" val={fmt(r.gameCommuters || 0)} showRaw={showRawData} rawKey="gameCommuters" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                          <DetailRow label="All Citizens" value={fmt(r.gameAllCitizens || 0)} showRaw={showRawData} rawKey="gameAllCitizens" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                          <DetailRow label="Residents" value={fmt(r.residents)} showRaw={showRawData} rawKey="residents" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', color: getSafeColor('#8bdb46'), width: '180rem' }} />
+                          <DetailRow label="Employees" value={fmt(r.gameEmployees || 0)} showRaw={showRawData} rawKey="gameEmployees" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                          <DetailRow label="Students" value={fmt(r.students || 0)} showRaw={showRawData} rawKey="students" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                          <DetailRow label="Moving Away" value={fmt(r.gameMovingAway || 0)} showRaw={showRawData} rawKey="gameMovingAway" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                          <DetailRow label="Homeless" value={fmt(r.homeless || 0)} showRaw={showRawData} rawKey="homeless" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                          <DetailRow label="Tourists" value={fmt(r.gameTourists || 0)} showRaw={showRawData} rawKey="gameTourists" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
+                          <DetailRow label="Commuters" value={fmt(r.gameCommuters || 0)} showRaw={showRawData} rawKey="gameCommuters" style={{ fontSize: '12rem', padding: '2rem 15rem 2rem 0', width: '180rem' }} />
                         </div>
                       </div>
                     )}
@@ -931,9 +844,9 @@ export const DistrictsPanel: React.FC<Props> = ({
                                     { label: 'Highly Educated', value: r.workerHighlyEducated || 0, color: '#64b5f6' },
                                   ]} />
                                   <div style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
-                                    <StatRow label="Employees" val={`${fmt(r.workers)} / ${fmt(r.maxWorkers)}`} rawKey="workers" showRaw={showRawData} style={{ fontWeight: 'bold', color: getSafeColor('#50b8e9') }} />
+                                    <DetailRow label="Employees" value={`${fmt(r.workers)} / ${fmt(r.maxWorkers)}`} rawKey="workers" showRaw={showRawData} style={{ fontWeight: 'bold', color: getSafeColor('#50b8e9') }} />
                                     {(r.unemployed || 0) > 0 && (
-                                      <StatRow label="Unemployed (working-age)" val={fmt(r.unemployed || 0)} rawKey="unemployed" showRaw={showRawData} style={{ color: getSafeColor((r.unemploymentRate || 0) > 15 ? '#e05050' : '#ffb74d') }} />
+                                      <DetailRow label="Unemployed (working-age)" value={fmt(r.unemployed || 0)} rawKey="unemployed" showRaw={showRawData} style={{ color: getSafeColor((r.unemploymentRate || 0) > 15 ? '#e05050' : '#ffb74d') }} />
                                     )}
                                   </div>
                                 </div>
@@ -941,14 +854,14 @@ export const DistrictsPanel: React.FC<Props> = ({
                             case 'property':
                               return (
                                 <>
-                                  <StatRow label="Res (Pure)" val={fmt(r.resProp || 0)} rawKey="resProp" showRaw={showRawData} />
-                                  <StatRow label="Mixed Housing" val={fmt(r.mixedProp || 0)} rawKey="mixedProp" showRaw={showRawData} />
-                                  <StatRow label="Commercial" val={fmt(r.comProp || 0)} rawKey="comProp" showRaw={showRawData} />
-                                  <StatRow label="Industrial" val={fmt(r.indProp || 0)} rawKey="indProp" showRaw={showRawData} />
-                                  <StatRow label="Office" val={fmt(r.offProp || 0)} rawKey="offProp" showRaw={showRawData} />
-                                  <StatRow label="Storage" val={fmt(r.storProp || 0)} rawKey="storProp" showRaw={showRawData} />
+                                  <DetailRow label="Res (Pure)" value={fmt(r.resProp || 0)} rawKey="resProp" showRaw={showRawData} />
+                                  <DetailRow label="Mixed Housing" value={fmt(r.mixedProp || 0)} rawKey="mixedProp" showRaw={showRawData} />
+                                  <DetailRow label="Commercial" value={fmt(r.comProp || 0)} rawKey="comProp" showRaw={showRawData} />
+                                  <DetailRow label="Industrial" value={fmt(r.indProp || 0)} rawKey="indProp" showRaw={showRawData} />
+                                  <DetailRow label="Office" value={fmt(r.offProp || 0)} rawKey="offProp" showRaw={showRawData} />
+                                  <DetailRow label="Storage" value={fmt(r.storProp || 0)} rawKey="storProp" showRaw={showRawData} />
                                   <div style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
-                                    <StatRow label="Total Properties" val={fmt((r.resProp || 0) + (r.comProp || 0) + (r.indProp || 0) + (r.offProp || 0) + (r.storProp || 0) + (r.mixedProp || 0))} style={{ fontWeight: 'bold', color: getSafeColor('#8bdb46') }} />
+                                    <DetailRow label="Total Properties" value={fmt((r.resProp || 0) + (r.comProp || 0) + (r.indProp || 0) + (r.offProp || 0) + (r.storProp || 0) + (r.mixedProp || 0))} style={{ fontWeight: 'bold', color: getSafeColor('#8bdb46') }} />
                                   </div>
                                 </>
                               );
@@ -965,25 +878,25 @@ export const DistrictsPanel: React.FC<Props> = ({
                                     ]} />
                                   </div>
                                   <div style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'rgba(255,255,255,0.08)', marginTop: '8rem', paddingTop: '8rem' }}>
-                                    <StatRow label="Residents" val={fmt(r.residents)} rawKey="residents" showRaw={showRawData} />
-                                    <StatRow label="Students" val={fmt(r.students)} rawKey="students" showRaw={showRawData} />
-                                    <StatRow label="Tourists" val={fmt(r.tourists)} rawKey="tourists" showRaw={showRawData} />
-                                    <StatRow label="Homeless" val={fmt(r.homeless)} rawKey="homeless" showRaw={showRawData} />
+                                    <DetailRow label="Residents" value={fmt(r.residents)} rawKey="residents" showRaw={showRawData} />
+                                    <DetailRow label="Students" value={fmt(r.students)} rawKey="students" showRaw={showRawData} />
+                                    <DetailRow label="Tourists" value={fmt(r.tourists)} rawKey="tourists" showRaw={showRawData} />
+                                    <DetailRow label="Homeless" value={fmt(r.homeless)} rawKey="homeless" showRaw={showRawData} />
                                   </div>
                                 </>
                               );
                             case 'household':
                               return (
                                 <>
-                                  <StatRow label="Current" val={fmt(r.households)} rawKey="households" showRaw={showRawData} />
-                                  <StatRow label="Capacity" val={fmt(r.householdCap)} rawKey="householdCap" showRaw={showRawData} />
+                                  <DetailRow label="Current" value={fmt(r.households)} rawKey="households" showRaw={showRawData} />
+                                  <DetailRow label="Capacity" value={fmt(r.householdCap)} rawKey="householdCap" showRaw={showRawData} />
                                   <div style={{ height: '12rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3rem', marginTop: '10rem', overflow: 'hidden' }}>
                                     <div style={{ width: `${Math.min(100, (r.households / (r.householdCap || 1)) * 100)}%`, height: '100%', backgroundColor: getSafeColor('#50b8e9') }} />
                                   </div>
                                   <div style={{ marginTop: '10rem' }}>
-                                    <StatRow label="Avg Wealth" val={wealthLabel(r.avgWealth).label} rawKey="avgWealth" showRaw={showRawData} style={{ color: getSafeColor(wealthLabel(r.avgWealth).color) }} />
-                                    <StatRow label="Avg Income" val={fmt(r.avgIncome)} rawKey="avgIncome" showRaw={showRawData} />
-                                    <StatRow label="Avg Rent" val={fmt(r.avgRent)} rawKey="avgRent" showRaw={showRawData} />
+                                    <DetailRow label="Avg Wealth" value={wealthLabel(r.avgWealth).label} rawKey="avgWealth" showRaw={showRawData} style={{ color: getSafeColor(wealthLabel(r.avgWealth).color) }} />
+                                    <DetailRow label="Avg Income" value={fmt(r.avgIncome)} rawKey="avgIncome" showRaw={showRawData} />
+                                    <DetailRow label="Avg Rent" value={fmt(r.avgRent)} rawKey="avgRent" showRaw={showRawData} />
                                   </div>
                                 </>
                               );
@@ -1014,10 +927,10 @@ export const DistrictsPanel: React.FC<Props> = ({
                             case 'health':
                               return (
                                 <>
-                                  <StatRow label="Health/Safety" val={r.sick > 0 ? `${fmt(r.sick)} Sick` : 'Healthy'} rawKey="sick" showRaw={showRawData} style={{ color: getSafeColor(r.sick > 0 ? '#e57373' : '#81c784') }} />
-                                  <StatRow label="Crime Risk" val={fmt(Math.round(r.totalCrime / 100))} rawKey="totalCrime" showRaw={showRawData} style={{ color: getSafeColor(r.totalCrime > 1000 ? '#ffb74d' : 'inherit') }} />
-                                  <StatRow label="Land Value" val={r.landValueSamples ? fmt(r.totalLandValue! / r.landValueSamples) : 0} rawKey="totalLandValue" showRaw={showRawData} />
-                                  <StatRow label="Avg Level" val={(r.buildingLevelSamples ? (r.buildingLevelSum! / r.buildingLevelSamples).toFixed(1) : 0)} rawKey="buildingLevelSum" showRaw={showRawData} />
+                                  <DetailRow label="Health/Safety" value={r.sick > 0 ? `${fmt(r.sick)} Sick` : 'Healthy'} rawKey="sick" showRaw={showRawData} style={{ color: getSafeColor(r.sick > 0 ? '#e57373' : '#81c784') }} />
+                                  <DetailRow label="Crime Risk" value={fmt(Math.round(r.totalCrime / 100))} rawKey="totalCrime" showRaw={showRawData} style={{ color: getSafeColor(r.totalCrime > 1000 ? '#ffb74d' : 'inherit') }} />
+                                  <DetailRow label="Land Value" value={r.landValueSamples ? fmt(r.totalLandValue! / r.landValueSamples) : 0} rawKey="totalLandValue" showRaw={showRawData} />
+                                  <DetailRow label="Avg Level" value={(r.buildingLevelSamples ? (r.buildingLevelSum! / r.buildingLevelSamples).toFixed(1) : 0)} rawKey="buildingLevelSum" showRaw={showRawData} />
                                 </>
                               );
 
@@ -1027,9 +940,9 @@ export const DistrictsPanel: React.FC<Props> = ({
                                   {policyPrefabs.map(pol => {
                                     if (r.isCity && !pol.isCity) return null;
                                     if (!r.isCity && !pol.isDistrict) return null;
-                                    const ap = r.activePolicies.find(p => p.k === pol.entityKey);
+                                    const ap = r.policies.find((p: ActivePolicy) => p.k === pol.entityKey);
                                     const on = !!ap;
-                                    const activeConflicting = getConflictingActivePolicies(pol.name, r.activePolicies, policyPrefabs);
+                                    const activeConflicting = getConflictingActivePolicies(pol.name, r.policies, policyPrefabs);
                                     const hasConflict = activeConflicting.length > 0;
                                     return (
                                       <div key={pol.entityKey} className={`dp-inline-policy-icon ${on ? 'active' : ''} ${hasConflict ? 'conflict' : ''} dp-policy-wrap`}
@@ -1048,9 +961,30 @@ export const DistrictsPanel: React.FC<Props> = ({
                           }
                         };
 
+                        const cardActions = (
+                          <>
+                            <div className="dp-card-move-btn" onClick={() => handleMove(card.id, -1)} title="Move Left/Up">&lt;</div>
+                            <div className="dp-card-move-btn" onClick={() => handleMove(card.id, 1)} title="Move Right/Down">&gt;</div>
+                            <div className="dp-card-move-btn" style={{ marginLeft: '10rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, -100)} title="Move to Top">TOP</div>
+                            <div className="dp-card-move-btn" style={{ marginLeft: '4rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, 100)} title="Move to Bottom">BTM</div>
+                          </>
+                        );
+
                         return (
                           <ErrorBoundary key={card.id} name={`DistrictDashboard:${card.id}`}>
-                            <div className="dp-dashboard-card" draggable
+                            <StatCard
+                              layout="card"
+                              title={card.title}
+                              icon={cardIcons[card.id] || (
+                                <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                                  <line x1="18" y1="20" x2="18" y2="10" />
+                                  <line x1="12" y1="20" x2="12" y2="4" />
+                                  <line x1="6" y1="20" x2="6" y2="14" />
+                                </svg>
+                              )}
+                              actions={cardActions}
+                              className={`dp-dashboard-card${card.id === 'summary' ? ' summary' : ''}`}
+                              draggable
                               onDragStart={() => { dragSource.current = card.id; }}
                               onDragOver={(e) => e.preventDefault()}
                               onMouseEnter={() => {
@@ -1065,31 +999,10 @@ export const DistrictsPanel: React.FC<Props> = ({
                                   return newList;
                                 });
                               }}
-                              onDragEnd={() => { dragSource.current = null; }}>
-                              <div className="dp-card-header">
-                                <div className="dp-card-title">
-                                  <span style={{ marginRight: '10rem', display: 'flex', alignItems: 'center' }}>
-                                    {cardIcons[card.id] || (
-                                      <svg width="20rem" height="20rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                                        <line x1="18" y1="20" x2="18" y2="10" />
-                                        <line x1="12" y1="20" x2="12" y2="4" />
-                                        <line x1="6" y1="20" x2="6" y2="14" />
-                                      </svg>
-                                    )}
-                                  </span>
-                                  {card.title}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                  <div className="dp-card-move-btn" onClick={() => handleMove(card.id, -1)} title="Move Left/Up">&lt;</div>
-                                  <div className="dp-card-move-btn" onClick={() => handleMove(card.id, 1)} title="Move Right/Down">&gt;</div>
-                                  <div className="dp-card-move-btn" style={{ marginLeft: '10rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, -100)} title="Move to Top">TOP</div>
-                                  <div className="dp-card-move-btn" style={{ marginLeft: '4rem', fontSize: '8rem', padding: '0 4rem' }} onClick={() => handleMove(card.id, 100)} title="Move to Bottom">BTM</div>
-                                </div>
-                              </div>
-                              <div className="dp-card-content">
-                                {renderContent()}
-                              </div>
-                            </div>
+                              onDragEnd={() => { dragSource.current = null; }}
+                            >
+                              {renderContent()}
+                            </StatCard>
                           </ErrorBoundary>
                         );
                       })}

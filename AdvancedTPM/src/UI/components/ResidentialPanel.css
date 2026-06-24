@@ -68,7 +68,7 @@
 
 /* Building table wrapper */
 .res-bldg-table { display:flex; flex-direction:column; flex: 1; min-height: 0; background:transparent; border:none; border-radius:0; overflow:hidden; }
-.res-bldg-header { display:flex; align-items:center; padding:6rem 24rem 6rem 10rem; background:rgba(30,44,64,1); font-size:11rem; text-transform:uppercase; color:rgba(255,255,255,0.55); font-weight:700; flex-shrink:0; border-bottom: 2rem solid rgba(93,128,170,0.3); }
+
 
 /* Building column widths */
 .res-bcol-address   { flex:1; min-width:0; display:flex; align-items:center; overflow:hidden; }
@@ -87,9 +87,7 @@
 .res-bldg-body { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; padding-right:14rem; }
 
 /* Building rows */
-.res-bldg-row { display:flex; align-items:center; padding:5rem 10rem; border-top:1rem solid rgba(255,255,255,0.04); font-size:12rem; cursor:pointer; }
-.res-bldg-row-alt { background:rgba(255,255,255,0.02); }
-.res-bldg-row:hover { background:rgba(80,184,233,0.08); }
+
 .res-bldg-row-selected {
   border-left: 2rem solid #8bdb46;
   background: rgba(139, 219, 70, 0.08) !important;
@@ -101,15 +99,11 @@
 .res-row-icon { width:24rem; height:24rem; margin-right:6rem; flex-shrink:0; vertical-align:middle; }
 .res-signature-badge { color:#f0c040; margin-right:4rem; font-size:18rem; flex-shrink:0; }
 .res-level-badge { display:flex; padding:1rem 4rem; background:rgba(255,255,255,0.08); border-radius:2rem; font-size:11rem; color:rgba(255,255,255,0.75); }
-.res-locate-btn { padding:2rem 7rem; font-size:10rem; font-weight:600; background:rgba(80,184,233,0.2); border:1rem solid rgba(80,184,233,0.4); color:#50b8e9; border-radius:2rem; cursor:pointer; }
-.res-locate-btn:hover { background:rgba(80,184,233,0.35); }
+
 
 /* Expanded detail row */
 .res-bldg-detail-row { padding:8rem 10rem 8rem 24rem; background:rgba(12,18,28,0.7); border-top:1rem solid rgba(255,255,255,0.04); }
-.res-bldg-detail-grid { display:flex; flex-wrap:wrap; }
-.res-bldg-detail-grid > * { width:200rem; margin-right:8rem; margin-bottom:4rem; }
-.res-bldg-detail-label { font-size:11rem; color:rgba(255,255,255,0.5); margin-right:4rem; text-transform:uppercase; font-weight:700; }
-.res-bldg-detail-value { font-size:12rem; color:rgba(255,255,255,0.85); }
+
 
 .res-entity-id-header {
   margin-bottom: 6rem;
@@ -157,16 +151,6 @@
   color: #fff;
 }
 
-.res-expand-arrow {
-  display: inline-block;
-  width: 12rem;
-  margin-right: 4rem;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 11rem;
-  transition: transform 0.2s ease, color 0.15s;
-}
-.res-bldg-row:hover .res-expand-arrow {
-  color: #fff;
-}
+
 
 

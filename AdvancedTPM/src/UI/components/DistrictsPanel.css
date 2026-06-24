@@ -9,21 +9,7 @@
 
 /* Table Header */
 /* Table Header */
-.dp-header {
-  display: flex;
-  align-items: center;
-  padding: 6rem 10rem;
-  background: rgba(18, 28, 42, 0.95);
-  border-bottom: 2rem solid rgba(93, 128, 170, 0.3);
-  font-size: 11rem;
-  font-weight: 700;
-  color: rgba(200, 220, 240, 0.8);
-  text-transform: uppercase;
-  letter-spacing: 0.5rem;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 100;
-}
+
 
 
 .dp-header-settings {
@@ -273,18 +259,7 @@
 }
 
 /* Row */
-.dp-row {
-  display: flex;
-  align-items: stretch;
-  padding: 4rem 10rem;
-  border-bottom: 1rem solid rgba(255, 255, 255, 0.05);
-  cursor: pointer;
-  transition: background 0.15s;
-}
 
-.dp-row:hover {
-  background: rgba(80, 184, 233, 0.1);
-}
 
 .dp-row-city {
   background: rgba(80, 184, 233, 0.12);
@@ -295,10 +270,7 @@
   background: rgba(80, 184, 233, 0.18);
 }
 
-.dp-row-expanded {
-  background: rgba(80, 184, 233, 0.05) !important;
-  border-left: 2rem solid #50b8e9;
-}
+
 
 /* Rename UI — only in expanded section */
 .dp-rename-wrap {
@@ -356,16 +328,7 @@
   color: #50b8e9;
 }
 
-.dp-arrow {
-  display: block;
-  font-size: 8rem;
-  color: rgba(255, 255, 255, 0.3);
-  transition: transform 0.2s, color 0.2s;
-}
 
-.dp-row-expanded .dp-arrow {
-  color: #50b8e9;
-}
 
 /* Row-level policy icons (compact in the row) */
 .dp-inline-policies-row {
@@ -441,22 +404,7 @@
 }
 
 /* GO Button */
-.dp-go-btn {
-  background: rgba(80, 184, 233, 0.15);
-  border: 1rem solid rgba(80, 184, 233, 0.4);
-  border-radius: 3rem;
-  color: #50b8e9;
-  padding: 2rem 6rem;
-  font-size: 10rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: all 0.15s;
-}
 
-.dp-go-btn:hover {
-  background: rgba(80, 184, 233, 0.3);
-  color: #fff;
-}
 
 /* Expanded Area */
 .dp-expanded-row {
