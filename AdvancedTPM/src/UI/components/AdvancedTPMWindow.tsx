@@ -661,26 +661,29 @@ districtPoliciesData,
   }, [businessCompanies, signatureCompaniesJson, signaturePrefabs]);
   signatureCompanies = _signatureCompanies;
 
-  // Parse residential signature buildings: entityKey|address|level|occupied|capacity|theme|assetPack|assetPackIcon|themeIcon
+  // Parse residential signature buildings
   const residentialSignatureBuildings = useMemo(() => {
     if (!residentialSignatureBuildingsData) return [];
-    return residentialSignatureBuildingsData.split(';').map((chunk) => {
-      const p = chunk.split('|');
-      if (p.length < 7) return null;
-      return {
-        entityKey: p[0] || '',
-        address: p[1] || '',
-        level: Number(p[2]) || 1,
-        occupied: Number(p[3]) || 0,
-        capacity: Number(p[4]) || 0,
-        theme: p[5] || 'Unknown',
-        assetPack: p[6] || 'Base Game',
-        assetPackIcon: p[7] || '',
-        themeIcon: p[8] || '',
-        cityEffects: p[9] || '',
-        localEffects: p[10] || '',
-      };
-    }).filter(Boolean) as Array<SigResBuilding>;
+    try {
+      const arr = JSON.parse(residentialSignatureBuildingsData);
+      if (!Array.isArray(arr)) return [];
+      return arr.map((item: any) => ({
+        entityKey: item.entityKey || '',
+        address: item.address || '',
+        level: Number(item.level) || 1,
+        occupied: Number(item.occupied) || 0,
+        capacity: Number(item.capacity) || 0,
+        theme: item.theme || 'Unknown',
+        assetPack: item.pack || 'Base Game',
+        assetPackIcon: item.packIcon || '',
+        themeIcon: item.themeIcon || '',
+        cityEffects: item.cityEffects || '',
+        localEffects: item.localEffects || '',
+      }));
+    } catch (e) {
+      console.error("Error parsing residential signature buildings payload", e);
+      return [];
+    }
   }, [residentialSignatureBuildingsData]);
 
   const serviceSignatureCount = useMemo(() => {

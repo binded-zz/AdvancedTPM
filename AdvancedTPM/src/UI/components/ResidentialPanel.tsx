@@ -92,33 +92,43 @@ const parseResidentialData = (payload: string): ResidentialData | null => {
   }
 };
 
-// Parse per-building payload: "entityKey|address|district|density|level|occupied|capacity|theme|assetPack|isSignature;..."
+// Parse JSON array of ResidentialBuildingDTO returned by the C# backend.
 const parseResidentialBuildings = (payload: string): ResidentialBuilding[] => {
   if (!payload) return [];
-  return payload.split(';').map((chunk) => {
-    const parts = chunk.split('|');
-    if (parts.length < 10) return null;
-    return {
-      entityKey: parts[0] || '',
-      address: parts[1] || '',
-      district: parts[2] || 'City',
-      density: parts[3] || 'Residential',
-      level: Number(parts[4]) || 1,
-      occupied: Number(parts[5]) || 0,
-      capacity: Number(parts[6]) || 0,
-      theme: parts[7] || 'Unknown',
-      assetPack: parts[8] || 'Base Game',
-      isSignature: parts[9] === '1',
-      assetPackIcon: parts[10] || '',
-      themeIcon: parts[11] || '',
-      cityEffects: parts[12] || '',
-      localEffects: parts[13] || '',
-      attractiveness: Number(parts[14]) || 0,
-      attractivenessFactors: parts[15] || '',
-      happiness: Number((parts[16] || '').split('^')[0]) || 50,
-      happinessFactors: (parts[16] || '').includes('^') ? parts[16].substring(parts[16].indexOf('^') + 1) : '',
-    } as ResidentialBuilding;
-  }).filter((x): x is ResidentialBuilding => x !== null);
+  try {
+    const arr = JSON.parse(payload);
+    if (!Array.isArray(arr)) return [];
+    return arr.map((item: any) => {
+      const hFactors = item.happinessFactors || '';
+      const idx = hFactors.indexOf('^');
+      const happiness = Number(idx === -1 ? hFactors : hFactors.substring(0, idx)) || 50;
+      const happinessFactorsStr = idx === -1 ? '' : hFactors.substring(idx + 1);
+
+      return {
+        entityKey: item.entityKey || '',
+        address: item.address || '',
+        district: item.district || 'City',
+        density: item.density || 'Residential',
+        level: Number(item.level) || 1,
+        occupied: Number(item.occupied) || 0,
+        capacity: Number(item.capacity) || 0,
+        theme: item.theme || 'Unknown',
+        assetPack: item.pack || 'Base Game',
+        isSignature: item.isSignature === 1,
+        assetPackIcon: item.packIcon || '',
+        themeIcon: item.themeIcon || '',
+        cityEffects: item.cityEffects || '',
+        localEffects: item.localEffects || '',
+        attractiveness: Number(item.attractiveness) || 0,
+        attractivenessFactors: item.attractivenessFactors || '',
+        happiness,
+        happinessFactors: happinessFactorsStr,
+      } as ResidentialBuilding;
+    });
+  } catch (e) {
+    console.error("Error parsing residential buildings payload", e);
+    return [];
+  }
 };
 
 const EFF_FACTOR_LABELS: Record<string, string> = {

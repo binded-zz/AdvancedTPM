@@ -87,125 +87,69 @@ const formatPackName = (name: string): string => {
 };
 
 // parseCompanies
-// Parse a semicolon-separated payload produced by the server containing a compact
-// representation of visible companies. Each chunk contains pipe-delimited fields
-// matching the serialization performed in `CompanyBrowserSystem.SerializeCompanies`.
+// Parse JSON array of CompanyDTO returned by the C# backend.
 export const parseCompanies = (payload: string): CompanyVm[] => {
   if (!payload) return [];
-  return payload
-    .split(';')
-    .map((chunk) => {
-      const parts = chunk.split('|');
-      if (parts.length < 11) return null;
-      // The backend SerializeCompanies outputs up to 36 fields:
-      // index, version, name, zoneType, resourceKey, profit, tier, workers, maxWorkers, px, py, pz, eff,
-      // in1, in2, taxR, bLevel, effDetails, brandName, bldgAddr, happiness, producesGarbage, producesCrime,
-      // producesMail, needsElectricity, needsWater, electricityConsumption, waterConsumption, garbageAccumulation,
-      // mailAccumulation, crimeProbability, district, theme, assetPack, companyKind, isSignature
-
-      const getVal = (idx: number) => parts[idx] || '';
-
-      const entityPart = getVal(0);
-      const name = getVal(1);
-      const zoneType = getVal(2);
-      const resourceKey = getVal(3);
-      const profit = getVal(4);
-      const tier = getVal(5);
-      const workers = getVal(6);
-      const maxWorkers = getVal(7);
-      const px = getVal(8);
-      const py = getVal(9);
-      const pz = getVal(10);
-      const eff = getVal(11);
-      const in1 = getVal(12);
-      const in2 = getVal(13);
-      const taxR = getVal(14);
-      const bLevel = getVal(15);
-      const effDetails = getVal(16);
-      const brandName = getVal(17);
-      const bldgAddr = getVal(18);
-      const producesGarbage = getVal(20);
-      const producesCrime = getVal(21);
-      const producesMail = getVal(22);
-      const needsElectricity = getVal(23);
-      const needsWater = getVal(24);
-      const electricityConsumption = getVal(25);
-      const waterConsumption = getVal(26);
-      const garbageAccumulation = getVal(27);
-      const mailAccumulation = getVal(28);
-      const crimeProbability = getVal(29);
-      const district = getVal(30);
-      const theme = getVal(31);
-      const assetPack = getVal(32);
-      const assetPackIcon = getVal(33);
-      const companyKind = getVal(34);
-      const isSignature = getVal(35);
-      const buildingEntityPart = getVal(36);
-      const iconUrl = getVal(37);
-      const nativePackIcon = getVal(38);
-      const themeIcon = getVal(39);
-      const storageAmount = getVal(40);
-      const storageCapacity = getVal(41);
-      const allowedResources = getVal(42);
-      const cityEffects = getVal(43);
-      const localEffects = getVal(44);
-      const attractiveness = getVal(45);
-      const attractivenessFactors = getVal(46);
-
-      const [idx, ver] = (entityPart || '').split(',');
-      const [bIdx, bVer] = (buildingEntityPart || '').split(',');
+  try {
+    const arr = JSON.parse(payload);
+    if (!Array.isArray(arr)) return [];
+    return arr.map((item: any) => {
+      const [idx, ver] = (item.entityKey || '').split(',');
+      const [bIdx, bVer] = (item.bldgKey || '').split(',');
       return {
         entityIndex: Number(idx) || 0,
         entityVersion: Number(ver) || 0,
-        name: name || 'Unknown',
-        zoneType: zoneType || 'Unknown',
-        resourceKey: resourceKey || '',
-        profit: Number(profit) || 0,
-        profitabilityTier: tier || 'Unknown',
-        workers: Number(workers) || 0,
-        maxWorkers: Number(maxWorkers) || 0,
-        posX: Number(px) || 0,
-        posY: Number(py) || 0,
-        posZ: Number(pz) || 0,
-        efficiency: Number(eff) || 100,
-        inputResource1: in1 || '',
-        inputResource2: in2 || '',
-        taxRate: Number(taxR) || 0,
-        buildingLevel: Number(bLevel) || 1,
-        efficiencyDetails: effDetails || '',
-        brandName: brandName || '',
-        buildingAddress: bldgAddr || '',
-        producesGarbage: Number(producesGarbage) === 1,
-        producesCrime: Number(producesCrime) === 1,
-        producesMail: Number(producesMail) === 1,
-        needsElectricity: Number(needsElectricity) === 1,
-        needsWater: Number(needsWater) === 1,
-        electricityConsumption: Number(electricityConsumption) || 0,
-        waterConsumption: Number(waterConsumption) || 0,
-        garbageAccumulation: Number(garbageAccumulation) || 0,
-        mailAccumulation: Number(mailAccumulation) || 0,
-        crimeProbability: Number(crimeProbability) || 0,
-        district: district || 'City',
-        theme: theme || 'USA',
-        themeIcon: themeIcon || '',
-        assetPack: formatPackName(assetPack || 'Base Game'),
-        assetPackIcon: assetPackIcon || '',
-        nativePackIcon: nativePackIcon || '',
-        companyKind: companyKind || zoneType || 'Unknown',
-        isSignature: Number(isSignature) === 1,
+        name: item.name || 'Unknown',
+        zoneType: item.zoneType || 'Unknown',
+        resourceKey: item.resourceKey || '',
+        profit: Number(item.profit) || 0,
+        profitabilityTier: item.tier || 'Unknown',
+        workers: Number(item.workers) || 0,
+        maxWorkers: Number(item.maxWorkers) || 0,
+        posX: Number(item.px) || 0,
+        posY: Number(item.py) || 0,
+        posZ: Number(item.pz) || 0,
+        efficiency: Number(item.eff) || 100,
+        inputResource1: item.in1 || '',
+        inputResource2: item.in2 || '',
+        taxRate: Number(item.taxR) || 0,
+        buildingLevel: Number(item.bLevel) || 1,
+        efficiencyDetails: item.effDetails || '',
+        brandName: item.brandName || '',
+        buildingAddress: item.bldgAddr || '',
+        producesGarbage: item.g === 1,
+        producesCrime: item.c === 1,
+        producesMail: item.m === 1,
+        needsElectricity: item.e === 1,
+        needsWater: item.w === 1,
+        electricityConsumption: Number(item.eCons) || 0,
+        waterConsumption: Number(item.wCons) || 0,
+        garbageAccumulation: Number(item.gAccum) || 0,
+        mailAccumulation: Number(item.mAccum) || 0,
+        crimeProbability: Number(item.cProb) || 0,
+        district: item.district || 'City',
+        theme: item.theme || 'USA',
+        themeIcon: item.themeIcon || '',
+        assetPack: formatPackName(item.pack || 'Base Game'),
+        assetPackIcon: item.packIcon || '',
+        nativePackIcon: item.nativePackIcon || '',
+        companyKind: item.kind || item.zoneType || 'Unknown',
+        isSignature: item.isSignature === 1,
         buildingIndex: Number(bIdx) || 0,
         buildingVersion: Number(bVer) || 0,
-        iconUrl: iconUrl || '',
-        storageAmount: Number(storageAmount) || 0,
-        storageCapacity: Number(storageCapacity) || 0,
-        allowedResources: allowedResources || '',
-        cityEffects: cityEffects || '',
-        localEffects: localEffects || '',
-        attractiveness: Number(attractiveness) || 0,
-        attractivenessFactors: attractivenessFactors || '',
+        iconUrl: item.iconUrl || '',
+        storageAmount: Number(item.storageAmount) || 0,
+        storageCapacity: Number(item.storageCapacity) || 0,
+        allowedResources: item.allowedResources || '',
+        cityEffects: item.cityEffects || '',
+        localEffects: item.localEffects || '',
+        attractiveness: Number(item.attractiveness) || 0,
       } as CompanyVm;
-    })
-    .filter((x): x is CompanyVm => x !== null);
+    });
+  } catch (e) {
+    console.error("Error parsing companies payload", e);
+    return [];
+  }
 };
 
 type SortField = 'name' | 'zoneType' | 'resourceKey' | 'profit' | 'profitabilityTier' | 'workers' | 'tax' | 'lv';
@@ -398,38 +342,16 @@ const parseSummary = (summaryStr: string): ParsedSummary => {
   if (!summaryStr) return defaultSummary;
 
   try {
-    const parts = summaryStr.split('|');
-    if (parts.length < 5) return defaultSummary;
-
-    const counts = parts[0].split(',');
-    const packSection = parts[1];
-    const themeSection = parts[2];
-    const districtSection = parts[3];
-    const rkSection = parts[4];
-
-    const packs = packSection ? packSection.split(';').map(p => {
-      const idx = p.indexOf(':');
-      if (idx === -1) return { name: p, icon: '' };
-      return { name: p.substring(0, idx), icon: p.substring(idx + 1) };
-    }).filter(p => !!p.name) : [];
-
-    const themes = themeSection ? themeSection.split(';').filter(Boolean) : [];
-    const districts = districtSection ? districtSection.split(';').filter(Boolean) : [];
-    
-    const resourceKinds = rkSection ? rkSection.split(';').map(item => {
-      const sub = item.split(',');
-      return { zone: sub[0] || '', resourceKey: sub[1] || '', companyKind: sub[2] || '' };
-    }).filter(x => !!x.zone) : [];
-
+    const obj = JSON.parse(summaryStr);
     return {
-      total: Number(counts[0]) || 0,
-      healthy: Number(counts[1]) || 0,
-      struggling: Number(counts[2]) || 0,
-      bankrupt: Number(counts[3]) || 0,
-      packs,
-      themes,
-      districts,
-      resourceKinds,
+      total: Number(obj.total) || 0,
+      healthy: Number(obj.healthy) || 0,
+      struggling: Number(obj.struggling) || 0,
+      bankrupt: Number(obj.bankrupt) || 0,
+      packs: Array.isArray(obj.packs) ? obj.packs : [],
+      themes: Array.isArray(obj.themes) ? obj.themes : [],
+      districts: Array.isArray(obj.districts) ? obj.districts : [],
+      resourceKinds: Array.isArray(obj.resourceKinds) ? obj.resourceKinds : [],
     };
   } catch (e) {
     console.error("Error parsing company summary", e);
@@ -505,19 +427,23 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
   useEffect(() => {
     const happinessData = getSafeValue((window as any)._uiBindings?.taxProduction?.companyHappinessData, '');
     if (!happinessData || happinessData.length === 0) return;
-    const parts = happinessData.split('|');
-    if (parts.length < 2) return;
-    const key = parts[0];
-    const pairs = parts[1].split(',').map((p: string) => p.trim()).filter((p: string) => p.length > 0);
-    const map: Record<string, number> = {};
-    pairs.forEach((pair: string) => {
-      const [k, v] = pair.split(':');
-      if (!k) return;
-      const num = Number(v || 0);
-      map[k] = isNaN(num) ? 0 : num;
-    });
-    setHappinessMap((prev) => ({ ...prev, [key]: map }));
-    setHappinessLoading((prev) => { const np = { ...prev }; delete np[key]; return np; });
+    try {
+      const obj = JSON.parse(happinessData);
+      if (obj && obj.entityKey) {
+        const key = obj.entityKey;
+        const map: Record<string, number> = {};
+        if (obj.factors) {
+          Object.keys(obj.factors).forEach((k) => {
+            const num = Number(obj.factors[k] || 0);
+            map[k] = isNaN(num) ? 0 : num;
+          });
+        }
+        setHappinessMap((prev) => ({ ...prev, [key]: map }));
+        setHappinessLoading((prev) => { const np = { ...prev }; delete np[key]; return np; });
+      }
+    } catch (e) {
+      console.error("Error parsing company happiness data", e);
+    }
   }, [(window as any)._uiBindings?.taxProduction?.companyHappinessData]);
 
   const handleSort = (field: SortField) => {

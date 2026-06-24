@@ -12,6 +12,8 @@ using System.Reflection;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Newtonsoft.Json;
+using AdvancedTPM.Systems;
 
 // Alias to disambiguate from Unity.Transforms
 using GameTransform = Game.Objects.Transform;
@@ -112,7 +114,6 @@ namespace AdvancedTPM
         private readonly Dictionary<Resource, (float sum, int count)> _resourceProfitSums = new Dictionary<Resource, (float sum, int count)>();
         private readonly List<string> _sigKeyBuffer = new List<string>(64);
         private readonly List<string> _efficiencyFactorParts = new List<string>(16);
-        private readonly System.Text.StringBuilder _sb = new System.Text.StringBuilder(128 * 1024);
         private static readonly Resource[] _allResources = (Resource[])Enum.GetValues(typeof(Resource));
 
         // Queries
@@ -321,27 +322,38 @@ namespace AdvancedTPM
                     }
                 }
 
-                // Format: totalCount,healthyCount,strugglingCount,bankruptCount|pack1:icon1;pack2:icon2|theme1;theme2|district1;district2|zone1,res1,kind1;zone2,res2,kind2
-                var summarySb = new System.Text.StringBuilder(16 * 1024);
-                summarySb.Append(totalCount).Append(',')
-                         .Append(healthyCount).Append(',')
-                         .Append(strugglingCount).Append(',')
-                         .Append(bankruptCount).Append('|');
+                var summaryDto = new CompanySummaryDTO
+                {
+                    total = totalCount,
+                    healthy = healthyCount,
+                    struggling = strugglingCount,
+                    bankrupt = bankruptCount,
+                    packs = new List<PackSummaryDTO>(),
+                    themes = new List<string>(themes),
+                    districts = new List<string>(districts),
+                    resourceKinds = new List<ResourceKindDTO>()
+                };
 
-                bool firstPack = true;
                 foreach (var kvp in packs)
                 {
-                    if (!firstPack) summarySb.Append(';');
-                    firstPack = false;
-                    summarySb.Append(kvp.Key).Append(':').Append(kvp.Value);
+                    summaryDto.packs.Add(new PackSummaryDTO { name = kvp.Key, icon = kvp.Value });
                 }
-                summarySb.Append('|');
 
-                summarySb.Append(string.Join(";", themes)).Append('|');
-                summarySb.Append(string.Join(";", districts)).Append('|');
-                summarySb.Append(string.Join(";", resourceKinds));
+                foreach (var rk in resourceKinds)
+                {
+                    var rkParts = rk.Split(',');
+                    if (rkParts.Length >= 3)
+                    {
+                        summaryDto.resourceKinds.Add(new ResourceKindDTO
+                        {
+                            zone = rkParts[0],
+                            resourceKey = rkParts[1],
+                            companyKind = rkParts[2]
+                        });
+                    }
+                }
 
-                string summaryStr = summarySb.ToString();
+                string summaryStr = JsonConvert.SerializeObject(summaryDto);
                 if (summaryStr != m_LastCompanyBrowserSummary || justOpened)
                 {
                     _companyBrowserSummary.Update(summaryStr);
@@ -1443,9 +1455,12 @@ namespace AdvancedTPM
 
                 // Build payload
                 string key = companyEntity.Index + "," + companyEntity.Version;
-                var entries = new List<string>();
-                foreach (var kv in factorMap) entries.Add(string.Format(CultureInfo.InvariantCulture, "{0}:{1:0.##}", kv.Key, kv.Value));
-                var payload = key + "|" + string.Join(",", entries);
+                var happinessDto = new CompanyHappinessDTO
+                {
+                    entityKey = key,
+                    factors = new Dictionary<string, float>(factorMap)
+                };
+                var payload = JsonConvert.SerializeObject(happinessDto);
 
                 long ck = (((long)companyEntity.Index) << 32) | (uint)companyEntity.Version;
                 _happinessCachePayload[ck] = payload;
@@ -1460,64 +1475,62 @@ namespace AdvancedTPM
 
         private string SerializeCompanies(List<CompanyInfo> companies)
         {
-            if (companies.Count == 0) return "";
+            if (companies.Count == 0) return "[]";
 
-            // Format: entityIndex,entityVersion|name|zoneType|resourceKey|profit|tier|workers|maxWorkers|posX|posY|posZ|efficiency|input1|input2|taxRate|buildingLevel|efficiencyDetails|brandName|buildingAddress|happiness|g|c|m|e|w|eCons|wCons|gAccum|mAccum|cProb|district|theme|pack|kind|isSignature
-            _sb.Clear();
-            bool first = true;
+            var dtoList = new List<CompanyDTO>(companies.Count);
             foreach (var c in companies)
             {
-                if (!first) _sb.Append(';');
-                first = false;
-
-                _sb.Append(c.Entity.Index).Append(',').Append(c.Entity.Version).Append('|')
-                   .Append(EscapePipe(c.Name ?? "Unknown")).Append('|')
-                   .Append(c.ZoneType).Append('|')
-                   .Append(c.ResourceKey ?? "").Append('|')
-                   .Append(c.Profit).Append('|')
-                   .Append(c.ProfitabilityTier).Append('|')
-                   .Append(c.CurrentWorkers).Append('|')
-                   .Append(c.MaxWorkers).Append('|')
-                   .Append(((int)c.Position.x).ToString(CultureInfo.InvariantCulture)).Append('|')
-                   .Append(((int)c.Position.y).ToString(CultureInfo.InvariantCulture)).Append('|')
-                   .Append(((int)c.Position.z).ToString(CultureInfo.InvariantCulture)).Append('|')
-                   .Append(c.Efficiency).Append('|')
-                   .Append(c.InputResource1 ?? "").Append('|')
-                   .Append(c.InputResource2 ?? "").Append('|')
-                   .Append(c.TaxRate).Append('|')
-                   .Append(c.BuildingLevel).Append('|')
-                   .Append(c.EfficiencyDetails ?? "").Append('|')
-                   .Append(EscapePipe(c.BrandName ?? "")).Append('|')
-                   .Append(EscapePipe(c.BuildingAddress ?? "")).Append('|')
-                   .Append(0).Append('|')
-                   .Append(c.ProducesGarbage ? 1 : 0).Append('|')
-                   .Append(c.ProducesCrime ? 1 : 0).Append('|')
-                   .Append(c.ProducesMail ? 1 : 0).Append('|')
-                   .Append(c.NeedsElectricity ? 1 : 0).Append('|')
-                   .Append(c.NeedsWater ? 1 : 0).Append('|')
-                   .Append(c.ElectricityConsumption.ToString(CultureInfo.InvariantCulture)).Append('|')
-                   .Append(c.WaterConsumption.ToString(CultureInfo.InvariantCulture)).Append('|')
-                   .Append(c.GarbageAccumulation.ToString(CultureInfo.InvariantCulture)).Append('|')
-                   .Append(c.MailAccumulation.ToString(CultureInfo.InvariantCulture)).Append('|')
-                   .Append(c.CrimeProbability.ToString(CultureInfo.InvariantCulture)).Append('|')
-                   .Append(EscapePipe(c.District ?? "City")).Append('|')
-                   .Append(EscapePipe(c.Theme ?? "USA")).Append('|')
-                   .Append(EscapePipe(c.AssetPack ?? "Base Game")).Append('|')
-                   .Append(EscapePipe(c.AssetPackIcon ?? "")).Append('|')
-                   .Append(EscapePipe(c.CompanyKind ?? "")).Append('|')
-                   .Append(c.IsSignature ? 1 : 0).Append('|')
-                   .Append(c.BuildingEntity.Index).Append(',').Append(c.BuildingEntity.Version).Append('|')
-                   .Append(EscapePipe(c.IconUrl ?? "")).Append('|')
-                   .Append(EscapePipe(c.NativePackIcon ?? "")).Append('|')
-                   .Append(EscapePipe(c.ThemeIcon ?? "")).Append('|')
-                   .Append(c.StorageAmount).Append('|')
-                   .Append(c.StorageCapacity).Append('|')
-                   .Append(EscapePipe(c.AllowedResources ?? "")).Append('|')
-                   .Append(EscapePipe(c.CityEffects ?? "")).Append('|')
-                   .Append(EscapePipe(c.LocalEffects ?? "")).Append('|')
-                   .Append(c.Attractiveness);
+                dtoList.Add(new CompanyDTO
+                {
+                    entityKey = c.Entity.Index + "," + c.Entity.Version,
+                    name = c.Name ?? "Unknown",
+                    zoneType = c.ZoneType,
+                    resourceKey = c.ResourceKey ?? "",
+                    profit = c.Profit,
+                    tier = c.ProfitabilityTier,
+                    workers = c.CurrentWorkers,
+                    maxWorkers = c.MaxWorkers,
+                    px = (int)c.Position.x,
+                    py = (int)c.Position.y,
+                    pz = (int)c.Position.z,
+                    eff = c.Efficiency,
+                    in1 = c.InputResource1 ?? "",
+                    in2 = c.InputResource2 ?? "",
+                    taxR = c.TaxRate,
+                    bLevel = c.BuildingLevel,
+                    effDetails = c.EfficiencyDetails ?? "",
+                    brandName = c.BrandName ?? "",
+                    bldgAddr = c.BuildingAddress ?? "",
+                    g = c.ProducesGarbage ? 1 : 0,
+                    c = c.ProducesCrime ? 1 : 0,
+                    m = c.ProducesMail ? 1 : 0,
+                    e = c.NeedsElectricity ? 1 : 0,
+                    w = c.NeedsWater ? 1 : 0,
+                    eCons = c.ElectricityConsumption,
+                    wCons = c.WaterConsumption,
+                    gAccum = c.GarbageAccumulation,
+                    mAccum = c.MailAccumulation,
+                    cProb = c.CrimeProbability,
+                    district = c.District ?? "City",
+                    theme = c.Theme ?? "USA",
+                    pack = c.AssetPack ?? "Base Game",
+                    packIcon = c.AssetPackIcon ?? "",
+                    kind = c.CompanyKind ?? "",
+                    isSignature = c.IsSignature ? 1 : 0,
+                    bldgKey = c.BuildingEntity.Index + "," + c.BuildingEntity.Version,
+                    iconUrl = c.IconUrl ?? "",
+                    nativePackIcon = c.NativePackIcon ?? "",
+                    themeIcon = c.ThemeIcon ?? "",
+                    storageAmount = c.StorageAmount,
+                    storageCapacity = c.StorageCapacity,
+                    allowedResources = c.AllowedResources ?? "",
+                    cityEffects = c.CityEffects ?? "",
+                    localEffects = c.LocalEffects ?? "",
+                    attractiveness = c.Attractiveness
+                });
             }
-            return _sb.ToString();
+
+            return JsonConvert.SerializeObject(dtoList);
         }
 
         private void RefreshSignatureCache() { }

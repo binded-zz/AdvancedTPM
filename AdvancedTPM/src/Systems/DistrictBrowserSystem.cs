@@ -23,6 +23,8 @@ using Game.Triggers;
 using Game.Agents;
 using Game.Zones;
 using Game.Objects;
+using Newtonsoft.Json;
+using AdvancedTPM.Systems;
 
 namespace AdvancedTPM
 {
@@ -860,10 +862,8 @@ namespace AdvancedTPM
         {
             if (_policyPrefabQuery.IsEmptyIgnoreFilter) return;
 
-            // Reuse pre-allocated buffer — avoids heap allocation of a new List every tick.
-            _policyBuffer.Clear();
-
             var entities = _policyPrefabQuery.ToEntityArray(Allocator.Temp);
+            var dtoList = new List<DistrictPolicyMetaDTO>(entities.Length);
             try
             {
                 for (int i = 0; i < entities.Length; i++)
@@ -872,7 +872,7 @@ namespace AdvancedTPM
                     if (_prefabSystem.TryGetPrefab<PolicyPrefab>(entity, out var prefab))
                     {
                         var key = $"{entity.Index},{entity.Version}";
-                        var name = EscapeJson(prefab.name);
+                        var name = prefab.name;
                         var icon = "";
                         try
                         {
@@ -886,16 +886,30 @@ namespace AdvancedTPM
                         bool isDistrictPolicy = _prefabSystem.EntityManager.HasComponent<DistrictOptionData>(entity) ||
                                                 _prefabSystem.EntityManager.HasComponent<DistrictModifierData>(entity);
 
-                        // Include slider metadata so the UI can show current value + range in tooltips.
                         bool hasSlider = _prefabSystem.EntityManager.HasComponent<PolicySliderData>(entity);
-                        string sliderJson = ",\"hasSlider\":false";
+                        float? sliderDefault = null;
+                        float? sliderMin = null;
+                        float? sliderMax = null;
                         if (hasSlider)
                         {
                             var sd = _prefabSystem.EntityManager.GetComponentData<PolicySliderData>(entity);
-                            sliderJson = $",\"hasSlider\":true,\"sliderDefault\":{sd.m_Default.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"sliderMin\":{sd.m_Range.min.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"sliderMax\":{sd.m_Range.max.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+                            sliderDefault = sd.m_Default;
+                            sliderMin = sd.m_Range.min;
+                            sliderMax = sd.m_Range.max;
                         }
 
-                        _policyBuffer.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{name}\",\"icon\":\"{EscapeJson(icon)}\",\"isCity\":{isCityPolicy.ToString().ToLower()},\"isDistrict\":{isDistrictPolicy.ToString().ToLower()}{sliderJson}}}");
+                        dtoList.Add(new DistrictPolicyMetaDTO
+                        {
+                            entityKey = key,
+                            name = name,
+                            icon = icon,
+                            isCity = isCityPolicy,
+                            isDistrict = isDistrictPolicy,
+                            hasSlider = hasSlider,
+                            sliderDefault = sliderDefault,
+                            sliderMin = sliderMin,
+                            sliderMax = sliderMax
+                        });
                     }
                 }
             }
@@ -904,7 +918,7 @@ namespace AdvancedTPM
                 entities.Dispose();
             }
 
-            string newPoliciesData = "[" + string.Join(",", _policyBuffer) + "]";
+            string newPoliciesData = JsonConvert.SerializeObject(dtoList);
             if (newPoliciesData != m_LastDistrictPoliciesData)
             {
                 _districtPoliciesData.Update(newPoliciesData);
@@ -1025,16 +1039,12 @@ namespace AdvancedTPM
 
         private void ProcessAndFormatDistrictData()
         {
-            // Reuse pre-allocated item buffer — no heap allocation of a new List per update.
-            _itemBuffer.Clear();
-
             DistrictStats cityStats = default;
             using (var kvp = m_ActiveStatsMap.GetKeyValueArrays(Allocator.Temp)) { for (int i = 0; i < kvp.Keys.Length; i++) cityStats.Add(kvp.Values[i]); }
 
             if (!_countHouseholdDataSystem.IsCountDataNotReady())
             {
                 var cd = _countHouseholdDataSystem.GetHouseholdCountData();
-                // Override demographic counts using the global counter
                 cityStats.children = cd.m_ChildrenCount;
                 cityStats.teens = cd.m_TeenCount;
                 cityStats.adults = cd.m_AdultCount;
@@ -1049,18 +1059,20 @@ namespace AdvancedTPM
                 cityStats.homeless = cd.m_HomelessCitizenCount;
             }
 
-            // RESTORE FULL PAYLOAD FOR CITY
-            
-            // Reuse pre-allocated active-policies buffer — avoids per-district heap allocation.
-            _activePoliciesBuffer.Clear();
-            var cityPolicies = _activePoliciesBuffer;
+            var cityPolicies = new List<DistrictPolicyDTO>();
             if (_citySystem.City != Entity.Null && EntityManager.HasBuffer<Game.Policies.Policy>(_citySystem.City))
             {
                 var policies = EntityManager.GetBuffer<Game.Policies.Policy>(_citySystem.City, true);
                 for (int i = 0; i < policies.Length; i++)
                 {
                     if ((policies[i].m_Flags & Game.Policies.PolicyFlags.Active) != 0)
-                        cityPolicies.Add($"{{\"k\":\"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}\",\"adj\":{policies[i].m_Adjustment.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}");
+                    {
+                        cityPolicies.Add(new DistrictPolicyDTO
+                        {
+                            k = $"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}",
+                            adj = policies[i].m_Adjustment
+                        });
+                    }
                 }
             }
             string cityDisplayName = _cityConfigurationSystem?.cityName;
@@ -1090,12 +1102,89 @@ namespace AdvancedTPM
             cityStats.residents = cityResidentsLive;
             int cityPureRes = math.max(0, cityStats.res - cityStats.mixedProp);
 
-            _itemBuffer.Add($"{{\"entityKey\":\"city\",\"name\":\"City\",\"isCity\":true,\"cityName\":\"{EscapeJson(cityDisplayName)}\",\"policies\":[{string.Join(",", cityPolicies)}],\"res\":{cityStats.res},\"svc\":{cityStats.svc},\"biz\":{cityPureBusiness},\"households\":{cityStats.households},\"householdCap\":{cityStats.householdCap},\"workers\":{cityStats.workers},\"maxWorkers\":{cityStats.maxWorkers},\"avgWealth\":{cityAvgWealth},\"avgIncome\":{cityAvgIncome},\"avgRent\":{cityAvgRent},\"avgHappiness\":{cityAvgHappiness},\"residents\":{cityStats.residents},\"tourists\":{cityStats.tourists},\"children\":{cityStats.children},\"teens\":{cityStats.teens},\"adults\":{cityStats.adults},\"seniors\":{cityStats.seniors},\"eduUneducated\":{cityStats.eduUneducated},\"eduPoorlyEducated\":{cityStats.eduPoorlyEducated},\"eduEducated\":{cityStats.eduEducated},\"eduWellEducated\":{cityStats.eduWellEducated},\"eduHighlyEducated\":{cityStats.eduHighlyEducated},\"workerUneducated\":{cityStats.workerUneducated},\"workerPoorlyEducated\":{cityStats.workerPoorlyEducated},\"workerEducated\":{cityStats.workerEducated},\"workerWellEducated\":{cityStats.workerWellEducated},\"workerHighlyEducated\":{cityStats.workerHighlyEducated},\"workerUneducatedMax\":{cityStats.workerUneducatedMax},\"workerPoorlyEducatedMax\":{cityStats.workerPoorlyEducatedMax},\"workerEducatedMax\":{cityStats.workerEducatedMax},\"workerWellEducatedMax\":{cityStats.workerWellEducatedMax},\"workerHighlyEducatedMax\":{cityStats.workerHighlyEducatedMax},\"elemCapacity\":{cityStats.elemCapacity},\"hsCapacity\":{cityStats.hsCapacity},\"collegeCapacity\":{cityStats.collegeCapacity},\"uniCapacity\":{cityStats.uniCapacity},\"elemEnrolled\":{cityStats.elemEnrolled},\"hsEnrolled\":{cityStats.hsEnrolled},\"collegeEnrolled\":{cityStats.collegeEnrolled},\"uniEnrolled\":{cityStats.uniEnrolled},\"elemEligible\":{(int)math.ceil(cityStats.elemEligible)},\"hsEligible\":{(int)math.ceil(cityStats.hsEligible)},\"collegeEligible\":{(int)math.ceil(cityStats.collegeEligible)},\"uniEligible\":{(int)math.ceil(cityStats.uniEligible)},\"localServices\":{cityStats.localServices},\"serviceMask\":{cityStats.serviceMask},\"propertyCount\":{cityStats.propertyCount},\"resProp\":{cityPureRes},\"comProp\":{cityStats.comProp},\"indProp\":{cityStats.indProp},\"offProp\":{cityStats.offProp},\"storProp\":{cityStats.storProp},\"mixedProp\":{cityStats.mixedProp},\"pets\":{cityStats.pets},\"deceased\":{cityStats.deceased},\"students\":{cityStats.students},\"movingAway\":{gameMovingAwayHouseholds},\"avgBuildingLevel\":{avgBuildingLevelCity},\"buildingLevelSamples\":{cityStats.buildingLevelSamples},\"totalLandValue\":{cityStats.totalLandValue},\"landValueSamples\":{cityStats.landValueSamples},\"homeless\":{cityStats.homeless},\"totalCrime\":{cityStats.totalCrime},\"upkeep\":{cityStats.upkeep},\"resourceCost\":{cityStats.resources},\"feesPaid\":{cityStats.fees},\"area\":{cityStats.area},\"happinessFactors\":[],\"gameAllCitizens\":{gameAllCitizens},\"gameTourists\":{cityStats.tourists},\"gameCommuters\":{gameCommuters},\"gameMovingAway\":{gameMovingAwayHouseholds},\"gameEmployees\":{cityStats.workers},\"unemployed\":{cityStats.unemployed}}}");
-
-            // RESTORE FULL PAYLOAD FOR DISTRICTS
-            // Reuse the pre-allocated per-district active-policies buffer — cleared per district,
-            // never allocated fresh inside the loop, eliminating the previous per-district GC churn.
-            var districtActivePolicies = _policyBuffer; // _policyBuffer is done being used above.
+            var dtoList = new List<DistrictDTO>();
+            dtoList.Add(new DistrictDTO
+            {
+                entityKey = "city",
+                name = "City",
+                isCity = true,
+                cityName = cityDisplayName,
+                policies = cityPolicies,
+                res = cityStats.res,
+                svc = cityStats.svc,
+                biz = cityPureBusiness,
+                households = cityStats.households,
+                householdCap = cityStats.householdCap,
+                workers = cityStats.workers,
+                maxWorkers = cityStats.maxWorkers,
+                avgWealth = cityAvgWealth,
+                avgIncome = cityAvgIncome,
+                avgRent = cityAvgRent,
+                avgHappiness = cityAvgHappiness,
+                residents = cityStats.residents,
+                tourists = cityStats.tourists,
+                children = cityStats.children,
+                teens = cityStats.teens,
+                adults = cityStats.adults,
+                seniors = cityStats.seniors,
+                eduUneducated = cityStats.eduUneducated,
+                eduPoorlyEducated = cityStats.eduPoorlyEducated,
+                eduEducated = cityStats.eduEducated,
+                eduWellEducated = cityStats.eduWellEducated,
+                eduHighlyEducated = cityStats.eduHighlyEducated,
+                workerUneducated = cityStats.workerUneducated,
+                workerPoorlyEducated = cityStats.workerPoorlyEducated,
+                workerEducated = cityStats.workerEducated,
+                workerWellEducated = cityStats.workerWellEducated,
+                workerHighlyEducated = cityStats.workerHighlyEducated,
+                workerUneducatedMax = cityStats.workerUneducatedMax,
+                workerPoorlyEducatedMax = cityStats.workerPoorlyEducatedMax,
+                workerEducatedMax = cityStats.workerEducatedMax,
+                workerWellEducatedMax = cityStats.workerWellEducatedMax,
+                workerHighlyEducatedMax = cityStats.workerHighlyEducatedMax,
+                elemCapacity = cityStats.elemCapacity,
+                hsCapacity = cityStats.hsCapacity,
+                collegeCapacity = cityStats.collegeCapacity,
+                uniCapacity = cityStats.uniCapacity,
+                elemEnrolled = cityStats.elemEnrolled,
+                hsEnrolled = cityStats.hsEnrolled,
+                collegeEnrolled = cityStats.collegeEnrolled,
+                uniEnrolled = cityStats.uniEnrolled,
+                elemEligible = (int)math.ceil(cityStats.elemEligible),
+                hsEligible = (int)math.ceil(cityStats.hsEligible),
+                collegeEligible = (int)math.ceil(cityStats.collegeEligible),
+                uniEligible = (int)math.ceil(cityStats.uniEligible),
+                localServices = cityStats.localServices,
+                serviceMask = (uint)cityStats.serviceMask,
+                propertyCount = cityStats.propertyCount,
+                resProp = cityPureRes,
+                comProp = cityStats.comProp,
+                indProp = cityStats.indProp,
+                offProp = cityStats.offProp,
+                storProp = cityStats.storProp,
+                mixedProp = cityStats.mixedProp,
+                pets = cityStats.pets,
+                deceased = cityStats.deceased,
+                students = cityStats.students,
+                movingAway = gameMovingAwayHouseholds,
+                avgBuildingLevel = avgBuildingLevelCity,
+                buildingLevelSamples = cityStats.buildingLevelSamples,
+                totalLandValue = (float)cityStats.totalLandValue,
+                landValueSamples = cityStats.landValueSamples,
+                homeless = cityStats.homeless,
+                totalCrime = cityStats.totalCrime,
+                upkeep = cityStats.upkeep,
+                resourceCost = cityStats.resources,
+                feesPaid = cityStats.fees,
+                area = (float)cityStats.area,
+                happinessFactors = new List<string>(),
+                gameAllCitizens = gameAllCitizens,
+                gameTourists = cityStats.tourists,
+                gameCommuters = gameCommuters,
+                gameMovingAway = gameMovingAwayHouseholds,
+                gameEmployees = cityStats.workers,
+                unemployed = cityStats.unemployed
+            });
 
             var districtEntities = _districtQuery.ToEntityArray(Allocator.Temp);
             try
@@ -1114,18 +1203,97 @@ namespace AdvancedTPM
 
                     var key = $"{e.Index},{e.Version}";
 
-                    // Clear the shared buffer — no new List<string> allocation per district.
-                    districtActivePolicies.Clear();
+                    var districtPolicies = new List<DistrictPolicyDTO>();
                     if (EntityManager.HasBuffer<Game.Policies.Policy>(e))
                     {
                         var policies = EntityManager.GetBuffer<Game.Policies.Policy>(e, true);
                         for (int i = 0; i < policies.Length; i++)
                         {
                             if ((policies[i].m_Flags & Game.Policies.PolicyFlags.Active) != 0)
-                                districtActivePolicies.Add($"{{\"k\":\"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}\",\"adj\":{policies[i].m_Adjustment.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}");
+                            {
+                                districtPolicies.Add(new DistrictPolicyDTO
+                                {
+                                    k = $"{policies[i].m_Policy.Index},{policies[i].m_Policy.Version}",
+                                    adj = policies[i].m_Adjustment
+                                });
+                            }
                         }
                     }
-                    _itemBuffer.Add($"{{\"entityKey\":\"{key}\",\"name\":\"{EscapeJson(_nameSystem.GetRenderedLabelName(e))}\",\"policies\":[{string.Join(",", districtActivePolicies)}],\"res\":{s.res},\"svc\":{s.svc},\"biz\":{dBiz},\"households\":{s.households},\"householdCap\":{s.householdCap},\"workers\":{s.workers},\"maxWorkers\":{s.maxWorkers},\"avgWealth\":{dAvgWealth},\"avgIncome\":{dAvgIncome},\"avgRent\":{dAvgRent},\"avgHappiness\":{dAvgHappiness},\"residents\":{s.residents},\"tourists\":{s.tourists},\"children\":{s.children},\"teens\":{s.teens},\"adults\":{s.adults},\"seniors\":{s.seniors},\"eduUneducated\":{s.eduUneducated},\"eduPoorlyEducated\":{s.eduPoorlyEducated},\"eduEducated\":{s.eduEducated},\"eduWellEducated\":{s.eduWellEducated},\"eduHighlyEducated\":{s.eduHighlyEducated},\"workerUneducated\":{s.workerUneducated},\"workerPoorlyEducated\":{s.workerPoorlyEducated},\"workerEducated\":{s.workerEducated},\"workerWellEducated\":{s.workerWellEducated},\"workerHighlyEducated\":{s.workerHighlyEducated},\"workerUneducatedMax\":{s.workerUneducatedMax},\"workerPoorlyEducatedMax\":{s.workerPoorlyEducatedMax},\"workerEducatedMax\":{s.workerEducatedMax},\"workerWellEducatedMax\":{s.workerWellEducatedMax},\"workerHighlyEducatedMax\":{s.workerHighlyEducatedMax},\"elemCapacity\":{s.elemCapacity},\"hsCapacity\":{s.hsCapacity},\"collegeCapacity\":{s.collegeCapacity},\"uniCapacity\":{s.uniCapacity},\"elemEnrolled\":{s.elemEnrolled},\"hsEnrolled\":{s.hsEnrolled},\"collegeEnrolled\":{s.collegeEnrolled},\"uniEnrolled\":{s.uniEnrolled},\"elemEligible\":{(int)math.ceil(s.elemEligible)},\"hsEligible\":{(int)math.ceil(s.hsEligible)},\"collegeEligible\":{(int)math.ceil(s.collegeEligible)},\"uniEligible\":{(int)math.ceil(s.uniEligible)},\"localServices\":{s.localServices},\"serviceMask\":{s.serviceMask},\"propertyCount\":{s.propertyCount},\"resProp\":{dPureRes},\"comProp\":{s.comProp},\"indProp\":{s.indProp},\"offProp\":{s.offProp},\"storProp\":{s.storProp},\"mixedProp\":{s.mixedProp},\"pets\":{s.pets},\"deceased\":{s.deceased},\"students\":{s.students},\"movingAway\":{s.movingAway},\"avgBuildingLevel\":{dAvgBuildingLevel},\"buildingLevelSamples\":{s.buildingLevelSamples},\"totalLandValue\":{s.totalLandValue},\"landValueSamples\":{s.landValueSamples},\"homeless\":{s.homeless},\"totalCrime\":{s.totalCrime},\"upkeep\":{s.upkeep},\"resourceCost\":{s.resources},\"feesPaid\":{s.fees},\"area\":{s.area},\"happinessFactors\":[],\"unemployed\":{s.unemployed}}}");
+                    dtoList.Add(new DistrictDTO
+                    {
+                        entityKey = key,
+                        name = _nameSystem.GetRenderedLabelName(e) ?? "District",
+                        policies = districtPolicies,
+                        res = s.res,
+                        svc = s.svc,
+                        biz = dBiz,
+                        households = s.households,
+                        householdCap = s.householdCap,
+                        workers = s.workers,
+                        maxWorkers = s.maxWorkers,
+                        avgWealth = dAvgWealth,
+                        avgIncome = dAvgIncome,
+                        avgRent = dAvgRent,
+                        avgHappiness = dAvgHappiness,
+                        residents = s.residents,
+                        tourists = s.tourists,
+                        children = s.children,
+                        teens = s.teens,
+                        adults = s.adults,
+                        seniors = s.seniors,
+                        eduUneducated = s.eduUneducated,
+                        eduPoorlyEducated = s.eduPoorlyEducated,
+                        eduEducated = s.eduEducated,
+                        eduWellEducated = s.eduWellEducated,
+                        eduHighlyEducated = s.eduHighlyEducated,
+                        workerUneducated = s.workerUneducated,
+                        workerPoorlyEducated = s.workerPoorlyEducated,
+                        workerEducated = s.workerEducated,
+                        workerWellEducated = s.workerWellEducated,
+                        workerHighlyEducated = s.workerHighlyEducated,
+                        workerUneducatedMax = s.workerUneducatedMax,
+                        workerPoorlyEducatedMax = s.workerPoorlyEducatedMax,
+                        workerEducatedMax = s.workerEducatedMax,
+                        workerWellEducatedMax = s.workerWellEducatedMax,
+                        workerHighlyEducatedMax = s.workerHighlyEducatedMax,
+                        elemCapacity = s.elemCapacity,
+                        hsCapacity = s.hsCapacity,
+                        collegeCapacity = s.collegeCapacity,
+                        uniCapacity = s.uniCapacity,
+                        elemEnrolled = s.elemEnrolled,
+                        hsEnrolled = s.hsEnrolled,
+                        collegeEnrolled = s.collegeEnrolled,
+                        uniEnrolled = s.uniEnrolled,
+                        elemEligible = (int)math.ceil(s.elemEligible),
+                        hsEligible = (int)math.ceil(s.hsEligible),
+                        collegeEligible = (int)math.ceil(s.collegeEligible),
+                        uniEligible = (int)math.ceil(s.uniEligible),
+                        localServices = s.localServices,
+                        serviceMask = (uint)s.serviceMask,
+                        propertyCount = s.propertyCount,
+                        resProp = dPureRes,
+                        comProp = s.comProp,
+                        indProp = s.indProp,
+                        offProp = s.offProp,
+                        storProp = s.storProp,
+                        mixedProp = s.mixedProp,
+                        pets = s.pets,
+                        deceased = s.deceased,
+                        students = s.students,
+                        movingAway = s.movingAway,
+                        avgBuildingLevel = dAvgBuildingLevel,
+                        buildingLevelSamples = s.buildingLevelSamples,
+                        totalLandValue = (float)s.totalLandValue,
+                        landValueSamples = s.landValueSamples,
+                        homeless = s.homeless,
+                        totalCrime = s.totalCrime,
+                        upkeep = s.upkeep,
+                        resourceCost = s.resources,
+                        feesPaid = s.fees,
+                        area = (float)s.area,
+                        happinessFactors = new List<string>(),
+                        unemployed = s.unemployed
+                    });
                 }
             }
             finally
@@ -1133,7 +1301,7 @@ namespace AdvancedTPM
                 districtEntities.Dispose();
             }
 
-            string newBrowserData = "[" + string.Join(",", _itemBuffer) + "]";
+            string newBrowserData = JsonConvert.SerializeObject(dtoList);
             if (newBrowserData != m_LastDistrictBrowserData)
             {
                 _districtBrowserData.Update(newBrowserData);

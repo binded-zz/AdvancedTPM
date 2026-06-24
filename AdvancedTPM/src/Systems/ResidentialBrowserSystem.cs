@@ -13,6 +13,8 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Game.Economy;
+using Newtonsoft.Json;
+using AdvancedTPM.Systems;
 
 namespace AdvancedTPM
 {
@@ -53,9 +55,9 @@ namespace AdvancedTPM
         private int m_LowEu = 0;
         private int m_MedEu = 0;
         private int m_HighEu = 0;
-        private string m_LowPacksJson = "{}";
-        private string m_MedPacksJson = "{}";
-        private string m_HighPacksJson = "{}";
+        private Dictionary<string, int> m_LowPacks = new Dictionary<string, int>();
+        private Dictionary<string, int> m_MedPacks = new Dictionary<string, int>();
+        private Dictionary<string, int> m_HighPacks = new Dictionary<string, int>();
 
         protected override void OnCreate()
         {
@@ -210,17 +212,36 @@ namespace AdvancedTPM
             catch { }
 
             // 2. Now serialize payload with the full city summary counts
-            var payload = string.Format(CultureInfo.InvariantCulture,
-                "{{\"lowTotal\":{0},\"medTotal\":{1},\"highTotal\":{2},\"lowFree\":{3},\"medFree\":{4},\"highFree\":{5},\"lowOccupied\":{6},\"medOccupied\":{7},\"highOccupied\":{8},\"avgHappiness\":{9:0.##},\"unemploymentRate\":{10:0.##},\"homelessHouseholds\":{11},\"movedInHouseholds\":{12},\"lowPlaced\":{13},\"medPlaced\":{14},\"highPlaced\":{15},\"lowUsa\":{16},\"medUsa\":{17},\"highUsa\":{18},\"lowEu\":{19},\"medEu\":{20},\"highEu\":{21},\"lowPacks\":{22},\"medPacks\":{23},\"highPacks\":{24}}}",
-                lowTotal, medTotal, highTotal,
-                lowFree, medFree, highFree,
-                lowOccupied, medOccupied, highOccupied,
-                avgHappiness, unemploymentRate,
-                homelessHouseholds, movedInHouseholds,
-                m_LowPlaced, m_MedPlaced, m_HighPlaced,
-                m_LowUsa, m_MedUsa, m_HighUsa,
-                m_LowEu, m_MedEu, m_HighEu,
-                m_LowPacksJson, m_MedPacksJson, m_HighPacksJson);
+            var summaryDto = new ResidentialSummaryDTO
+            {
+                lowTotal = lowTotal,
+                medTotal = medTotal,
+                highTotal = highTotal,
+                lowFree = lowFree,
+                medFree = medFree,
+                highFree = highFree,
+                lowOccupied = lowOccupied,
+                medOccupied = medOccupied,
+                highOccupied = highOccupied,
+                avgHappiness = avgHappiness,
+                unemploymentRate = unemploymentRate,
+                homelessHouseholds = homelessHouseholds,
+                movedInHouseholds = movedInHouseholds,
+                lowPlaced = m_LowPlaced,
+                medPlaced = m_MedPlaced,
+                highPlaced = m_HighPlaced,
+                lowUsa = m_LowUsa,
+                medUsa = m_MedUsa,
+                highUsa = m_HighUsa,
+                lowEu = m_LowEu,
+                medEu = m_MedEu,
+                highEu = m_HighEu,
+                lowPacks = m_LowPacks,
+                medPacks = m_MedPacks,
+                highPacks = m_HighPacks
+            };
+
+            var payload = JsonConvert.SerializeObject(summaryDto);
 
             if (payload != m_LastResidentialBrowserData || forceUpdate)
             {
@@ -229,21 +250,10 @@ namespace AdvancedTPM
             }
         }
 
-        private string DictionaryToJson(Dictionary<string, int> dict)
-        {
-            var items = new List<string>();
-            foreach (var kvp in dict)
-            {
-                string key = (kvp.Key ?? "Base Game").Replace("\"", "\\\"");
-                items.Add(string.Format(CultureInfo.InvariantCulture, "\"{0}\":{1}", key, kvp.Value));
-            }
-            return "{" + string.Join(",", items) + "}";
-        }
-
         private void UpdatePerBuildingData(bool forceUpdate = false)
         {
             if (_residentialBuildingsData == null || _residentialBuildingQuery == null) return;
-            if (_residentialBuildingQuery.IsEmptyIgnoreFilter) { _residentialBuildingsData.Update(""); return; }
+            if (_residentialBuildingQuery.IsEmptyIgnoreFilter) { _residentialBuildingsData.Update("[]"); return; }
 
             // Reset summary counters
             m_LowPlaced = 0; m_MedPlaced = 0; m_HighPlaced = 0;
@@ -257,7 +267,7 @@ namespace AdvancedTPM
             RefreshSignatureCache();
 
             var em = EntityManager;
-            var parts = new List<string>(256);
+            var dtoList = new List<ResidentialBuildingDTO>(256);
             var entities = _residentialBuildingQuery.ToEntityArray(Allocator.Temp);
             // Create happiness context once for all buildings
             var happinessCtx = CreateHappinessContext();
@@ -368,19 +378,19 @@ namespace AdvancedTPM
                                 Entity prefab = em.GetComponentData<PrefabRef>(ent).m_Prefab;
                                 if (Game.Prefabs.UpgradeUtils.TryGetCombinedComponent<Game.Prefabs.AttractionData>(em, ent, prefab, out var attractionData))
                                     attractiveness = attractionData.m_Attractiveness;
-                            }
 
-                            if (em.HasComponent<Game.Buildings.AttractivenessProvider>(ent))
-                            {
-                                var attrProv = em.GetComponentData<Game.Buildings.AttractivenessProvider>(ent);
-                                if (attrProv.m_Attractiveness > attractiveness) attractiveness = attrProv.m_Attractiveness;
+                                if (em.HasComponent<Game.Buildings.AttractivenessProvider>(ent))
+                                {
+                                    var attrProv = em.GetComponentData<Game.Buildings.AttractivenessProvider>(ent);
+                                    if (attrProv.m_Attractiveness > attractiveness) attractiveness = attrProv.m_Attractiveness;
+                                }
                             }
                         }
                         catch { }
 
                         // Determine theme (USA/EU)
                         string address = "";
-                        try { if (_nameSystem != null) address = (_nameSystem.GetRenderedLabelName(ent) ?? "").Replace("|", " ").Replace(";", " "); } catch { }
+                        try { if (_nameSystem != null) address = _nameSystem.GetRenderedLabelName(ent) ?? ""; } catch { }
                         
                         string themeLower = $"{theme} {address}".ToLower();
                         bool isEu = themeLower.Contains("eu") || themeLower.Contains("europe") || themeLower.Contains("mediterranean");
@@ -406,7 +416,7 @@ namespace AdvancedTPM
                         }
 
                         // Write to detail row list only if within limit (to avoid rendering 10000 elements)
-                        if (parts.Count < 5000)
+                        if (dtoList.Count < 5000)
                         {
                             // Ensure we have something useful to display
                             if (string.IsNullOrEmpty(address)) address = "Building " + ent.Index;
@@ -425,16 +435,27 @@ namespace AdvancedTPM
                             }
                             catch { }
 
-                            // Clean pipe and semicolon from theme/assetPack to prevent parsing issues
-                            theme = (theme ?? "Unknown").Replace("|", "-").Replace(";", "-");
-                            themeIcon = (themeIcon ?? "").Replace("|", "").Replace(";", "");
-                            assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
-                            assetPackIcon = (assetPackIcon ?? "").Replace("|", "").Replace(";", "");
-
                             string happinessFactors = GetHappinessFactorsString(ent, in happinessCtx);
-                            parts.Add(string.Format(CultureInfo.InvariantCulture,
-                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}|{13}|{14}|{15}|{16}|{17}",
-                                ent.Index, ent.Version, address, districtName, density, level, occupied, capacity, theme, assetPack, isSignature ? "1" : "0", assetPackIcon, themeIcon, cityEffects, localEffects, attractiveness, attractivenessFactors, happinessFactors));
+                            dtoList.Add(new ResidentialBuildingDTO
+                            {
+                                entityKey = ent.Index + "," + ent.Version,
+                                address = address,
+                                district = districtName,
+                                density = density,
+                                level = level,
+                                occupied = occupied,
+                                capacity = capacity,
+                                theme = theme ?? "Unknown",
+                                pack = assetPack ?? "Base Game",
+                                isSignature = isSignature ? 1 : 0,
+                                packIcon = assetPackIcon ?? "",
+                                themeIcon = themeIcon ?? "",
+                                cityEffects = cityEffects ?? "",
+                                localEffects = localEffects ?? "",
+                                attractiveness = attractiveness,
+                                attractivenessFactors = attractivenessFactors ?? "",
+                                happinessFactors = happinessFactors ?? ""
+                            });
                         }
                     }
                     catch { }
@@ -442,12 +463,11 @@ namespace AdvancedTPM
             }
             finally { entities.Dispose(); }
 
-            // Serialize dictionary packs to JSON strings
-            m_LowPacksJson = DictionaryToJson(lowPacks);
-            m_MedPacksJson = DictionaryToJson(medPacks);
-            m_HighPacksJson = DictionaryToJson(highPacks);
+            m_LowPacks = lowPacks;
+            m_MedPacks = medPacks;
+            m_HighPacks = highPacks;
 
-            string payload = string.Join(";", parts);
+            string payload = JsonConvert.SerializeObject(dtoList);
             if (payload != m_LastResidentialBuildingsData || forceUpdate)
             {
                 _residentialBuildingsData.Update(payload);
@@ -492,7 +512,7 @@ namespace AdvancedTPM
             try
             {
                 var em = EntityManager;
-                var signatureBuildings = new List<string>();
+                var dtoList = new List<ResidentialBuildingDTO>();
                 var entities = _residentialBuildingQuery.ToEntityArray(Allocator.Temp);
                 try
                 {
@@ -524,7 +544,7 @@ namespace AdvancedTPM
                              if (!isSig) continue;
 
                             string address = "";
-                            try { if (_nameSystem != null) address = (_nameSystem.GetRenderedLabelName(ent) ?? "").Replace("|", " ").Replace(";", " "); } catch { }
+                            try { if (_nameSystem != null) address = _nameSystem.GetRenderedLabelName(ent) ?? ""; } catch { }
                             if (string.IsNullOrEmpty(address)) address = "Signature Building " + ent.Index;
 
                             int occupied = 0;
@@ -585,23 +605,35 @@ namespace AdvancedTPM
                             string cityEffects = string.Join("^", cEffects);
                             string localEffects = string.Join("^", lEffects);
 
-                            theme = (theme ?? "Unknown").Replace("|", "-").Replace(";", "-");
-                            themeIcon = (themeIcon ?? "").Replace("|", "").Replace(";", "");
-                            assetPack = (assetPack ?? "Base Game").Replace("|", "-").Replace(";", "-");
-                            assetPackIcon = (assetPackIcon ?? "").Replace("|", "").Replace(";", "");
-
                             string happinessFactors = GetHappinessFactorsString(ent, in happinessCtx);
 
-                            signatureBuildings.Add(string.Format(CultureInfo.InvariantCulture,
-                                "{0},{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}|{13}|{14}",
-                                ent.Index, ent.Version, address, level, occupied, capacity, theme, assetPack, assetPackIcon, themeIcon, cityEffects, localEffects, attractiveness, attractivenessFactors, happinessFactors));
+                            dtoList.Add(new ResidentialBuildingDTO
+                            {
+                                entityKey = ent.Index + "," + ent.Version,
+                                address = address,
+                                district = "City", // signatures aggregated
+                                density = capacity <= 4 ? "Low" : (capacity <= 20 ? "Medium" : "High"),
+                                level = level,
+                                occupied = occupied,
+                                capacity = capacity,
+                                theme = theme ?? "Unknown",
+                                pack = assetPack ?? "Base Game",
+                                isSignature = 1,
+                                packIcon = assetPackIcon ?? "",
+                                themeIcon = themeIcon ?? "",
+                                cityEffects = cityEffects ?? "",
+                                localEffects = localEffects ?? "",
+                                attractiveness = attractiveness,
+                                attractivenessFactors = attractivenessFactors ?? "",
+                                happinessFactors = happinessFactors ?? ""
+                            });
                         }
                         catch { }
                     }
                 }
                 finally { entities.Dispose(); }
 
-                string payload = string.Join(";", signatureBuildings);
+                string payload = JsonConvert.SerializeObject(dtoList);
                 if (payload != m_LastResidentialSignatureBuildingsData || forceUpdate)
                 {
                     _residentialSignatureBuildingsData.Update(payload);
