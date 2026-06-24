@@ -122,7 +122,7 @@ Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is app
   <!--Link to the forum post where the mod can be discussed-->
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/advanced-tax-production-manager.1917448/" />
   <!--Version of the mod-->
-  <ModVersion Value="1.1.5" />
+  <ModVersion Value="1.2.0" />
   <!--Recommended version of the base game to use the mod-->
   <GameVersion Value="1.6.*" />
   <!--Dependency for the mod, can be set multiple times-->
@@ -131,21 +131,19 @@ Built for the Cohtml engine using direct-DOM manipulation. UI thread cost is app
   <RequiredDLC Value="" />
   <!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
-## v1.1.5 - Game Update to Version 1.6 and UI Polish
+## v1.2.0 - UI Logic Refactoring, Base Game Icon Fix, and Filter Additions
 
 ### Added
-- PolicyPlus Compatibility: Full support for expanded city policies and active conflict blocking.
-- Custom Tooltip System: Replaced unicode check/cross and warning icons with custom inline SVGs to avoid game font rendering issues (tofu blocks).
-- Tooltip Portaling: Moved tooltip rendering to a React Portal to prevent boundary clipping.
-- AI Auto-Tax Failsafe: Built-in economic protection for death-spiraling industries.
-- Service Buildings Metrics: Real-time consumption and vehicle occupancy statistics.
-- District Dashboard Expansion: Card metrics for crime, unemployment, and building wear.
+- Added "★ Sig Only" filter toggles to both Businesses (Company Browser) and Services panels to match the Residential tab.
+- Unified Custom Sorting Hook: Replaced redundant table sorting implementations with a generic useTableSort hook across all browser panels.
+- Centralized UI Asset Library: Extracted hardcoded theme, pack, and efficiency icon paths into a single iconLibrary.ts helper file.
+
+### Fixed
+- Fixed Paradox Star base game icon mapping by routing to the correct Cohtml-safe game path.
+- Prevented wrapping issues for the OCC% column in the Residential panel.
 
 ### Changed
-- Game Version Compatibility: Verified compatible with Cities: Skylines II version 1.6.
-- Native UI Scaling: Rewrote styling using Cohtml-native rem units.
-- Accurate Resource Storage: Rewritten to calculate true metric tonnes for physical companies.
-- Burst-Compiled Backend: AutoTax calculations shifted to Unity Job System with Burst Compiler.
+- Standardized C# to JS/TS data transmission and serialization utilizing Newtonsoft.Json for high-performance payload parsing.
 	</ChangeLog>
   <!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
   <ExternalLink Type="github" Url="https://github.com/binded-zz/AdvancedTPM" />

@@ -10,7 +10,7 @@ namespace AdvancedTPM
     public class Mod : IMod
     {
         public static readonly string Name = "AdvancedTPM";
-        public static readonly string Version = "1.1.5";
+        public static readonly string Version = "1.2.0";
         public static ILog log = LogManager.GetLogger($"{nameof(AdvancedTPM)}.{nameof(Mod)}").SetShowsErrorsInUI(false);
         public static TPMModSettings Settings { get; private set; }
         public static readonly Newtonsoft.Json.JsonSerializerSettings CamelCaseSettings = new Newtonsoft.Json.JsonSerializerSettings

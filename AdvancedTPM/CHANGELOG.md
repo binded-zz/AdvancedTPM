@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-06-24
+
+### Added
+- **"★ Sig Only" Filters**: Added a filter toggle button to both Businesses (`CompanyBrowser`) and Services (`ServicesPanel`) to view signature buildings only, matching the Residential panel's functionality.
+- **Centralized Asset/Icon Library**: Abstracted all raw asset pathways, theme names, DLC filters, and efficiency factor labels/paths into a master library `iconLibrary.ts` (`src/UI/data/iconLibrary.ts`) to improve code cleanliness and reduce duplicate path strings.
+- **Universal Custom Sort Hook**: Added `useTableSort` hook (`src/UI/hooks/useTableSort.ts`) to centralize table sorting and paginated header indicator logic, standardizing sorting behavior and eliminating hundreds of lines of duplicate UI state code.
+
+### Fixed
+- **Base Game Icon Resolution**: Fixed the missing Paradox Star base game icon path by resolving it cleanly with the Cohtml-safe prefix `coui://ui-game/Media/Menu/ParadoxLogoNoText.svg`.
+- **OCC% Layout Fix**: Prevented wrapping issues in the occupancy percentage column header and cell contents on the Residential panel.
+
+### Changed
+- **Modern JSON Serialization Migration**: Overhauled the C# backend systems and TSX frontend bindings to communicate using standard Newtonsoft.Json string serialization and native `JSON.parse()`. This replaces old manual string interpolation methods and solves type-casting issues for boolean values (such as `isSignature`).
+
 ## [1.1.5] - 2026-06-23
 
 ### Added
