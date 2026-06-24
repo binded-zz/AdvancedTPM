@@ -241,7 +241,7 @@ namespace AdvancedTPM
                 highPacks = m_HighPacks
             };
 
-            var payload = JsonConvert.SerializeObject(summaryDto);
+            var payload = JsonConvert.SerializeObject(summaryDto, Mod.CamelCaseSettings);
 
             if (payload != m_LastResidentialBrowserData || forceUpdate)
             {
@@ -447,7 +447,7 @@ namespace AdvancedTPM
                                 capacity = capacity,
                                 theme = theme ?? "Unknown",
                                 pack = assetPack ?? "Base Game",
-                                isSignature = isSignature ? 1 : 0,
+                                isSignature = isSignature,
                                 packIcon = assetPackIcon ?? "",
                                 themeIcon = themeIcon ?? "",
                                 cityEffects = cityEffects ?? "",
@@ -467,7 +467,7 @@ namespace AdvancedTPM
             m_MedPacks = medPacks;
             m_HighPacks = highPacks;
 
-            string payload = JsonConvert.SerializeObject(dtoList);
+            string payload = JsonConvert.SerializeObject(dtoList, Mod.CamelCaseSettings);
             if (payload != m_LastResidentialBuildingsData || forceUpdate)
             {
                 _residentialBuildingsData.Update(payload);
@@ -618,7 +618,7 @@ namespace AdvancedTPM
                                 capacity = capacity,
                                 theme = theme ?? "Unknown",
                                 pack = assetPack ?? "Base Game",
-                                isSignature = 1,
+                                isSignature = true,
                                 packIcon = assetPackIcon ?? "",
                                 themeIcon = themeIcon ?? "",
                                 cityEffects = cityEffects ?? "",
@@ -633,7 +633,7 @@ namespace AdvancedTPM
                 }
                 finally { entities.Dispose(); }
 
-                string payload = JsonConvert.SerializeObject(dtoList);
+                string payload = JsonConvert.SerializeObject(dtoList, Mod.CamelCaseSettings);
                 if (payload != m_LastResidentialSignatureBuildingsData || forceUpdate)
                 {
                     _residentialSignatureBuildingsData.Update(payload);

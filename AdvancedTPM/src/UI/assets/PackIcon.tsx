@@ -11,27 +11,24 @@ interface PackIconProps {
 const PackIcon: React.FC<PackIconProps> = ({ pack, theme, iconUrl, size = 18, style }) => {
   let finalIconUrl = iconUrl;
   
-  // If the path is the invalid base game svg, clear it to avoid loading errors
+  // 1. If the path is the broken vanilla base game svg, clear it.
   if (finalIconUrl === 'coui://uil/Colored/BaseGame.svg') {
     finalIconUrl = '';
   }
 
-  // If no iconUrl was provided from the backend, we can fallback dynamically
-  if (!finalIconUrl && pack) {
-    if (pack === 'Base Game') {
-      finalIconUrl = '';
-    }
+  // 2. Treat any empty, falsy, or missing pack prop as 'Base Game'
+  const effectivePack = pack || 'Base Game';
+
+  // 3. Apply the Paradox Star fallback!
+  if (!finalIconUrl && effectivePack === 'Base Game') {
+    finalIconUrl = 'coui://uil/Standard/Paradox.svg'; 
   }
 
   if (!finalIconUrl) {
     return (
       <div 
-        style={{
-          width: `${size}rem`,
-          height: `${size}rem`,
-          ...style
-        }} 
-        title={pack || theme || 'Unknown Pack'}
+        style={{ width: `${size}rem`, height: `${size}rem`, ...style }} 
+        title={effectivePack || theme || 'Unknown Pack'}
       />
     );
   }
@@ -41,12 +38,8 @@ const PackIcon: React.FC<PackIconProps> = ({ pack, theme, iconUrl, size = 18, st
   if (urls.length === 0) {
     return (
       <div 
-        style={{
-          width: `${size}rem`,
-          height: `${size}rem`,
-          ...style
-        }} 
-        title={pack || theme || 'Unknown Pack'}
+        style={{ width: `${size}rem`, height: `${size}rem`, ...style }} 
+        title={effectivePack || theme || 'Unknown Pack'}
       />
     );
   }
@@ -57,13 +50,9 @@ const PackIcon: React.FC<PackIconProps> = ({ pack, theme, iconUrl, size = 18, st
         <img
           key={index}
           src={url}
-          style={{
-            width: `${size}rem`,
-            height: `${size}rem`,
-            objectFit: 'contain'
-          }}
-          alt={pack || theme || 'Pack Icon'}
-          title={pack || theme || 'Pack Icon'}
+          style={{ width: `${size}rem`, height: `${size}rem`, objectFit: 'contain' }}
+          alt={effectivePack || theme || 'Pack Icon'}
+          title={effectivePack || theme || 'Pack Icon'}
         />
       ))}
     </div>

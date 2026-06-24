@@ -38,7 +38,7 @@ namespace AdvancedTPM.Systems
         public string pack { get; set; }
         public string packIcon { get; set; }
         public string kind { get; set; }
-        public int isSignature { get; set; }
+        public bool isSignature { get; set; }
         public string bldgKey { get; set; }
         public string iconUrl { get; set; }
         public string nativePackIcon { get; set; }
@@ -224,7 +224,7 @@ namespace AdvancedTPM.Systems
         public int capacity { get; set; }
         public string theme { get; set; }
         public string pack { get; set; }
-        public int isSignature { get; set; }
+        public bool isSignature { get; set; }
         public string packIcon { get; set; }
         public string themeIcon { get; set; }
         public string cityEffects { get; set; }
@@ -232,5 +232,74 @@ namespace AdvancedTPM.Systems
         public int attractiveness { get; set; }
         public string attractivenessFactors { get; set; }
         public string happinessFactors { get; set; }
+    }
+
+    public class ResourceRangeDTO
+    {
+        public int min { get; set; }
+        public int max { get; set; }
+    }
+
+    public class AutoTaxSettingsDTO
+    {
+        public int interval { get; set; }
+        public int minRate { get; set; }
+        public int maxRate { get; set; }
+        public int happinessWeight { get; set; }
+        public int updateSpeed { get; set; }
+        public List<string> excluded { get; set; }
+        public Dictionary<string, ResourceRangeDTO> perResourceRanges { get; set; }
+        public int profitWeight { get; set; }
+        public int opacity { get; set; }
+    }
+
+    public class LearningProfileDTO
+    {
+        public string key { get; set; }
+        public float sensitivity { get; set; }
+        public float incomeResponse { get; set; }
+        public float companyResponse { get; set; }
+        public float confidence { get; set; }
+        public int sampleCount { get; set; }
+        public float avgOutcome { get; set; }
+        public float productionResponse { get; set; }
+        public float revenueEfficiency { get; set; }
+        public float volatility { get; set; }
+    }
+
+    public class AdvisorRecommendationDTO
+    {
+        public string key { get; set; }
+        public int direction { get; set; }
+        public int currentRate { get; set; }
+        public float confidence { get; set; }
+        public string reason { get; set; }
+    }
+
+    public class AdvisorDataDTO
+    {
+        public int totalSamples { get; set; }
+        public int activeProfiles { get; set; }
+        public List<LearningProfileDTO> profiles { get; set; }
+        public List<AdvisorRecommendationDTO> recommendations { get; set; }
+    }
+
+    public class AdvisorDecisionDTO
+    {
+        public string key { get; set; }
+        public int oldRate { get; set; }
+        public int newRate { get; set; }
+        public float outcomeScore { get; set; }
+        public float confidence { get; set; }
+        public string summary { get; set; }
+    }
+
+    public class LearningStatsDTO
+    {
+        public int pendingEvents { get; set; }
+        public int snapshots { get; set; }
+        public int totalSamples { get; set; }
+        public float avgConfidence { get; set; }
+        public int aggressiveness { get; set; }
     }
 }

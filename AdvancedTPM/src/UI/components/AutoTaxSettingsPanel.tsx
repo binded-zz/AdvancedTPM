@@ -33,46 +33,80 @@ const parseSettings = (payload: string): AutoTaxSettingsParsed => {
     interval: 3, minRate: 0, maxRate: 25, happinessWeight: 50, updateSpeed: 2, excluded: new Set(), perResourceRanges: new Map(), profitWeight: 50, opacity: 95,
   };
   if (!payload) return defaults;
-  const parts = payload.split('|');
-  if (parts.length < 6) return defaults;
-  const excluded = new Set<string>();
-  if (parts[5]) {
-    parts[5].split(',').forEach((k) => { const t = k.trim(); if (t) excluded.add(t); });
-  }
-  const perResourceRanges = new Map<string, ResourceRange>();
-  if (parts.length > 6 && parts[6]) {
-    parts[6].split(',').forEach((entry) => {
-      const [key, lo, hi] = entry.split(':');
-      if (key && lo !== undefined && hi !== undefined) {
-        perResourceRanges.set(key.trim(), { min: Number(lo), max: Number(hi) });
+  try {
+    const raw = JSON.parse(payload);
+    const excluded = new Set<string>(raw.excluded || []);
+    const perResourceRanges = new Map<string, ResourceRange>();
+    if (raw.perResourceRanges) {
+      Object.entries(raw.perResourceRanges).forEach(([key, val]: [string, any]) => {
+        if (val && typeof val.min === 'number' && typeof val.max === 'number') {
+          perResourceRanges.set(key, { min: val.min, max: val.max });
+        }
+      });
+    }
+    return {
+      interval: Math.max(1, Math.min(5, raw.interval ?? 3)),
+      minRate: typeof raw.minRate === 'number' ? raw.minRate : 0,
+      maxRate: typeof raw.maxRate === 'number' ? raw.maxRate : 25,
+      happinessWeight: typeof raw.happinessWeight === 'number' ? raw.happinessWeight : 50,
+      updateSpeed: typeof raw.updateSpeed === 'number' ? raw.updateSpeed : 2,
+      excluded,
+      perResourceRanges,
+      profitWeight: typeof raw.profitWeight === 'number' ? raw.profitWeight : 50,
+      opacity: typeof raw.opacity === 'number' ? raw.opacity : 95,
+    };
+  } catch (e) {
+    try {
+      const parts = payload.split('|');
+      if (parts.length >= 6) {
+        const excluded = new Set<string>();
+        if (parts[5]) {
+          parts[5].split(',').forEach((k) => { const t = k.trim(); if (t) excluded.add(t); });
+        }
+        const perResourceRanges = new Map<string, ResourceRange>();
+        if (parts.length > 6 && parts[6]) {
+          parts[6].split(',').forEach((entry) => {
+            const [key, lo, hi] = entry.split(':');
+            if (key && lo !== undefined && hi !== undefined) {
+              perResourceRanges.set(key.trim(), { min: Number(lo), max: Number(hi) });
+            }
+          });
+        }
+        return {
+          interval: Math.max(1, Math.min(5, Number(parts[0]) || 3)),
+          minRate: isNaN(Number(parts[1])) ? 0 : Number(parts[1]),
+          maxRate: Number(parts[2]) || 25,
+          happinessWeight: isNaN(Number(parts[3])) ? 50 : Number(parts[3]),
+          updateSpeed: Number(parts[4]) || 2,
+          excluded,
+          perResourceRanges,
+          profitWeight: parts.length > 7 ? (isNaN(Number(parts[7])) ? 50 : Number(parts[7])) : 50,
+          opacity: parts.length > 8 ? (isNaN(Number(parts[8])) ? 95 : Number(parts[8])) : 95,
+        };
       }
-    });
+    } catch (err) {}
+    console.error("Failed to parse auto tax settings:", e);
+    return defaults;
   }
-  return {
-    interval: Math.max(1, Math.min(5, Number(parts[0]) || 3)),
-    minRate: isNaN(Number(parts[1])) ? 0 : Number(parts[1]),
-    maxRate: Number(parts[2]) || 25,
-    happinessWeight: isNaN(Number(parts[3])) ? 50 : Number(parts[3]),
-    updateSpeed: Number(parts[4]) || 2,
-    excluded,
-    perResourceRanges,
-    profitWeight: parts.length > 7 ? (isNaN(Number(parts[7])) ? 50 : Number(parts[7])) : 50,
-    opacity: parts.length > 8 ? (isNaN(Number(parts[8])) ? 95 : Number(parts[8])) : 95,
-  };
 };
 
-const serializeSettings = (s: AutoTaxSettingsParsed): string => {
-  const rangeParts: string[] = [];
-  s.perResourceRanges.forEach((r, key) => {
-    rangeParts.push(`${key}:${r.min}:${r.max}`);
-  });
-  return `${s.interval}|${s.minRate}|${s.maxRate}|${s.happinessWeight}|${s.updateSpeed}|${Array.from(s.excluded).join(',')}|${rangeParts.join(',')}|${s.profitWeight}|${s.opacity}`;
-};
-
-// Fire the trigger directly to C# — same pattern as working setResourceTaxRate
 const pushSettings = (s: AutoTaxSettingsParsed): void => {
-  const payload = serializeSettings(s);
-  trigger('taxProduction', 'setAutoTaxSettings', payload);
+  const perResourceRangesObj: Record<string, ResourceRange> = {};
+  s.perResourceRanges.forEach((val, key) => {
+    perResourceRangesObj[key] = val;
+  });
+  const dto = {
+    interval: s.interval,
+    minRate: s.minRate,
+    maxRate: s.maxRate,
+    happinessWeight: s.happinessWeight,
+    updateSpeed: s.updateSpeed,
+    excluded: Array.from(s.excluded),
+    perResourceRanges: perResourceRangesObj,
+    profitWeight: s.profitWeight,
+    opacity: s.opacity,
+  };
+  trigger('taxProduction', 'setAutoTaxSettings', JSON.stringify(dto));
 };
 
 // Get all unique resources from the "all" category (the master list)

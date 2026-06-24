@@ -657,7 +657,7 @@ districtPoliciesData,
     if (signaturePrefabs) {
       try { const parsed = JSON.parse(signaturePrefabs); if (Array.isArray(parsed)) names = parsed.map((s: any) => String(s)); } catch { names = []; }
     }
-    return all.filter((c) => c.isSignature === 1 || keySet.has(c.entityKey) || (names.length > 0 && names.includes(c.name)));
+    return all.filter((c) => c.isSignature || keySet.has(c.entityKey) || (names.length > 0 && names.includes(c.name)));
   }, [businessCompanies, signatureCompaniesJson, signaturePrefabs]);
   signatureCompanies = _signatureCompanies;
 
@@ -684,14 +684,21 @@ districtPoliciesData,
 
   signatureCount = signatureCompanies.length + residentialSignatureBuildings.length + serviceSignatureCount;
 
-  // Parse panel opacity from autoTaxSettings (slot 8: ...||profitWeight|opacity)
+  // Parse panel opacity from autoTaxSettings
   const panelOpacity = useMemo(() => {
     if (!autoTaxSettings) return 1;
-    const parts = autoTaxSettings.split('|');
-    // Index 8 is the 9th slot
-    if (parts.length > 8) {
-      const val = Number(parts[8]);
-      if (!isNaN(val)) return val / 100;
+    try {
+      const parsed = JSON.parse(autoTaxSettings);
+      if (parsed && typeof parsed.opacity === 'number') {
+        return parsed.opacity / 100;
+      }
+    } catch (e) {
+      // Fallback in case settings are temporarily in old format
+      const parts = autoTaxSettings.split('|');
+      if (parts.length > 8) {
+        const val = Number(parts[8]);
+        if (!isNaN(val)) return val / 100;
+      }
     }
     return 1;
   }, [autoTaxSettings]);
@@ -1297,6 +1304,7 @@ const SignatureUnifiedView: React.FC<{
     });
     if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
     if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    if (!map.has('North American')) map.set('North American', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
     if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
     if (!map.has('USA')) map.set('USA', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
     return map;

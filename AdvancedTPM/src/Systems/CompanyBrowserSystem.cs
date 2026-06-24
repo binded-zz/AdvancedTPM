@@ -353,7 +353,7 @@ namespace AdvancedTPM
                     }
                 }
 
-                string summaryStr = JsonConvert.SerializeObject(summaryDto);
+                string summaryStr = JsonConvert.SerializeObject(summaryDto, Mod.CamelCaseSettings);
                 if (summaryStr != m_LastCompanyBrowserSummary || justOpened)
                 {
                     _companyBrowserSummary.Update(summaryStr);
@@ -1460,7 +1460,7 @@ namespace AdvancedTPM
                     entityKey = key,
                     factors = new Dictionary<string, float>(factorMap)
                 };
-                var payload = JsonConvert.SerializeObject(happinessDto);
+                var payload = JsonConvert.SerializeObject(happinessDto, Mod.CamelCaseSettings);
 
                 long ck = (((long)companyEntity.Index) << 32) | (uint)companyEntity.Version;
                 _happinessCachePayload[ck] = payload;
@@ -1516,7 +1516,7 @@ namespace AdvancedTPM
                     pack = c.AssetPack ?? "Base Game",
                     packIcon = c.AssetPackIcon ?? "",
                     kind = c.CompanyKind ?? "",
-                    isSignature = c.IsSignature ? 1 : 0,
+                    isSignature = c.IsSignature,
                     bldgKey = c.BuildingEntity.Index + "," + c.BuildingEntity.Version,
                     iconUrl = c.IconUrl ?? "",
                     nativePackIcon = c.NativePackIcon ?? "",
@@ -1530,7 +1530,7 @@ namespace AdvancedTPM
                 });
             }
 
-            return JsonConvert.SerializeObject(dtoList);
+            return JsonConvert.SerializeObject(dtoList, Mod.CamelCaseSettings);
         }
 
         private void RefreshSignatureCache() { }

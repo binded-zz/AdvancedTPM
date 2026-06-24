@@ -918,7 +918,7 @@ namespace AdvancedTPM
                 entities.Dispose();
             }
 
-            string newPoliciesData = JsonConvert.SerializeObject(dtoList);
+            string newPoliciesData = JsonConvert.SerializeObject(dtoList, Mod.CamelCaseSettings);
             if (newPoliciesData != m_LastDistrictPoliciesData)
             {
                 _districtPoliciesData.Update(newPoliciesData);
@@ -1301,7 +1301,7 @@ namespace AdvancedTPM
                 districtEntities.Dispose();
             }
 
-            string newBrowserData = JsonConvert.SerializeObject(dtoList);
+            string newBrowserData = JsonConvert.SerializeObject(dtoList, Mod.CamelCaseSettings);
             if (newBrowserData != m_LastDistrictBrowserData)
             {
                 _districtBrowserData.Update(newBrowserData);

@@ -12,6 +12,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using AdvancedTPM.Systems;
+using Newtonsoft.Json;
 
 namespace AdvancedTPM
 {
@@ -799,67 +800,90 @@ namespace AdvancedTPM
             try
             {
                 // Advisor data: per-resource learning profiles
-                var profileParts = new List<string>();
+                var profilesList = new List<LearningProfileDTO>();
                 foreach (var kvp in _database.Profiles)
                 {
                     var p = kvp.Value;
                     if (p.SampleCount == 0 && Math.Abs(p.Sensitivity) < 0.001f) continue;
-                    profileParts.Add(string.Format(CultureInfo.InvariantCulture,
-                        "{0}={1:0.###}:{2:0.##}:{3:0.##}:{4:0.##}:{5}:{6:0.###}:{7:0.##}:{8:0.##}:{9:0.##}",
-                        kvp.Key, p.Sensitivity, p.IncomeResponse, p.CompanyResponse,
-                        p.Confidence, p.SampleCount, p.AvgOutcomeScore,
-                        p.ProductionResponse, p.RevenueEfficiency, p.Volatility));
+                    profilesList.Add(new LearningProfileDTO
+                    {
+                        key = kvp.Key,
+                        sensitivity = p.Sensitivity,
+                        incomeResponse = p.IncomeResponse,
+                        companyResponse = p.CompanyResponse,
+                        confidence = p.Confidence,
+                        sampleCount = p.SampleCount,
+                        avgOutcome = p.AvgOutcomeScore,
+                        productionResponse = p.ProductionResponse,
+                        revenueEfficiency = p.RevenueEfficiency,
+                        volatility = p.Volatility
+                    });
                 }
 
-                // Recommendations
                 var recommendations = GetRecommendations();
-                var recParts = new List<string>();
+                var recList = new List<AdvisorRecommendationDTO>();
                 foreach (var r in recommendations)
                 {
-                    recParts.Add(string.Format(CultureInfo.InvariantCulture,
-                        "{0}={1}:{2}:{3:0.##}:{4}",
-                        r.ResourceKey, r.Direction, r.CurrentRate, r.Confidence,
-                        r.Reason ?? ""));
+                    recList.Add(new AdvisorRecommendationDTO
+                    {
+                        key = r.ResourceKey,
+                        direction = r.Direction,
+                        currentRate = r.CurrentRate,
+                        confidence = r.Confidence,
+                        reason = r.Reason ?? ""
+                    });
                 }
 
-                // Format: totalSamples|totalProfiles|profileData|recommendationData
                 int totalSamples = _database.Profiles.Values.Sum(p => p.SampleCount);
                 int activeProfiles = _database.Profiles.Values.Count(p => p.SampleCount > 0);
-                string advisorPayload = string.Format(CultureInfo.InvariantCulture,
-                    "{0}|{1}|{2}|{3}",
-                    totalSamples, activeProfiles,
-                    string.Join(",", profileParts),
-                    string.Join(",", recParts));
 
-                _advisorData.Update(advisorPayload);
+                var advisorDataDto = new AdvisorDataDTO
+                {
+                    totalSamples = totalSamples,
+                    activeProfiles = activeProfiles,
+                    profiles = profilesList,
+                    recommendations = recList
+                };
+
+                _advisorData.Update(JsonConvert.SerializeObject(advisorDataDto, Mod.CamelCaseSettings));
 
                 // Decision log: last 20 entries for UI
-                var logParts = new List<string>();
                 var recentDecisions = _database.DecisionLog
                     .Skip(Math.Max(0, _database.DecisionLog.Count - 20))
                     .ToList();
 
+                var decisionList = new List<AdvisorDecisionDTO>();
                 foreach (var d in recentDecisions)
                 {
-                    logParts.Add(string.Format(CultureInfo.InvariantCulture,
-                        "{0}:{1}:{2}:{3:0.##}:{4:0.##}:{5}",
-                        d.ResourceKey, d.OldRate, d.NewRate,
-                        d.OutcomeScore, d.Confidence, d.Summary ?? ""));
+                    decisionList.Add(new AdvisorDecisionDTO
+                    {
+                        key = d.ResourceKey,
+                        oldRate = d.OldRate,
+                        newRate = d.NewRate,
+                        outcomeScore = d.OutcomeScore,
+                        confidence = d.Confidence,
+                        summary = d.Summary ?? ""
+                    });
                 }
-                _decisionLogData.Update(string.Join("|", logParts));
+
+                _decisionLogData.Update(JsonConvert.SerializeObject(decisionList, Mod.CamelCaseSettings));
 
                 // Learning stats: pending|snapshots|totalSamples|avgConfidence|aggressiveness
                 float avgConfidence = _database.Profiles.Values.Count > 0
                     ? _database.Profiles.Values.Where(p => p.SampleCount > 0).Select(p => p.Confidence).DefaultIfEmpty(0f).Average()
                     : 0f;
                 int aggressiveness = Mod.Settings?.LearningAggressiveness ?? 3;
-                _learningStats.Update(string.Format(CultureInfo.InvariantCulture,
-                    "{0}|{1}|{2}|{3:0.##}|{4}",
-                    _database.PendingEvents.Count,
-                    _database.RecentSnapshots.Count,
-                    totalSamples,
-                    avgConfidence,
-                    aggressiveness));
+
+                var statsDto = new LearningStatsDTO
+                {
+                    pendingEvents = _database.PendingEvents.Count,
+                    snapshots = _database.RecentSnapshots.Count,
+                    totalSamples = totalSamples,
+                    avgConfidence = avgConfidence,
+                    aggressiveness = aggressiveness
+                };
+
+                _learningStats.Update(JsonConvert.SerializeObject(statsDto, Mod.CamelCaseSettings));
             }
             catch (Exception ex)
             {

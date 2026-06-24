@@ -47,7 +47,7 @@ export interface CompanyVm {
   pack: string;
   packIcon: string;
   kind: string;
-  isSignature: number;
+  isSignature: boolean;
   bldgKey: string;
   iconUrl: string;
   nativePackIcon: string;
@@ -356,6 +356,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
     });
     if (!map.has('European')) map.set('European', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
     if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
+    if (!map.has('North American')) map.set('North American', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
     if (!map.has('EU')) map.set('EU', 'coui://ui-game/Media/Game/Icons/ThemeEuropean.svg');
     if (!map.has('USA')) map.set('USA', 'coui://ui-game/Media/Game/Icons/ThemeNorthAmerican.svg');
     return map;
@@ -718,7 +719,7 @@ const CompanyBrowser: React.FC<CompanyBrowserProps> = ({ companies = [], summary
                   >
                     <div className="cb-col-name">
                       <span className="panel-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-                      {c.isSignature === 1 && <span className="cb-signature-badge" title="Signature Building">★</span>}
+                      {c.isSignature && <span className="cb-signature-badge" title="Signature Building">★</span>}
                       <span className="cb-company-name">{c.brandName || c.name}</span>
                     </div>
                     <div className="cb-col-address">

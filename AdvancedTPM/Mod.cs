@@ -13,6 +13,17 @@ namespace AdvancedTPM
         public static readonly string Version = "1.1.5";
         public static ILog log = LogManager.GetLogger($"{nameof(AdvancedTPM)}.{nameof(Mod)}").SetShowsErrorsInUI(false);
         public static TPMModSettings Settings { get; private set; }
+        public static readonly Newtonsoft.Json.JsonSerializerSettings CamelCaseSettings = new Newtonsoft.Json.JsonSerializerSettings
+        {
+            ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver
+            {
+                NamingStrategy = new Newtonsoft.Json.Serialization.CamelCaseNamingStrategy
+                {
+                    ProcessDictionaryKeys = false,
+                    OverrideSpecifiedNames = true
+                }
+            }
+        };
 
         public void OnLoad(UpdateSystem updateSystem)
         {

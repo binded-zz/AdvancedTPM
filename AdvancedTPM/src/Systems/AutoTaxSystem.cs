@@ -12,6 +12,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using AdvancedTPM.Systems;
+using Newtonsoft.Json;
 
 namespace AdvancedTPM
 {
@@ -659,60 +660,70 @@ namespace AdvancedTPM
 
         private string SerializeSettings(TPMModSettings settings)
         {
-            if (settings == null) return "3|0|25|50|2|||50|95";
-            string excluded = string.Join(",", _excludedResources);
-            var rangeParts = new List<string>();
+            if (settings == null)
+            {
+                var defaults = new AutoTaxSettingsDTO
+                {
+                    interval = 3,
+                    minRate = 0,
+                    maxRate = 25,
+                    happinessWeight = 50,
+                    updateSpeed = 2,
+                    excluded = new List<string>(),
+                    perResourceRanges = new Dictionary<string, ResourceRangeDTO>(),
+                    profitWeight = 50,
+                    opacity = 95
+                };
+                return JsonConvert.SerializeObject(defaults, Mod.CamelCaseSettings);
+            }
+
+            var excludedList = new List<string>(_excludedResources);
+            var rangesDict = new Dictionary<string, ResourceRangeDTO>();
             foreach (var kvp in _perResourceRanges)
             {
-                rangeParts.Add(string.Format(CultureInfo.InvariantCulture, "{0}:{1}:{2}", kvp.Key, kvp.Value.min, kvp.Value.max));
+                rangesDict[kvp.Key] = new ResourceRangeDTO { min = kvp.Value.min, max = kvp.Value.max };
             }
-            string ranges = string.Join(",", rangeParts);
-            return string.Format(CultureInfo.InvariantCulture,
-                "{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}",
-                settings.AutoTaxInterval,
-                settings.AutoTaxMinRate,
-                settings.AutoTaxMaxRate,
-                settings.AutoTaxHappinessWeight,
-                settings.UpdateSpeed,
-                excluded,
-                ranges,
-                settings.AutoTaxProfitWeight,
-                settings.AutoTaxPanelOpacity);
+
+            var dto = new AutoTaxSettingsDTO
+            {
+                interval = settings.AutoTaxInterval,
+                minRate = settings.AutoTaxMinRate,
+                maxRate = settings.AutoTaxMaxRate,
+                happinessWeight = settings.AutoTaxHappinessWeight,
+                updateSpeed = settings.UpdateSpeed,
+                excluded = excludedList,
+                perResourceRanges = rangesDict,
+                profitWeight = settings.AutoTaxProfitWeight,
+                opacity = settings.AutoTaxPanelOpacity
+            };
+
+            return JsonConvert.SerializeObject(dto, Mod.CamelCaseSettings);
         }
 
         private void ApplyAutoTaxSettings(string payload)
         {
             if (string.IsNullOrEmpty(payload)) return;
-            var parts = payload.Split('|');
-            if (parts.Length < 6) return;
 
             var settings = Mod.Settings;
             if (settings == null) return;
 
             try
             {
-                int interval = int.Parse(parts[0], CultureInfo.InvariantCulture);
-                int minRate = int.Parse(parts[1], CultureInfo.InvariantCulture);
-                int maxRate = int.Parse(parts[2], CultureInfo.InvariantCulture);
-                int happinessWeight = int.Parse(parts[3], CultureInfo.InvariantCulture);
-                int updateSpeed = int.Parse(parts[4], CultureInfo.InvariantCulture);
-                string excludedRaw = parts[5];
+                var dto = JsonConvert.DeserializeObject<AutoTaxSettingsDTO>(payload);
+                if (dto == null) return;
 
-                settings.AutoTaxInterval = Math.Max(1, Math.Min(5, interval));
-                settings.AutoTaxMinRate = Math.Max(-10, Math.Min(30, minRate));
-                settings.AutoTaxMaxRate = Math.Max(-10, Math.Min(30, maxRate));
-                settings.AutoTaxHappinessWeight = Math.Max(0, Math.Min(100, happinessWeight));
-                settings.UpdateSpeed = Math.Max(1, Math.Min(3, updateSpeed));
-
-                if (parts.Length > 7 && int.TryParse(parts[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out int profWeight))
-                    settings.AutoTaxProfitWeight = Math.Max(0, Math.Min(100, profWeight));
-                if (parts.Length > 8 && int.TryParse(parts[8], NumberStyles.Integer, CultureInfo.InvariantCulture, out int opacityVal))
-                    settings.AutoTaxPanelOpacity = Math.Max(40, Math.Min(100, opacityVal));
+                settings.AutoTaxInterval = Math.Max(1, Math.Min(5, dto.interval));
+                settings.AutoTaxMinRate = Math.Max(-10, Math.Min(30, dto.minRate));
+                settings.AutoTaxMaxRate = Math.Max(-10, Math.Min(30, dto.maxRate));
+                settings.AutoTaxHappinessWeight = Math.Max(0, Math.Min(100, dto.happinessWeight));
+                settings.UpdateSpeed = Math.Max(1, Math.Min(3, dto.updateSpeed));
+                settings.AutoTaxProfitWeight = Math.Max(0, Math.Min(100, dto.profitWeight));
+                settings.AutoTaxPanelOpacity = Math.Max(40, Math.Min(100, dto.opacity));
 
                 _excludedResources.Clear();
-                if (!string.IsNullOrEmpty(excludedRaw))
+                if (dto.excluded != null)
                 {
-                    foreach (var key in excludedRaw.Split(','))
+                    foreach (var key in dto.excluded)
                     {
                         var trimmed = key.Trim();
                         if (trimmed.Length > 0 && TPMDataDefinitions.ResourceKeyToEnum.ContainsKey(trimmed))
@@ -722,22 +733,16 @@ namespace AdvancedTPM
                 settings.AutoTaxExcludedResources = string.Join(",", _excludedResources);
 
                 _perResourceRanges.Clear();
-                if (parts.Length > 6 && !string.IsNullOrEmpty(parts[6]))
+                if (dto.perResourceRanges != null)
                 {
-                    foreach (var entry in parts[6].Split(','))
+                    foreach (var kvp in dto.perResourceRanges)
                     {
-                        var segments = entry.Split(':');
-                        if (segments.Length == 3)
+                        var rKey = kvp.Key.Trim();
+                        if (rKey.Length > 0 && TPMDataDefinitions.ResourceKeyToEnum.ContainsKey(rKey) && kvp.Value != null)
                         {
-                            var rKey = segments[0].Trim();
-                            if (rKey.Length > 0 && TPMDataDefinitions.ResourceKeyToEnum.ContainsKey(rKey)
-                                && int.TryParse(segments[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int rMin)
-                                && int.TryParse(segments[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int rMax))
-                            {
-                                rMin = Math.Max(-10, Math.Min(30, rMin));
-                                rMax = Math.Max(-10, Math.Min(30, rMax));
-                                _perResourceRanges[rKey] = (rMin, rMax);
-                            }
+                            int rMin = Math.Max(-10, Math.Min(30, kvp.Value.min));
+                            int rMax = Math.Max(-10, Math.Min(30, kvp.Value.max));
+                            _perResourceRanges[rKey] = (rMin, rMax);
                         }
                     }
                 }

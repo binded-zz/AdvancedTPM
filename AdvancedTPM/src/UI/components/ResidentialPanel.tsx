@@ -48,7 +48,7 @@ interface ResidentialBuilding {
   themeIcon: string;
   pack: string;
   packIcon: string;
-  isSignature: number;
+  isSignature: boolean;
   cityEffects: string;
   localEffects: string;
   attractiveness: number;
@@ -219,7 +219,7 @@ const getResidentialRowTooltip = (b: ResidentialBuilding, data: ResidentialData)
     <span style={{ display: 'block', fontWeight: 700, color: '#ffb74d', marginTop: '4rem' }}>True Happiness: {happyVal}%</span>,
     <span style={{ display: 'block', fontSize: '10rem', color: 'rgba(255,255,255,0.6)' }}>City Avg: {cityAvgHappiness}%</span>
   ];
-  if (b.isSignature === 1) {
+  if (b.isSignature) {
     lines.push(<span style={{ display: 'block', fontSize: '10rem', color: '#f0c040', fontWeight: 'bold', marginTop: '2rem' }}>★ Signature Building</span>);
   }
   lines.push(<span style={{ display: 'block', fontSize: '9rem', color: '#50b8e9', fontStyle: 'italic', marginTop: '4rem' }}>Click row to expand details</span>);
@@ -378,6 +378,7 @@ const ResidentialPanel: React.FC<{
     // Add defaults
     if (!map.has('European')) map.set('European', 'Media/Game/Icons/ThemeEuropean.svg');
     if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'Media/Game/Icons/ThemeNorthAmerican.svg');
+    if (!map.has('North American')) map.set('North American', 'Media/Game/Icons/ThemeNorthAmerican.svg');
     if (!map.has('EU')) map.set('EU', 'Media/Game/Icons/ThemeEuropean.svg');
     if (!map.has('USA')) map.set('USA', 'Media/Game/Icons/ThemeNorthAmerican.svg');
     return map;
@@ -424,7 +425,7 @@ const ResidentialPanel: React.FC<{
     if (districtFilter !== 'All') list = list.filter((b) => String(b.district || 'City').trim() === districtFilter.trim());
     if (assetPackFilter !== 'All') list = list.filter((b) => String(b.pack || 'Base Game').trim() === assetPackFilter.trim());
     if (levelFilter !== 'All') list = list.filter((b) => String(b.level || 0).trim() === levelFilter.trim());
-    if (showSignatureOnly) list = list.filter((b) => b.isSignature === 1);
+    if (showSignatureOnly) list = list.filter((b) => b.isSignature);
 
     if (occupancyStateFilter !== 'All') {
       list = list.filter((b) => {
@@ -542,7 +543,7 @@ const ResidentialPanel: React.FC<{
         b.capacity || 0,
         occPct,
         getBuildingHappiness(b),
-        b.isSignature === 1 ? 'Yes' : 'No',
+        b.isSignature ? 'Yes' : 'No',
       ].join(',');
     });
 
@@ -764,7 +765,7 @@ const ResidentialPanel: React.FC<{
                         }}>
                         <div className="res-bcol-address">
                             <span className="panel-expand-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-                            {b.isSignature === 1 && <span className="res-signature-badge">★</span>}
+                            {b.isSignature && <span className="res-signature-badge">★</span>}
                             <img className="res-row-icon" src={RESIDENTIAL_ICON} alt="" />
                             {b.address}
                          </div>
@@ -824,7 +825,7 @@ const ResidentialPanel: React.FC<{
                               <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Pack" value={<span style={{ display: 'flex', alignItems: 'center' }}><PackIcon pack={b.pack} iconUrl={b.packIcon} size={20} style={{ marginRight: '6rem' }} />{b.pack || 'Base Game'}</span>} />
                               <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Level" value={`Lv ${b.level}`} />
                               <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Occupancy" value={`${b.occupied} / ${b.capacity || 0} (${occPct}%)`} />
-                              <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Signature" value={b.isSignature === 1 ? 'Yes' : 'No'} />
+                              <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Signature" value={b.isSignature ? 'Yes' : 'No'} />
                               {b.attractiveness ? <DetailRow className="panel-detail-row" labelClassName="panel-detail-row-label" valueClassName="panel-detail-row-value" label="Attractiveness" value={b.attractiveness} color="#3fc9d8" /> : null}
                               {b.attractivenessFactors && b.attractivenessFactors.split('|').map((factor, idx) => {
                                 const parts = factor.split(':');

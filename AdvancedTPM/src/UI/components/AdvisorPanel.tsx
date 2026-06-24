@@ -52,84 +52,138 @@ interface AdvisorPanelProps {
   onSetAggressiveness: (level: number) => void;
 }
 
-/** Parse advisor data: totalSamples|activeProfiles|profileData|recommendationData */
+/** Parse advisor data: JSON.parse or fallback to legacy format */
 const parseAdvisorData = (data: string): { profiles: LearningProfile[]; recommendations: AdvisorRec[] } => {
   const result = { profiles: [] as LearningProfile[], recommendations: [] as AdvisorRec[] };
   if (!data) return result;
 
-  const parts = data.split('|');
-  if (parts.length < 4) return result;
+  try {
+    const raw = JSON.parse(data);
+    if (raw && Array.isArray(raw.profiles)) {
+      result.profiles = raw.profiles.map((p: any) => ({
+        key: p.key || '',
+        sensitivity: typeof p.sensitivity === 'number' ? p.sensitivity : 0,
+        incomeResponse: typeof p.incomeResponse === 'number' ? p.incomeResponse : 0,
+        companyResponse: typeof p.companyResponse === 'number' ? p.companyResponse : 0,
+        confidence: typeof p.confidence === 'number' ? p.confidence : 0,
+        sampleCount: typeof p.sampleCount === 'number' ? p.sampleCount : 0,
+        avgOutcome: typeof p.avgOutcome === 'number' ? p.avgOutcome : 0,
+        productionResponse: typeof p.productionResponse === 'number' ? p.productionResponse : 0,
+        revenueEfficiency: typeof p.revenueEfficiency === 'number' ? p.revenueEfficiency : 0,
+        volatility: typeof p.volatility === 'number' ? p.volatility : 0,
+      }));
+    }
+    if (raw && Array.isArray(raw.recommendations)) {
+      result.recommendations = raw.recommendations.map((r: any) => ({
+        key: r.key || '',
+        direction: typeof r.direction === 'number' ? r.direction : 0,
+        currentRate: typeof r.currentRate === 'number' ? r.currentRate : 0,
+        confidence: typeof r.confidence === 'number' ? r.confidence : 0,
+        reason: r.reason || '',
+      }));
+    }
+    return result;
+  } catch (e) {
+    const parts = data.split('|');
+    if (parts.length < 4) return result;
 
-  // Parse profiles (slot 2): key=sens:income:company:confidence:samples:avgOutcome:prodResp:revEff:volatility,...
-  if (parts[2]) {
-    parts[2].split(',').forEach((entry) => {
-      const [key, rest] = entry.split('=');
-      if (key && rest) {
-        const f = rest.split(':');
-        result.profiles.push({
-          key,
-          sensitivity: Number(f[0]) || 0,
-          incomeResponse: Number(f[1]) || 0,
-          companyResponse: Number(f[2]) || 0,
-          confidence: Number(f[3]) || 0,
-          sampleCount: Number(f[4]) || 0,
-          avgOutcome: Number(f[5]) || 0,
-          productionResponse: Number(f[6]) || 0,
-          revenueEfficiency: Number(f[7]) || 0,
-          volatility: Number(f[8]) || 0,
-        });
-      }
-    });
+    if (parts[2]) {
+      parts[2].split(',').forEach((entry) => {
+        const [key, rest] = entry.split('=');
+        if (key && rest) {
+          const f = rest.split(':');
+          result.profiles.push({
+            key,
+            sensitivity: Number(f[0]) || 0,
+            incomeResponse: Number(f[1]) || 0,
+            companyResponse: Number(f[2]) || 0,
+            confidence: Number(f[3]) || 0,
+            sampleCount: Number(f[4]) || 0,
+            avgOutcome: Number(f[5]) || 0,
+            productionResponse: Number(f[6]) || 0,
+            revenueEfficiency: Number(f[7]) || 0,
+            volatility: Number(f[8]) || 0,
+          });
+        }
+      });
+    }
+
+    if (parts[3]) {
+      parts[3].split(',').forEach((entry) => {
+        const [key, rest] = entry.split('=');
+        if (key && rest) {
+          const f = rest.split(':');
+          result.recommendations.push({
+            key,
+            direction: Number(f[0]) || 0,
+            currentRate: Number(f[1]) || 0,
+            confidence: Number(f[2]) || 0,
+            reason: f.slice(3).join(':') || '',
+          });
+        }
+      });
+    }
+    return result;
   }
-
-  // Parse recommendations (slot 3): key=direction:currentRate:confidence:reason,...
-  if (parts[3]) {
-    parts[3].split(',').forEach((entry) => {
-      const [key, rest] = entry.split('=');
-      if (key && rest) {
-        const f = rest.split(':');
-        result.recommendations.push({
-          key,
-          direction: Number(f[0]) || 0,
-          currentRate: Number(f[1]) || 0,
-          confidence: Number(f[2]) || 0,
-          reason: f.slice(3).join(':') || '',
-        });
-      }
-    });
-  }
-
-  return result;
 };
 
-/** Parse decision log: key:oldRate:newRate:outcomeScore:confidence:summary|... */
+/** Parse decision log: JSON.parse or fallback to legacy format */
 const parseDecisionLog = (data: string): DecisionEntry[] => {
   if (!data) return [];
-  return data.split('|').map((entry) => {
-    const f = entry.split(':');
-    return {
-      key: f[0] || '',
-      oldRate: Number(f[1]) || 0,
-      newRate: Number(f[2]) || 0,
-      outcomeScore: Number(f[3]) || 0,
-      confidence: Number(f[4]) || 0,
-      summary: f.slice(5).join(':') || '',
-    };
-  }).filter((d) => d.key);
+  try {
+    const raw = JSON.parse(data);
+    if (Array.isArray(raw)) {
+      return raw.map((d: any) => ({
+        key: d.key || '',
+        oldRate: typeof d.oldRate === 'number' ? d.oldRate : 0,
+        newRate: typeof d.newRate === 'number' ? d.newRate : 0,
+        outcomeScore: typeof d.outcomeScore === 'number' ? d.outcomeScore : 0,
+        confidence: typeof d.confidence === 'number' ? d.confidence : 0,
+        summary: d.summary || '',
+      })).filter((d) => d.key);
+    }
+  } catch (e) {
+    return data.split('|').map((entry) => {
+      const f = entry.split(':');
+      return {
+        key: f[0] || '',
+        oldRate: Number(f[1]) || 0,
+        newRate: Number(f[2]) || 0,
+        outcomeScore: Number(f[3]) || 0,
+        confidence: Number(f[4]) || 0,
+        summary: f.slice(5).join(':') || '',
+      };
+    }).filter((d) => d.key);
+  }
+  return [];
 };
 
-/** Parse learning stats: pending|snapshots|totalSamples|avgConfidence|aggressiveness */
+/** Parse learning stats: JSON.parse or fallback to legacy format */
 const parseLearningStats = (data: string): LearningStats => {
   const defaults: LearningStats = { pendingEvents: 0, snapshots: 0, totalSamples: 0, avgConfidence: 0, aggressiveness: 3 };
   if (!data) return defaults;
-  const parts = data.split('|');
-  return {
-    pendingEvents: Number(parts[0]) || 0,
-    snapshots: Number(parts[1]) || 0,
-    totalSamples: Number(parts[2]) || 0,
-    avgConfidence: Number(parts[3]) || 0,
-    aggressiveness: Number(parts[4]) || 3,
-  };
+  try {
+    const raw = JSON.parse(data);
+    if (raw) {
+      return {
+        pendingEvents: typeof raw.pendingEvents === 'number' ? raw.pendingEvents : 0,
+        snapshots: typeof raw.snapshots === 'number' ? raw.snapshots : 0,
+        totalSamples: typeof raw.totalSamples === 'number' ? raw.totalSamples : 0,
+        avgConfidence: typeof raw.avgConfidence === 'number' ? raw.avgConfidence : 0,
+        aggressiveness: typeof raw.aggressiveness === 'number' ? raw.aggressiveness : 3,
+      };
+    }
+  } catch (e) {
+    const parts = data.split('|');
+    return {
+      pendingEvents: Number(parts[0]) || 0,
+      snapshots: Number(parts[1]) || 0,
+      totalSamples: Number(parts[2]) || 0,
+      avgConfidence: Number(parts[3]) || 0,
+      aggressiveness: Number(parts[4]) || 3,
+    };
+  }
+  return defaults;
 };
 
 const getResourceLabel = (key: string): string => {

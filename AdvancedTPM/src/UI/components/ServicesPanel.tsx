@@ -250,6 +250,7 @@ const ServicesPanel: React.FC<{
      // Add defaults
      if (!map.has('European')) map.set('European', 'Media/Game/Icons/ThemeEuropean.svg');
      if (!map.has('NorthAmerican')) map.set('NorthAmerican', 'Media/Game/Icons/ThemeNorthAmerican.svg');
+     if (!map.has('North American')) map.set('North American', 'Media/Game/Icons/ThemeNorthAmerican.svg');
      if (!map.has('EU')) map.set('EU', 'Media/Game/Icons/ThemeEuropean.svg');
      if (!map.has('USA')) map.set('USA', 'Media/Game/Icons/ThemeNorthAmerican.svg');
      return map;

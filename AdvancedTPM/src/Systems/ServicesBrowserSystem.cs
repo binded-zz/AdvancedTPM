@@ -601,10 +601,7 @@ namespace AdvancedTPM
             }
             finally { entities.Dispose(); }
 
-            var payload = JsonConvert.SerializeObject(list, new JsonSerializerSettings 
-            { 
-                ContractResolver = new CamelCasePropertyNamesContractResolver() 
-            });
+            var payload = JsonConvert.SerializeObject(list, Mod.CamelCaseSettings);
             if (payload != m_LastServicesBuildingsData || forceUpdate)
             {
                 _servicesBuildingsData.Update(payload);
