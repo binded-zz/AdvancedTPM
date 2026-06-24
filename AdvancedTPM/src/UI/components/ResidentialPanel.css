@@ -78,7 +78,7 @@
 .res-bcol-assetpack { width:160rem; flex-shrink:0; font-size:12rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .res-bcol-occupied  { width:80rem; flex-shrink:0; text-align:right; }
 .res-bcol-capacity  { width:80rem; flex-shrink:0; text-align:right; }
-.res-bcol-occupancy { width:60rem; flex-shrink:0; text-align:right; white-space:nowrap; }
+.res-bcol-occupancy { width:80rem; flex-shrink:0; text-align:right; white-space:nowrap; }
 .res-bcol-happy     { width:60rem; flex-shrink:0; text-align:right; }
 .res-bcol-action    { width:40rem; flex-shrink:0; text-align:center; }
 

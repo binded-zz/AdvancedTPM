@@ -4,7 +4,7 @@ export const ICONS = {
   THEME_NORTH_AMERICAN: 'Media/Game/Themes/North American.svg',
 
   // Pack Fallback Icons
-  PACK_PARADOX_STAR: 'coui://ui-game/Media/Menu/ParadoxLogoNoText.svg',
+  PACK_PARADOX_STAR: 'coui://ui-game/Media/Menu/Paradox/ParadoxLogoNoText.svg',
 
   // Zone Icons
   ZONE_RESIDENTIAL: 'Media/Game/Icons/ZoneResidential.svg',
